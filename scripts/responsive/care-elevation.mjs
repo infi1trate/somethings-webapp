@@ -19,6 +19,12 @@
 //  12  (Phase 3) While you're with them: one Support door, the supervisor's
 //      echo, Ava's nudges (never clinical, never sent, never stored), the
 //      steadying line
+//  13  (Phase 4) the close arc: the only toast, Overview, the tier cell's
+//      arrival — and the mentor's same toast, once
+//  14  (Phase 4) a sent assessment question's corner glyph opens the
+//      assessment; a nudge carries no origin
+//  15  (Phase 4) History: date groups, one row anatomy, the compressed card
+//      (no arrows), two-line clamps — on both hosts
 //
 // Exit codes: 0 all passed · 1 a check failed.
 
@@ -50,7 +56,7 @@ async function open(path, { persona = "mentor", chat = "active-mentorship", extr
   const page = await ctx.newPage();
   await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1200);
-  if (!(await page.locator("[data-care-panel]").count())) {
+  if (path.startsWith("/app/chat") && !(await page.locator("[data-care-panel]").count())) {
     await page.locator('[data-rail-tab="care"]').click();
     await page.waitForTimeout(300);
   }
@@ -129,7 +135,8 @@ const measure = (page) =>
       notifiedInBanner: banner ? /notified/i.test(banner.textContent) : null,
       presence: document.querySelectorAll("[data-hero-presence]").length,
       strip: document.querySelectorAll("[data-rail-presence]").length,
-      recent: document.querySelectorAll("[data-care-recent] [data-tier-history] > *").length,
+      /* Top-level history rows only — an escalation card's own audit rows are inside it. */
+      recent: [...document.querySelectorAll("[data-care-recent] [data-history-row]")].filter((r) => !r.parentElement.closest("[data-history-row]")).length,
     };
   });
 
@@ -355,6 +362,117 @@ const timeline = (page) =>
   const sub = await page.evaluate(() => [...document.querySelectorAll("[data-node-sub]")].map((s) => s.textContent.trim()));
   check(t.cut.length === 0 && t.variant === "action" && t.pulse, "a supervisor's note step is an ACTION node, and nothing is ellipsised", JSON.stringify({ cut: t.cut, v: t.variant }));
   check(sub.length >= 1, "a completed note section states its summary on a second line, whole", sub.join(" | "));
+  await ctx.close();
+}
+
+// ── 13–15 · THE CLOSE ARC, THE GLYPH, HISTORY (Phase 4) ────────────────────
+console.log("\n── 4 · the close arc, the glyph, History (Phase 4)");
+const toasts = (page) => page.evaluate(() => [...document.querySelectorAll("[data-sonner-toast]")].map((t) => t.textContent.trim()));
+let assessed;
+{
+  /* The mentor asks Q3 in chat and sends it; answers no; submits. */
+  const { ctx, page } = await open("/app/chat/t13", { chat: "escalation-active" });
+  for (let i = 0; i < 2; i++) { await page.locator('[data-yes-no$=":no"]').first().click(); await page.waitForTimeout(120); }
+  const q = await page.evaluate(() => document.querySelector("[data-assessment-active]")?.dataset.assessmentActive);
+  await page.locator("[data-assessment-wording]").click();
+  await page.waitForTimeout(200);
+  await page.locator('[data-slot="composer"] textarea').focus();
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(400);
+  const glyph = await page.evaluate((q) => { const g = document.querySelector(`[data-asked-from-assessment="${q}"]`); return g ? { name: g.textContent.trim(), tag: g.tagName, w: g.getBoundingClientRect().width } : null; }, q);
+  const rec = await page.evaluate((k) => (JSON.parse(localStorage.getItem(k)).state.chatMessages.t13 ?? []).at(-1), KEY);
+  check(!!glyph && glyph.tag === "BUTTON" && /^Assessment question \d — open the assessment$/.test(glyph.name), "a sent assessment question wears the corner glyph — a named button", JSON.stringify(glyph));
+  check(rec?.origin?.kind === "assessment" && rec.origin.questionId === q, "the sent line carries its origin on the record, append-only", JSON.stringify(rec?.origin));
+  await page.locator('[data-rail-tab="assist"]').click();
+  await page.waitForTimeout(200);
+  await page.locator(`[data-asked-from-assessment="${q}"]`).click();
+  await page.waitForTimeout(400);
+  const back = await page.evaluate(() => ({ rail: document.querySelector('[data-rail-tab][aria-selected="true"]')?.dataset.railTab, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, node: !!document.querySelector('[data-node="assessment"]') }));
+  check(back.rail === "care" && back.tab === "overview" && back.node, "the glyph opens the assessment: Care, Overview, its node", JSON.stringify(back));
+  for (let i = 0; i < 8; i++) { const no = page.locator('[data-yes-no$=":no"]').first(); if (!(await no.count())) break; await no.click(); await page.waitForTimeout(120); }
+  await page.locator('[data-exchange-field="mentor-summary"]').fill("Probe: talking, no plan.");
+  await page.locator('[data-exchange-primary="submit-assessment"]').click();
+  await page.waitForTimeout(500);
+  /* A nudge, sent: no origin, no glyph. */
+  await page.locator('[data-nudge="here"]').click();
+  await page.locator('[data-slot="composer"] textarea').focus();
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(400);
+  const nudged = await page.evaluate((k) => (JSON.parse(localStorage.getItem(k)).state.chatMessages.t13 ?? []).at(-1), KEY);
+  check(/still here with you/.test(nudged?.text ?? "") && !nudged.origin, "a sent nudge is the mentor's own line — no origin", JSON.stringify({ t: nudged?.text?.slice(0, 24), o: nudged?.origin }));
+  check((await toasts(page)).length === 0, "no toast anywhere before a close", (await toasts(page)).join(" | "));
+  assessed = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)).state, KEY);
+  await ctx.close();
+}
+let closed;
+{
+  /* The supervisor adjusts to Tier 3 at S1 — a standard tier update closes it. */
+  const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active", extra: { escalations: assessed.escalations, tierEvents: assessed.tierEvents, chatMessages: assessed.chatMessages } });
+  await page.locator('[data-s1-tier="3"]').click();
+  await page.locator('[data-exchange-primary="confirm-tier"]').click();
+  await page.waitForTimeout(350);
+  const t = await toasts(page);
+  const arc = await page.evaluate(() => ({ state: document.querySelector("[data-care-panel]")?.dataset.careState, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, arriving: !!document.querySelector("[data-tier-cell].tier-cell-arrive"), tier: document.querySelector("[data-tier-cell]")?.dataset.tier }));
+  check(t.length === 1 && t[0] === "Escalation closed · Jordan moves to Tier 3 Medium risk", "close: ONE toast, the pack's words", t.join(" | "));
+  check(arc.state === "steady" && arc.tab === "overview" && arc.tier === "3", "the panel settles on Overview, steady, at Tier 3", JSON.stringify(arc));
+  check(arc.arriving, "and the tier cell arrives — one beat", JSON.stringify(arc));
+  await page.screenshot({ path: `${OUT}/05-close-arc.png` });
+  await page.waitForTimeout(1800);
+  check(!(await page.evaluate(() => !!document.querySelector("[data-tier-cell].tier-cell-arrive"))), "…and settles: the highlight is gone after the beat");
+  closed = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)).state, KEY);
+  await ctx.close();
+}
+{
+  /* The mentor reads the closed summary: the same toast, once. */
+  const { ctx, page } = await open("/app/chat/t13", { chat: "escalation-active", extra: { escalations: closed.escalations, tierEvents: closed.tierEvents, escalationHistory: closed.escalationHistory, chatMessages: closed.chatMessages } });
+  const t = await toasts(page);
+  check(t.length === 1 && t[0] === "Escalation closed · Jordan moves to Tier 3 Medium risk", "the mentor gets the same toast, on first seeing the summary", t.join(" | "));
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(1400);
+  check((await toasts(page)).length === 0, "and never again for this escalation", (await toasts(page)).join(" | "));
+  await ctx.close();
+}
+{
+  /* HISTORY, chat host: Imani (t21) carries a closed escalation with history. */
+  const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-tier2" });
+  await page.locator('[data-care-tab="history"]').click();
+  await page.waitForTimeout(250);
+  const h = await page.evaluate(() => {
+    const root = document.querySelector("[data-care-tabpanel] [data-tier-history]");
+    const rows = [...(root?.querySelectorAll("[data-history-row]") ?? [])].filter((r) => !r.parentElement.closest("[data-history-row]"));
+    return {
+      days: [...(root?.querySelectorAll("[data-history-day]") ?? [])].map((d) => d.dataset.historyDay),
+      rows: rows.length,
+      gutters: [...new Set(rows.map((r) => Math.round(r.querySelector("[data-history-time]").getBoundingClientRect().right)))].length,
+      times: rows.map((r) => r.querySelector("[data-history-time]").textContent.trim()),
+      arrows: /→/.test(root?.textContent ?? ""),
+      stages: root?.querySelector("[data-story-stages]")?.textContent ?? null,
+    };
+  });
+  check(h.days.length >= 1 && h.days.every((d) => /^(Today|Yesterday|[A-Z][a-z]{2} \d{1,2}(, \d{4})?)$/.test(d)), "History is grouped by day: Today · Yesterday · Oct 7", h.days.join(" · "));
+  check(h.rows >= 2 && h.gutters === 1 && h.times.every((t) => /^\d{1,2}:\d{2} [AP]M$/.test(t)), "one row anatomy: one gutter column, the time only (the header holds the day)", JSON.stringify({ g: h.gutters, t: h.times }));
+  check(!h.arrows, "the arrow chain is retired", String(h.stages));
+  await ctx.close();
+}
+{
+  /* HISTORY, record host — the same component, the same anatomy; and a long
+     reason clamps to two lines with Show more. */
+  const LONG = "Probe: placed after a long conversation with the family about the move, the new school, and how the weekends have been going since the summer — a reason long enough to clamp.";
+  const BR = { id: "s-brandy", name: "Brandy", role: "supervisor" };
+  const { ctx, page } = await open("/admin/person/t21?tab=care", { persona: "supervisor", extra: { tierEvents: [{ id: "probe-long", teenId: "t21", at: Date.now() - 2 * 3600e3, kind: "placed", tier: 3, fromTier: 2, actor: BR, reason: LONG }] } });
+  const r = await page.evaluate(() => {
+    const root = document.querySelector("[data-record-tier-history] [data-tier-history]");
+    const row = root?.querySelector('[data-history-entry="placed"]');
+    const reason = row?.querySelector("[data-history-reason]");
+    const lh = reason ? parseFloat(getComputedStyle(reason).lineHeight) : 0;
+    return { days: root?.querySelectorAll("[data-history-day]").length ?? 0, clamp: reason ? getComputedStyle(reason).webkitLineClamp : null, lines: reason ? Math.round(reason.getBoundingClientRect().height / lh) : 0, more: !!row?.querySelector("[data-history-more]"), story: !!root?.querySelector("[data-escalation-story] [data-story-stages]"), arrows: /→/.test(root?.textContent ?? "") };
+  });
+  check(r.days >= 1 && r.story && !r.arrows, "the record renders the same grouped History and the same compressed card", JSON.stringify(r));
+  check(r.clamp === "2" && r.lines <= 2 && r.more, "a long Placed reason clamps to two lines, with Show more", JSON.stringify(r));
+  await page.locator('[data-history-entry="placed"] [data-history-more]').first().click();
+  const open2 = await page.evaluate(() => { const x = document.querySelector('[data-history-entry="placed"] [data-history-reason]'); return { clamp: getComputedStyle(x).webkitLineClamp, label: document.querySelector('[data-history-entry="placed"] [data-history-more]')?.textContent.trim() }; });
+  check(open2.clamp === "none" && open2.label === "Show less", "Show more reveals the whole reason", JSON.stringify(open2));
+  await page.screenshot({ path: `${OUT}/06-record-history.png` });
   await ctx.close();
 }
 

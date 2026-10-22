@@ -23,17 +23,19 @@
 // (coaching is the Support thread — Supersession 2), and the pinned
 // Emergency information button (Supersession 5).
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { ArrowRight, Check, ChevronDown, Lock, Sparkles } from "lucide-react";
+import { announceClose } from "@/components/chat/escalation/close-toast";
 import { Quote } from "@/components/chat/escalation/quote";
 import { WaitingModule, type SupervisorEcho } from "@/components/chat/escalation/waiting-module";
 import { RequestedChip } from "@/components/tiering/requested-chip";
 import { TierLozenge } from "@/components/ui/tier-lozenge";
-import type { EscalationState } from "@/lib/chat/types";
+import type { EscalationState, MessageOrigin } from "@/lib/chat/types";
 import { REFERRAL_TYPE } from "@/lib/record/people-demo";
 import {
   ASSESSMENT_QUESTIONS,
   CLINICAL_SUBTYPES,
+  CLOSE_OUT_TIER,
   CLOSE_OUT_TIER_COPY,
   CRISIS_SECTION_LABEL,
   CRISIS_TAGS,
@@ -593,7 +595,7 @@ function Node({
 
 // ── THE ASSESSMENT (mentor's current node) ─────────────────────────────────
 
-function AssessmentCard({ e, name, onAnswer, onUseWording, tiering, teenId }: { e: EscalationState; name: string; onAnswer: (id: string, v: "yes" | "no") => void; onUseWording: (t: string) => void; tiering: Tiering; teenId: string }) {
+function AssessmentCard({ e, name, onAnswer, onUseWording, tiering, teenId }: { e: EscalationState; name: string; onAnswer: (id: string, v: "yes" | "no") => void; onUseWording: (t: string, origin?: MessageOrigin) => void; tiering: Tiering; teenId: string }) {
   const answers = assessmentOf(e).answers;
   const steps = askedSteps(answers);
   const active = activeStep(answers);
@@ -644,7 +646,7 @@ function AssessmentCard({ e, name, onAnswer, onUseWording, tiering, teenId }: { 
               <button
                 type="button"
                 data-assessment-wording={active.id}
-                onClick={() => onUseWording(active.text)}
+                onClick={() => onUseWording(active.text, { kind: "assessment", questionId: active.id })}
                 className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3.5 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
                 style={BODY}
               >
@@ -821,7 +823,10 @@ function ConfirmCard({ e, name, tiering, teenId, onSettled }: { e: EscalationSta
         onClick={() => {
           setTried(true);
           if (tier === null || !reason.trim()) return;
-          if (tiering.confirm(teenId, tier, reason) && tier >= 3) onSettled?.();
+          if (tiering.confirm(teenId, tier, reason) && tier >= 3) {
+            announceClose(e.id, name, tier);
+            onSettled?.();
+          }
         }}
       >
         {/* TODO-COPY */}
@@ -831,7 +836,7 @@ function ConfirmCard({ e, name, tiering, teenId, onSettled }: { e: EscalationSta
   );
 }
 
-function ReviewCard({ tiering, teenId, onSettled }: { tiering: Tiering; teenId: string; onSettled?: () => void }) {
+function ReviewCard({ e, name, tiering, teenId, onSettled }: { e: EscalationState; name: string; tiering: Tiering; teenId: string; onSettled?: () => void }) {
   const [reason, setReason] = useState("");
   const [tried, setTried] = useState(false);
   return (
@@ -843,6 +848,7 @@ function ReviewCard({ tiering, teenId, onSettled }: { tiering: Tiering; teenId: 
           setTried(true);
           if (!reason.trim()) return;
           tiering.closeReviewed(teenId, reason);
+          announceClose(e.id, name, null);
           onSettled?.();
         }}
       >
@@ -1095,7 +1101,10 @@ function CloseCard({ e, name, tiering, teenId, onSettled }: { e: EscalationState
       <Primary
         slot="close-escalation"
         onClick={() => {
-          if (tiering.close(teenId, { followUpDays: days, reason: `Crisis note filed. ${outcome}`.trim() })) onSettled?.();
+          if (tiering.close(teenId, { followUpDays: days, reason: `Crisis note filed. ${outcome}`.trim() })) {
+            announceClose(e.id, name, CLOSE_OUT_TIER);
+            onSettled?.();
+          }
         }}
       >
         {/* TODO-COPY */}
@@ -1141,7 +1150,7 @@ export function EscalationExchange({
   supervisorName: string;
   /** How the supervisor lens names the mentor, for the Support link. */
   mentorName: string;
-  onUseWording: (text: string) => void;
+  onUseWording: (text: string, origin?: MessageOrigin) => void;
   teenLines: string[];
   mentorLines: string[];
   /** ═══ THE HOST KEEPS CARE IN FRONT ═══ Called when this panel ends its
@@ -1161,6 +1170,13 @@ export function EscalationExchange({
   const stage = lens === "mentor" ? mentorStage(e, state) : supervisorStage(e);
   const nodes = orderNodes(timelineNodes(e, state, lens));
   const open = e.resolvedAt === null;
+  /* ═══ THE MENTOR'S CLOSE TOAST (Workstream F1) ═══ The same toast the
+     supervisor saw, once, the first time this lens shows the closed summary.
+     An effect because "shown" is the event; it writes no React state. */
+  const closedTier = lens === "mentor" && stage === "M4" ? state.tier : undefined;
+  useEffect(() => {
+    if (closedTier !== undefined) announceClose(e.id, name, closedTier);
+  }, [closedTier, e.id, name]);
   const target = escalationTarget(e);
   const saveNote = (patch: Partial<CrisisNote>) => tiering.saveCrisisNote(teenId, patch);
 
@@ -1222,7 +1238,7 @@ export function EscalationExchange({
           />
         );
       case "review":
-        return <ReviewCard tiering={tiering} teenId={teenId} onSettled={onSettled} />;
+        return <ReviewCard e={e} name={name} tiering={tiering} teenId={teenId} onSettled={onSettled} />;
       case "confirm":
         return <ConfirmCard e={e} name={name} tiering={tiering} teenId={teenId} onSettled={onSettled} />;
       case "note":

@@ -578,8 +578,11 @@ console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 e
   await page.locator('[data-care-tab="history"]').click();
   await page.waitForTimeout(200);
   const story = await page.evaluate(() => document.querySelector("[data-escalation-story]")?.innerText.replace(/\s+/g, " "));
-  check(/Raised .+→ assessed \(high risk\) → Tier 1 confirmed → mobile crisis responded → stepped down to Tier 3/.test(story ?? ""), "History tells the whole escalation in one line", story?.slice(0, 120));
-  await page.locator("[data-escalation-story] > button").click();
+  /* RETARGETED (pack v4.0, Workstream E): the arrow chain is retired — a
+     lozenge title row and ONE interpuncted stage line. */
+  const stages = await page.evaluate(() => document.querySelector("[data-escalation-story] [data-story-stages]")?.textContent ?? "");
+  check(/Escalation · closed/.test(story ?? "") && stages === "Assessed · High risk · Tier 1 confirmed · Mobile crisis responded · Stepped down to Tier 3" && !/→/.test(story ?? ""), "History tells the whole escalation in one interpuncted line — no arrows", stages);
+  await page.locator("[data-escalation-story] button[aria-expanded]").first().click();
   await page.waitForTimeout(150);
   const entries = await page.evaluate(() => [...document.querySelectorAll("[data-story-entries] [data-audit-lozenge]")].map((l) => l.textContent));
   check(["Raised", "Assessed", "Confirmed", "Crisis note", "Outcome", "Closed", "Stepped down", "Follow-up"].every((k) => entries.includes(k)) && !entries.includes("Guidance"), "expanded: every entry, each with its lozenge — and no Guidance", entries.join(" · "));
@@ -711,7 +714,7 @@ for (const [persona, expect] of [["mentor", ["escalate", "request-step-down"]], 
 {
   const { ctx, page } = await open("/admin/person/t21?tab=care", { persona: "supervisor" });
   const h = await page.evaluate(() => ({ section: !!document.querySelector("[data-record-tier-history]"), story: document.querySelector("[data-record-tier-history] [data-escalation-story]")?.innerText.replace(/\s+/g, " ") }));
-  check(h.section && /assessed \(.+\) → Tier 1 confirmed → .+ → stepped down to Tier 2/.test(h.story ?? ""), "closed-with-history: the record carries Imani's Friday crisis as one story", h.story?.slice(0, 120));
+  check(h.section && /Assessed · .+ · Tier 1 confirmed · .+ · Stepped down to Tier 2/.test(h.story ?? "") && !/→/.test(h.story ?? ""), "closed-with-history: the record carries Imani's Friday crisis as one story — the same card", h.story?.slice(0, 160));
   await page.screenshot({ path: `${OUT}/05-record-care-history.png` });
   await ctx.close();
 }

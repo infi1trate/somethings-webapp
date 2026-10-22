@@ -43,7 +43,7 @@ import { TeenStatusCard } from "@/components/chat/rail/teen-status-card";
 import { EmergencyInfoPanel } from "@/components/chat/escalation/crisis-view";
 import { RaiseFlow } from "@/components/tiering/raise-flow";
 import { TierHistory } from "@/components/tiering/tier-history";
-import type { EmergencyInfo, EscalationState } from "@/lib/chat/types";
+import type { EmergencyInfo, EscalationState, MessageOrigin } from "@/lib/chat/types";
 import type { Tiering } from "@/lib/tiering/use-tiering";
 import type { RaiseTarget } from "@/lib/tiering/tiers";
 import { cn } from "@/lib/utils";
@@ -203,7 +203,7 @@ export function CarePanel({
   onStartRaise: () => void;
   onCancelRaise: () => void;
   onConfirmRaise: (input: { target: RaiseTarget; note: string }) => void;
-  onUseWording: (text: string) => void;
+  onUseWording: (text: string, origin?: MessageOrigin) => void;
   onUpdateTier: () => void;
   onRequestStepDown: () => void;
   supervisorName: string;
@@ -233,6 +233,7 @@ export function CarePanel({
       mentorName={observer ? tiering.liveMentorName || "The mentor" : "You"}
       emptyName={name}
       limit={limit}
+      now={now}
     />
   );
 
@@ -260,24 +261,21 @@ export function CarePanel({
       />
     ) : (
       // ── STEADY: the two most recent History rows (pack v4.0, F3) ──────────
-      <section data-care-recent aria-labelledby="care-recent-label" className="space-y-2">
-        <div className="flex items-baseline justify-between gap-2">
-          {/* TODO-COPY */}
-          <h3 id="care-recent-label" className="text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase">
-            Recent
-          </h3>
-          <button
-            type="button"
-            data-care-view-history
-            onClick={() => onTab("history")}
-            className={cn("inline-flex min-h-8 items-center rounded-sm text-[var(--text-primary)] underline underline-offset-2 hover:no-underline", RING)}
-            style={{ font: "var(--type-field-label)" }}
-          >
-            {/* TODO-COPY */}
-            View history →
-          </button>
-        </div>
+      /* The day headers are the section's labels — a "Recent" overline over
+         "Today" stacked two (measured), so the rows lead and the way to the
+         rest follows them. */
+      <section data-care-recent aria-label="Recent history" className="space-y-1">
         {history(2)}
+        <button
+          type="button"
+          data-care-view-history
+          onClick={() => onTab("history")}
+          className={cn("inline-flex min-h-8 items-center rounded-sm text-[var(--text-primary)] underline underline-offset-2 hover:no-underline", RING)}
+          style={{ font: "var(--type-field-label)" }}
+        >
+          {/* TODO-COPY */}
+          View history →
+        </button>
       </section>
     );
 

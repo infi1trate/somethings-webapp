@@ -88,6 +88,16 @@ export interface ChatMessage {
    *  audio in this prototype and a scrubber that cannot scrub is a lie. */
   durationSec?: number;
   reactions?: MessageReaction[];
+  /** ═══ WHERE A SENT LINE CAME FROM (pack v4.0, F2) ═══ An assessment
+   *  question the mentor put in the message box with "Ask in chat" and sent.
+   *  Written once at send, append-only like the message. Ava's nudges carry
+   *  NO origin — they are never recorded. */
+  origin?: MessageOrigin;
+}
+
+export interface MessageOrigin {
+  kind: "assessment";
+  questionId: string;
 }
 
 // ── Events ──────────────────────────────────────────────────────────────────

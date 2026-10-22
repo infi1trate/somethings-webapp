@@ -56,6 +56,7 @@ import type {
   ChatEvent,
   ChatMessage,
   ContextRef,
+  MessageOrigin,
   Note,
   SentArtifact,
   SentArtifactItem,
@@ -365,6 +366,8 @@ export function ChatPage({
   /** ═══ SUPPORT BESIDE THE HUB ═══ Open, the list collapses and the
    *  conversation and the hub split the canvas card 50/50; closed, the list
    *  returns (300 · flex · 360). The hub never unmounts either way. */
+  /** The teen whose tier cell is arriving after a close (one beat). */
+  const [arrived, setArrived] = useState<string | null>(null);
   const supportOpen = useSupportOpen();
   const supportThreadId = useSupportThread();
   const beside = supportOpen && !!thread;
@@ -435,7 +438,7 @@ export function ChatPage({
   };
   /** Text the assessment wants put in the composer. A one-shot value the composer
    *  consumes — see the Composer's `insert` prop. */
-  const [insert, setInsert] = useState<{ text: string; nonce: number } | null>(null);
+  const [insert, setInsert] = useState<{ text: string; nonce: number; origin?: MessageOrigin } | null>(null);
 
   /** Which tier dialog is up: a supervisor's update, a mentor's request. */
   const [tierDialog, setTierDialog] = useState<"update" | "step-down" | null>(null);
@@ -824,6 +827,13 @@ export function ChatPage({
                 nameActor={nameActor}
                 escalationAlert={!!escalation && isAlertTier(workingTier(escalation, tiering.stateFor(thread.id)))}
                 addedMoments={escalation ? Object.fromEntries((escalation.moments ?? []).map((m) => [m.messageId, m.note])) : undefined}
+                /* The corner glyph on a sent assessment question opens the
+                   assessment: Care, Overview, scrolled to its node. */
+                onOpenAssessment={() => {
+                  setRailTab("care");
+                  setCareTab("overview");
+                  window.requestAnimationFrame(() => document.querySelector('[data-node="assessment"]')?.scrollIntoView({ block: "nearest" }));
+                }}
                 /* ═══ SEND GOES SOMEWHERE (pack v3.0, Phase 0's confirmed bug) ═══
                    An observer has no composer, so no sender. */
                 onSend={
@@ -831,7 +841,12 @@ export function ChatPage({
                     ? undefined
                     : (text) => {
                         const at = Date.now();
-                        appendChatMessage({ id: `sent-${thread.id}-${at}`, threadId: thread.id, at, sender: "mentor", kind: "text", text });
+                        /* ═══ THE ORIGIN TAG (pack v4.0, F2) ═══ A line sent
+                           from "Ask in chat" is tagged with its question —
+                           while it still carries the question's words. Edited
+                           into something else, it is the mentor's own line. */
+                        const origin = insert?.origin && text.includes(insert.text.slice(0, 24)) ? insert.origin : undefined;
+                        appendChatMessage({ id: `sent-${thread.id}-${at}`, threadId: thread.id, at, sender: "mentor", kind: "text", text, ...(origin ? { origin } : {}) });
                       }
                 }
                 phone={teen?.phone ?? null}
@@ -1001,7 +1016,7 @@ export function ChatPage({
                   onStartRaise={() => raiseEscalation(null)}
                   onCancelRaise={() => setRaise(null)}
                   onConfirmRaise={confirmRaise}
-                  onUseWording={(text) => setInsert((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1 }))}
+                  onUseWording={(text, origin) => setInsert((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1, origin }))}
                   tab={careTab}
                   onTab={setCareTab}
                   dot={escalation ? (isAlertTier(workingTier(escalation, tiering.stateFor(thread.id))) ? "alert" : "neutral") : null}
@@ -1025,7 +1040,15 @@ export function ChatPage({
                   /* Closing (or leaving the wrap) ends the escalation the
                      default tab was following — pin Care so the person who
                      just acted sees the steady state and its history. */
-                  onSettled={() => setRailTab("care")}
+                  onSettled={() => {
+                    setRailTab("care");
+                    /* ═══ THE ARRIVAL (Supersession 6) ═══ The panel settles
+                       on Overview and the tier cell warms once. */
+                    setCareTab("overview");
+                    setArrived(thread.id);
+                    window.setTimeout(() => setArrived(null), 1600);
+                  }}
+                  highlightTier={arrived === thread.id}
                 />
               }
               assist={assist}

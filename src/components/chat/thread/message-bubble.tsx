@@ -23,11 +23,12 @@
 // is not shipped, so it would be a browser-synthesised fake (gap row 330). Nothing
 // in the thread design needs it.
 
-import { ListPlus, Mic } from "lucide-react";
+import { ClipboardList, ListPlus, Mic } from "lucide-react";
 import { MediaFrame } from "@/components/chat/thread/media-frame";
 import { MessageActions } from "@/components/chat/thread/message-actions";
 import type { ChatMessage, MessageReaction } from "@/lib/chat/types";
 import { startsCluster } from "@/lib/chat/clustering";
+import { ASSESSMENT_QUESTIONS } from "@/lib/tiering/escalation";
 import { cn } from "@/lib/utils";
 
 /** TODO-COPY. Clock time, which is what a reader wants INSIDE a conversation —
@@ -69,6 +70,7 @@ export function MessageBubble({
   onEscalate,
   onAddToEscalation,
   addedToEscalation,
+  onOpenAssessment,
 }: {
   message: ChatMessage;
   theirName: string;
@@ -86,8 +88,14 @@ export function MessageBubble({
    *  v3.0, make it magical 3: the thread and the record acknowledge each
    *  other). `undefined` when it is not. */
   addedToEscalation?: string;
+  /** Opens the assessment this line was asked from (F2). */
+  onOpenAssessment?: () => void;
 }) {
   const mine = message.sender === "mentor";
+  /* TODO-COPY. "Question 3" — a follow-up names its parent. */
+  const asked = message.origin?.kind === "assessment" ? message.origin.questionId : null;
+  const askedN = asked ? ASSESSMENT_QUESTIONS.findIndex((q) => q.id === asked.replace(/b$/, "")) + 1 : 0;
+  const askedLabel = asked ? `Assessment question ${askedN}${asked.endsWith("b") ? ", follow-up" : ""}` : "";
   /* `selfName` when a supervisor is watching: the mentor's lines are the
      mentor's, not "You" (support-beside-hub). */
   const who = mine ? (selfName ?? "You") : theirName; // TODO-COPY
@@ -219,6 +227,27 @@ export function MessageBubble({
               )
         )}
       >
+        {asked && (
+          /* ═══ ASKED FROM THE ASSESSMENT (pack v4.0, F2) ═══ The same quiet
+             corner as an added moment, one step left when both apply; it
+             opens the assessment. Named in words, never an icon alone. */
+          <button
+            type="button"
+            data-asked-from-assessment={asked}
+            onClick={onOpenAssessment}
+            disabled={!onOpenAssessment}
+            title={`${askedLabel} — open the assessment`}
+            className={cn(
+              "absolute -top-2 flex size-5 items-center justify-center rounded-full border border-[color:var(--border-default)] bg-[var(--surface-card)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
+              "before:absolute before:-inset-2.5 before:content-['']",
+              addedToEscalation !== undefined ? "right-8" : "right-2"
+            )}
+          >
+            <ClipboardList aria-hidden className="size-3" />
+            <span className="sr-only">{askedLabel} — open the assessment</span>
+          </button>
+        )}
         {addedToEscalation !== undefined && (
           /* ═══ ON THE ESCALATION'S TIMELINE ═══ A quiet corner glyph; hover
              previews the mentor's note (make it magical 3). The words are in

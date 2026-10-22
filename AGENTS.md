@@ -412,6 +412,56 @@ never colour alone) is unchanged.**
 - **Sticky list header** works from a 960 canvas up; below it the table must
   scroll sideways, and a sideways scroller cannot pin to the page.
 
+### Care Panel & Escalation — Elevation (pack v4.0, feat/care-elevation)
+
+Answered 2026-10-22 ("go" on the Phase 0 defaults). A craft pass: the
+information architecture is v3.0's. **Supersedes v3's header, tab chips,
+upcoming ghosts and the bare waiting line, each in place below.**
+
+- **Surfaces are a ladder.** The thread on the base (`surface-card`), the Care
+  body one step deeper (`surface-s1`), cards lightest (`surface-raised` on
+  `--el-soft`). No whole-card tints: a tier's colour lives in its lozenge.
+- **Exactly one emphasis.** The current node is the only element that is
+  raised AND ringed; the ring is `--alert-critical-border` on Tiers 1–2,
+  `--border-default` otherwise. One filled button per panel state at most.
+  THE COST, STATED: the rings measure 1.3–1.7:1 against the card, so they are
+  never the only cue — the ink glyph, the surface and the live announcement
+  also mark the step.
+- **A hero above the tabs, on every tab.** Steady: the Teen Status card
+  (`rail/teen-status-card.tsx` — Clinical diagnosis · Risk tier; the record's
+  `TierCard` is unchanged, answered). Escalation: `EscalationHero` — lozenge,
+  holder ("— Brandy has this" / "— with {mentor}"), a quiet meta line, one
+  Support link.
+- **Single homes.** "Notified" is the banner's alone; presence ("Brandy is
+  here") is the hero's alone; the holder is the hero's alone. While the
+  mentor waits, the one Support door is the waiting module's Open Support and
+  the hero hides its own.
+- **Care is a labelled control** at the left of the rail row, behind a
+  divider; the Care tabs are one underlined row that scrolls sideways under an
+  edge fade (answered: never wraps).
+- **The future is one row:** "Up next: … → Close", collapsed, reading
+  forwards. A current node is an ACTION (pulse) or WAITING (a 6s breath).
+  Completed rows never truncate: short labels that wrap; long text on expand.
+- **The question card has two zones:** Ask {teen} (verbatim, "Ask in chat"
+  fills the box and sends nothing) and {Teen}'s answer (never disabled).
+  Answered rows are `assesses` labels; the question verbatim on expand.
+- **While you're with them** (`escalation/waiting-module.tsx`): the
+  supervisor's latest Support message, quote-framed; 2–3 Ava nudges from
+  `lib/chat/stay-close.ts` — grounded in the thread, dropped by a `CLINICAL`
+  guard, never sent, never persisted ("used" is component state); a rotating
+  steadying line.
+- **History, both hosts:** date groups, one gutter-time anatomy, a compressed
+  escalation card (lozenge title row + ONE interpuncted stage line — the
+  arrow chain is retired), two-line clamps with Show more.
+- **The close arc's toast is the surface's only toast**
+  (`escalation/close-toast.ts`): the supervisor on close, the mentor once on
+  first seeing the summary. It names the tier from `TIER_NAME` ("Tier 3
+  Medium risk"), which differs from the blocked `CLOSE_OUT_TIER_COPY`
+  ("Tier 3 Monitoring") — the pack's wording, flagged, not resolved.
+- **A sent assessment question carries `origin`** on `chatMessages`
+  (append-only) and a corner glyph that opens the assessment. A nudge carries
+  none.
+
 ### Monitoring asserts only what it can compute (arch-mon)
 
 **SUPERSEDED IN PART by the section above**: the tiers and their cadences now

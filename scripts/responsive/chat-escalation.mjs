@@ -477,7 +477,7 @@ console.log("\n── closing @ escalation-active");
   await p.locator('[data-care-tab="history"]').click();
   await p.waitForTimeout(200);
   const story = await p.evaluate(`document.querySelector("[data-escalation-story]")?.innerText.replace(/\\s+/g, " ") ?? ""`);
-  check(/tier update/.test(story), "and History keeps the account as one story", story.slice(0, 100));
+  check(/Tier update/i.test(story), "and History keeps the account as one story", story.slice(0, 100));
 
   // And it stays closed.
   await p.reload({ waitUntil: "networkidle" });
