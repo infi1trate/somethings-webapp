@@ -207,20 +207,24 @@ const AVATAR = "[data-tier-ring] > span";
     const s = e && getComputedStyle(e);
     return { h3: h?.textContent.replace(/\s+/g, " ").trim(), text: e?.textContent.trim(), bg: s?.backgroundColor, border: s && `${s.borderTopWidth} ${s.borderTopColor}`, color: s?.color, live: !!g.querySelector("[data-t1-live]") };
   });
-  const [tertiary, borderDefault, raised] = [await tok(page, "--text-tertiary"), await tok(page, "--border-default"), await tok(page, "--surface-raised", "bg")];
+  const [tertiary, borderDefault, raised, canvas] = [await tok(page, "--text-tertiary"), await tok(page, "--border-default"), await tok(page, "--surface-raised", "bg"), await tok(page, "--surface-canvas", "bg")];
   check(/^Tier 1 · Active crisis\s*0/.test(empty.h3 ?? ""), "its own h3 group header, naming the tier", empty.h3);
-  check(empty.text === "Nothing in crisis" && empty.bg === raised && empty.border === `1px ${borderDefault}` && empty.color === tertiary && !empty.live, "Monitor: a raised hairline surface, 'Nothing in crisis' in tertiary", JSON.stringify(empty));
+  /* ═══ MONITORING v2 (Part B) ═══ WAS "a raised hairline surface". Keylines are down: the one
+     keyline is the LIVE lane's, so the empty lane is a canvas tint inside the
+     raised container. */
+  check(empty.text === "Nothing in crisis" && empty.bg === canvas && /^0px/.test(empty.border) && empty.color === tertiary && !empty.live, "Monitor: a quiet canvas tint, no keyline, 'Nothing in crisis' in tertiary", JSON.stringify(empty));
   await setMode(page, "alert");
   const live = await page.evaluate(() => {
     const r = document.querySelector("[data-t1-live]");
     const s = getComputedStyle(r);
     const ring = r.querySelector("[data-tier-ring]");
+    const dot = r.querySelector("[data-presence-dot]");
     const join = r.querySelector("[data-t1-join]");
     const rec = r.querySelector("[data-requested-tier]");
     const flags = r.querySelector("[data-t1-flags]");
     return {
       bg: s.backgroundColor, border: `${s.borderTopWidth} ${s.borderTopColor}`, leftBorder: s.borderLeftWidth === s.borderTopWidth && s.borderLeftColor === s.borderTopColor,
-      ring: ring?.dataset.tierRing, ringShadow: getComputedStyle(ring).boxShadow,
+      ring: !!ring, dot: !!dot,
       text: r.textContent.replace(/\s+/g, " ").trim(),
       rec: rec && { color: getComputedStyle(rec).color, border: `${getComputedStyle(rec).borderTopStyle} ${getComputedStyle(rec).borderTopColor}`, text: rec.textContent.trim() },
       flags: flags && { color: getComputedStyle(flags).color, text: flags.textContent.replace(/\s+/g, " ").trim() },
@@ -229,7 +233,9 @@ const AVATAR = "[data-tier-ring] > span";
   });
   const [t1, t1soft, t1ink, ok, okink] = [await tok(page, "--t1"), await tok(page, "--t1-soft", "bg"), await tok(page, "--t1-ink"), await tok(page, "--ok"), await tok(page, "--ok-ink")];
   check(live.bg === t1soft && live.border === `1px ${t1}` && live.leftBorder, "Alert: t1-soft with a 1px t1 keyline, all round (no left bar)", `${live.bg} · ${live.border}`);
-  check(live.ring === "1" && shadowHas(live.ringShadow, t1), "the avatar carries the t1 ring");
+  /* ═══ MONITORING v2 (Part B) ═══ WAS "the avatar carries the t1 ring". No rings anywhere; the
+     only one is the green presence dot, and Jordan's mentor is in session. */
+  check(!live.ring && live.dot, "no avatar ring — the live lane's one keyline, and the presence dot", JSON.stringify({ ring: live.ring, dot: live.dot }));
   check(/Jordan T\./.test(live.text) && /The mentor/.test(live.text) && /Mentor in session/.test(live.text), "teen, mentor, presence — a record teen", live.text.slice(0, 80));
   const secondaryInk = await tok(page, "--text-secondary");
   check(live.rec?.text === "Requested: Tier 1" && /^dashed/.test(live.rec.border) && live.rec.color === secondaryInk, "Requested: Tier 1 — dashed, in words, awaiting a supervisor", JSON.stringify(live.rec));
@@ -265,7 +271,7 @@ const ENGINE = `(() => {
     const geo = rows.map((r) => {
       const b = r.getBoundingClientRect();
       const s = getComputedStyle(r);
-      return { id: r.dataset.monitoringRow, tier: +r.dataset.tier, top: Math.round(b.top), bottom: Math.round(b.bottom), h: Math.round(b.height), radius: s.borderRadius, bg: s.backgroundColor, shadow: s.boxShadow, bt: `${s.borderTopWidth} ${s.borderTopColor}`, bl: `${s.borderLeftWidth} ${s.borderLeftColor}`, cellsX: [...r.querySelectorAll(':scope > [role="cell"]')].map((c) => Math.round(c.getBoundingClientRect().left)), ring: r.querySelector("[data-tier-ring]")?.dataset.tierRing, ringShadow: getComputedStyle(r.querySelector("[data-tier-ring]")).boxShadow, loz: r.querySelector("[data-tier-lozenge]")?.textContent.trim() };
+      return { id: r.dataset.monitoringRow, tier: +r.dataset.tier, top: Math.round(b.top), bottom: Math.round(b.bottom), h: Math.round(b.height), radius: s.borderRadius, bg: s.backgroundColor, shadow: s.boxShadow, bt: `${s.borderTopWidth} ${s.borderTopColor}`, bl: `${s.borderLeftWidth} ${s.borderLeftColor}`, cellsX: [...r.querySelectorAll(':scope > [role="cell"]')].map((c) => Math.round(c.getBoundingClientRect().left)), ring: !!r.querySelector("[data-tier-ring]"), avatarBg: getComputedStyle(r.querySelector("[data-tier-avatar]")).backgroundColor, tag: r.querySelector("[data-tier-tag]")?.dataset.tierTag, tagBg: getComputedStyle(r.querySelector("[data-tier-tag]")).backgroundColor };
     });
     const h3 = [...table.querySelectorAll("h3")].map((h) => h.textContent.replace(/\s+/g, " ").trim());
     const groups = [...table.querySelectorAll('[role="rowgroup"][data-tier-group]')].map((g) => ({ tier: g.dataset.tierGroup, labelled: !!document.getElementById(g.getAttribute("aria-labelledby") ?? "") }));
@@ -275,9 +281,10 @@ const ENGINE = `(() => {
   check(t.h3.some((h) => /^Tier 1 · Active crisis/.test(h)) && t.h3.some((h) => /^Tier 2 · High risk/.test(h)) && t.h3.some((h) => /^Tier 3 · Medium risk/.test(h)) && t.h3.some((h) => /^Tier 4 · General/.test(h)), "each tier is an h3 naming it", t.h3.map((h) => h.split(/\d+$/)[0]).join(" | "));
   check(t.groups.length >= 3 && t.groups.filter((g) => g.tier !== "1").every((g) => g.labelled), "each tier rowgroup is labelled by its heading", `${t.groups.length} groups`);
   const body = t.geo;
-  check(body.length > 0 && body.every((r) => r.h === 52 && r.radius === "10px"), "rows 52 tall, 10px radius", [...new Set(body.map((r) => `${r.h}/${r.radius}`))].join(","));
+  /* ═══ MONITORING v2 (Part B) ═══ WAS 52 / 10px / 4px apart. */
+  check(body.length > 0 && body.every((r) => r.h === 64 && r.radius === "14px"), "rows 64 tall, 14px radius", [...new Set(body.map((r) => `${r.h}/${r.radius}`))].join(","));
   const gaps = body.slice(1).map((r, i) => (r.tier === body[i].tier ? r.top - body[i].bottom : null)).filter((g) => g !== null);
-  check(gaps.length > 0 && gaps.every((g) => g === 4), "4px between rows in a tier", [...new Set(gaps)].join(","));
+  check(gaps.length > 0 && gaps.every((g) => g === 8), "8px between rows in a tier", [...new Set(gaps)].join(","));
   const cols = body[0].cellsX.map((_, i) => new Set(body.map((r) => r.cellsX[i])).size);
   check(cols.length === 7 && cols.every((n) => n === 1), "subgrid: every column starts at one x across all tiers", cols.join(","));
   /* AND THE TRACKS ARE THE TABLE'S, not each row's own (seven equal columns
@@ -290,14 +297,16 @@ const ENGINE = `(() => {
   });
   check(tracks.hx.every((x, i) => Math.abs(x - tracks.cx[i]) <= 1), "the column headers sit over the cells", `${tracks.hx.join(",")} / ${tracks.cx.join(",")}`);
   check(tracks.teen > tracks.mentor * 1.8, "Teen holds its wide track against Mentor's", `${tracks.teen} vs ${tracks.mentor}`);
-  const [t2, t2soft, borderDefault, secondary, raised, elev1] = [await tok(page, "--t2"), await tok(page, "--t2-soft", "bg"), await tok(page, "--border-default"), await tok(page, "--text-secondary"), await tok(page, "--surface-raised", "bg"), await tok(page, "--elevation-1", "shadow")];
+  const [t2, t2soft, borderSubtle, secondary, raised, elSoft, canvas, sunken, t1ink, t2inkBg] = [await tok(page, "--t2"), await tok(page, "--t2-soft", "bg"), await tok(page, "--border-subtle"), await tok(page, "--text-secondary"), await tok(page, "--surface-raised", "bg"), await tok(page, "--el-soft", "shadow"), await tok(page, "--surface-canvas", "bg"), await tok(page, "--surface-sunken", "bg"), await tok(page, "--t1-ink", "bg"), await tok(page, "--t2-ink", "bg")];
   const by = (tier) => body.filter((r) => r.tier === tier);
   check(by(2).length > 0 && by(2).every((r) => r.bg === t2soft && (/^0px/.test(r.bt) || /rgba\(0, 0, 0, 0\)$/.test(r.bt)) && r.shadow === "none"), "T2: t2-soft, no keyline (nothing visible at its edge)", JSON.stringify(by(2)[0] && { bg: by(2)[0].bg, bt: by(2)[0].bt }));
-  check(by(3).length > 0 && by(3).every((r) => r.bg === raised && wears(r.shadow, elev1)), "T3: surface-raised, Elevation 1 — elevation is the signifier");
-  check(by(4).length > 0 && by(4).every((r) => r.bg === "rgba(0, 0, 0, 0)" && r.bt === `1px ${borderDefault}` && r.shadow === "none"), "T4: transparent, a 1px border-default hairline, no shadow", JSON.stringify(by(4)[0] && { bg: by(4)[0].bg, bt: by(4)[0].bt }));
+  /* ═══ MONITORING v2 (Part B) ═══ T3 WAS Elevation 1; T4 WAS transparent on border-default. */
+  check(by(3).length > 0 && by(3).every((r) => r.bg === raised && wears(r.shadow, elSoft)), "T3: surface-raised with the soft elevation — elevation is the signifier");
+  check(by(4).length > 0 && by(4).every((r) => r.bg === canvas && r.bt === `1px ${borderSubtle}` && r.shadow === "none"), "T4: surface-canvas, a border-subtle hairline, no shadow", JSON.stringify(by(4)[0] && { bg: by(4)[0].bg, bt: by(4)[0].bt }));
   check(body.every((r) => r.bl === r.bt && !/inset/.test(r.shadow)), "no coloured bar or left border on any row");
-  check(by(2).every((r) => r.ring === "2" && shadowHas(r.ringShadow, t2)) && by(3).every((r) => r.ring === "3" && shadowHas(r.ringShadow, secondary)) && by(4).every((r) => r.ring === "none"), "rings: t2, text-secondary, none for T4");
-  check(body.every((r) => r.loz === `T${r.tier}`), "every row's lozenge says its tier");
+  /* ═══ MONITORING v2 (Part B) ═══ WAS "rings: t2, text-secondary, none" and a lozenge per row. */
+  check(body.every((r) => !r.ring && r.avatarBg === sunken), "no avatar rings anywhere — every avatar a neutral sunken disc", [...new Set(body.map((r) => r.avatarBg))].join(","));
+  check(body.every((r) => r.tag === String(r.tier)) && by(2).every((r) => r.tagBg === t2inkBg) && body.filter((r) => r.tier >= 3).every((r) => r.tagBg === "rgba(0, 0, 0, 0)"), "every row's tag says its tier — filled in the tier ink for T2, outlined for T3–4", JSON.stringify([...new Set(body.map((r) => `${r.tier}:${r.tagBg}`))]));
 
   /* ALERT COLOUR IS TIERS 1–2 ONLY: nothing on a T3 / T4 row computes to t1,
      t2 or their inks — text, fill or border. */
@@ -317,24 +326,30 @@ const ENGINE = `(() => {
   check(alert.n > 0 && alert.hits.length === 0, "no red or amber anywhere on a Tier 3 or 4 row — the slow-burn glyph included", `${alert.n} rows ${alert.hits.join(",")}`);
 
   const tones = await page.evaluate(() => {
-    const flag = (id) => getComputedStyle(document.querySelector(`[data-monitoring-row="${id}"] [role="cell"]:nth-child(5) > span`)).color;
-    const zero = getComputedStyle(document.querySelector('[data-monitoring-row="t22"] [role="cell"]:nth-child(5) > span')).color;
+    /* v2: the tone sits on the NUMBER (and the glyph), not a wrapper. */
+    const num = (id, col) => document.querySelector(`[data-monitoring-row="${id}"] [role="cell"]:nth-child(${col}) [data-glyph-count] span.font-mono`);
+    const flag = (id) => getComputedStyle(num(id, 5)).color;
+    const zero = getComputedStyle(num("t22", 5)).color;
     const theo = document.querySelector('[data-monitoring-row="t19"] [role="cell"]:nth-child(5)').textContent;
-    const second = document.querySelector('[data-monitoring-row="t21"] p')?.textContent;
+    const secondEl = document.querySelector('[data-monitoring-row="t21"] [data-row-second]');
+    const second = secondEl?.textContent;
+    const secondFf = secondEl && getComputedStyle(secondEl).fontFamily;
     const spark = [...document.querySelectorAll('[data-monitoring-row="t21"] [data-sparkline] > span')].map((b) => ({ w: Math.round(b.getBoundingClientRect().width), x: Math.round(b.getBoundingClientRect().left), bg: getComputedStyle(b).backgroundColor }));
     const sparkH = Math.round(document.querySelector('[data-monitoring-row="t21"] [data-sparkline]').getBoundingClientRect().height);
-    return { mia: flag("t15"), leo: flag("t21"), zero, theo, second, spark, sparkH };
+    return { mia: flag("t15"), leo: flag("t21"), zero, theo, second, secondFf, spark, sparkH };
   });
-  const [t2ink, primary, tertiary, sparkInk] = [await tok(page, "--t2-ink"), await tok(page, "--text-primary"), await tok(page, "--text-tertiary"), await tok(page, "--border-default", "bg")];
+  const [t2ink, primary, tertiary, sparkInk, muted] = [await tok(page, "--t2-ink"), await tok(page, "--text-primary"), await tok(page, "--text-tertiary"), await tok(page, "--border-strong", "bg"), await tok(page, "--text-muted")];
   check(tones.mia === t2ink && tones.leo === primary, "T2 flags tone only on a surge (Riley t2-ink, Imani ink)", `${tones.mia} / ${tones.leo}`);
   /* WAS state-inactive (the clone's text-disabled), which step 8 measured at
      2.1:1 — a "0" is content. Tertiary is the quietest ink that is text. */
-  check(tones.zero === tertiary, "a zero count on an untinted row is tertiary — quiet, and still AA", tones.zero);
-  const tintZero = await page.evaluate(() => getComputedStyle(document.querySelector('[data-monitoring-row="t15"] [role="cell"]:nth-child(6) > span')).color);
+  /* ═══ MONITORING v2 (Part B) ═══ Zero is text-muted (answered on the context report: Bloom's
+     text/disabled measures ~1.5:1, and a "0" is content). */
+  check(tones.zero === muted, "a zero count on an untinted row is text-muted — quiet, and still AA", tones.zero);
+  const tintZero = await page.evaluate(() => getComputedStyle(document.querySelector('[data-monitoring-row="t15"] [role="cell"]:nth-child(6) [data-glyph-count] span.font-mono')).color);
   check(tintZero === secondary, "on a t2 tint a zero falls back to secondary", tintZero);
   check(/↗/.test(tones.theo), "Simone's slow-burn reads ↗, in neutral ink", tones.theo);
-  check(tones.second === "From T1 · Fri · Day 3/7", "the second line: review reason · day N/M", tones.second);
-  check(tones.spark.length === 7 && tones.spark.every((b) => b.w === 4 && b.bg === sparkInk) && tones.spark.slice(1).every((b, i) => b.x - tones.spark[i].x === 6) && tones.sparkH === 16, "the sparkline: 7 bars, 4px, 2px apart, 16 tall, border-default", JSON.stringify(tones.spark.slice(0, 2)));
+  check(tones.second === "From T1 · Fri · Day 3 of 7" && !/mono/i.test(tones.secondFf ?? "mono"), "the second line: review reason · Day N of M, in the sans — mono retreats", `${tones.second} · ${tones.secondFf?.slice(0, 30)}`);
+  check(tones.spark.length === 7 && tones.spark.every((b) => b.w === 4 && b.bg === sparkInk) && tones.spark.slice(1).every((b, i) => b.x - tones.spark[i].x === 6) && tones.sparkH === 18, "the sparkline: 7 bars, 4px, 2px apart, 18 tall, border-strong", JSON.stringify(tones.spark.slice(0, 2)));
 
   /* TEXT ON THE TINTS ≥ 4.5:1 — every text node on a T1 or T2 surface. */
   const contrast = await page.evaluate(([ENGINE]) => {
@@ -393,7 +408,7 @@ const ENGINE = `(() => {
       return {
         id: a.dataset.monitoringCard, tier: +a.dataset.tier, tag: a.tagName, name: name?.textContent.trim(), nfs: getComputedStyle(name).fontSize,
         radius: s.borderRadius, pad: `${s.paddingTop} ${s.paddingRight}`, bg: s.backgroundColor, shadow: s.boxShadow, bt: `${s.borderTopWidth} ${s.borderTopColor}`, bl: `${s.borderLeftWidth} ${s.borderLeftColor}`,
-        loz: loz?.textContent.trim(), lozRight: Math.round(r.right - loz.getBoundingClientRect().right), av: Math.round(av.getBoundingClientRect().width),
+        loz: loz?.textContent.trim(), lozRight: loz ? Math.round(r.right - loz.getBoundingClientRect().right) : null, av: av ? Math.round(av.getBoundingClientRect().width) : null,
         days: a.querySelector("[data-card-days]")?.textContent.replace(/\s+/g, " ").replace(/ days engaged.*$/, "").trim(),
         stats: a.querySelectorAll("[data-card-stats] > div").length,
         tit: (() => { const b = a.querySelector("[data-card-tit] span[aria-hidden]"); return b ? Math.round(b.getBoundingClientRect().height) : null; })(),
@@ -558,11 +573,15 @@ for (const layout of ["list", "cards"]) {
     const b = g.querySelector("[data-tier4-toggle]");
     const r = b.getBoundingClientRect();
     const hdr = g.querySelector("h3").closest("div").parentElement.getBoundingClientRect();
-    return { text: b.textContent.trim(), exp: b.getAttribute("aria-expanded"), ff: getComputedStyle(b).fontFamily, bg: getComputedStyle(b).backgroundColor, h: Math.round(r.height), rightGap: Math.round(hdr.right - r.right), count: g.querySelector("h3").textContent.match(/(\d+)$/)?.[1], controls: !!document.getElementById(b.getAttribute("aria-controls")) };
+    return { text: b.textContent.trim(), exp: b.getAttribute("aria-expanded"), ff: getComputedStyle(b).fontFamily, bg: getComputedStyle(b).backgroundColor, h: Math.round(r.height), w: Math.round(r.width), rowW: Math.round((g.querySelector("[data-monitoring-row]") ?? g).getBoundingClientRect().width), rightGap: Math.round(hdr.right - r.right), count: g.querySelector("h3 .font-mono")?.textContent, controls: !!document.getElementById(b.getAttribute("aria-controls")) };
   });
   const preview = layout === "list" ? 2 : 3;
   check((await rendered()) === preview, `collapsed: a ${preview}-${layout === "list" ? "row" : "card"} preview`, `${await rendered()}`);
-  check(c.text === "Show all" && c.exp === "false" && c.controls && /mono/i.test(c.ff) && c.bg === "rgba(0, 0, 0, 0)" && c.h >= 24 && c.rightGap <= 4, "Show all: a mono ghost button, right-aligned, ≥ 24 tall, controlling the group", JSON.stringify(c));
+  /* ═══ MONITORING v2 (Part B) ═══ WAS "a mono ghost button, right-aligned" in the header. In the
+     list it is a quiet full-width button inside the container, after the
+     preview rows; the cards keep it in the header (until the card pass). */
+  if (layout === "list") check(c.text === "Show all 100" && c.exp === "false" && c.controls && !/mono/i.test(c.ff) && c.bg === "rgba(0, 0, 0, 0)" && c.h >= 44 && Math.abs(c.w - c.rowW) <= 2, "Show all 100: quiet, full width inside the container, ≥ 44 tall, controlling the group", JSON.stringify(c));
+  else check(c.text === "Show all" && c.exp === "false" && c.controls && c.bg === "rgba(0, 0, 0, 0)" && c.h >= 24 && c.rightGap <= 4, "Show all: a quiet button in the header, controlling the group", JSON.stringify(c));
   check(c.count === "100", "the header still counts all of Tier 4", c.count);
 
   /* Clicked in-page: the dev bar is fixed at the bottom of the viewport. */

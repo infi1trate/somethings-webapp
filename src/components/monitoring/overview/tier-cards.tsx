@@ -301,7 +301,7 @@ export function MonitoringCards({ teens }: { teens: MonitoringTeen[] }) {
         tier={4}
         teens={t4}
         all={t4.length}
-        action={<ShowAll open={t4Open} onToggle={() => setT4Open((o) => !o)} controls="tier-4-cards" />}
+        action={<ShowAll inline open={t4Open} onToggle={() => setT4Open((o) => !o)} controls="tier-4-cards" />}
       >
         <div id="tier-4-cards">
           <Tier4Cards teens={t4} open={t4Open} />

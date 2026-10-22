@@ -100,7 +100,7 @@ export function TierGroupHeader({
 }) {
   return (
     <div data-tier-header={tier} className="flex items-center justify-between gap-3 pt-6 pb-2">
-      <h3 id={id} className="m-0 flex min-w-0 flex-wrap items-baseline gap-x-2 text-[14px] leading-[20px]">
+      <h3 id={id} className="m-0 flex min-w-0 flex-wrap items-baseline gap-x-2 text-[14px] leading-[20px] font-normal">
         <span
           aria-hidden
           className="size-2 shrink-0 self-center rounded-full"
