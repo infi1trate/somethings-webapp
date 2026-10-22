@@ -171,6 +171,7 @@ export function TierHistory({
   nameOf,
   mentorName,
   emptyName,
+  limit,
 }: {
   events: TierEvent[];
   escalations: EscalationState[];
@@ -179,6 +180,9 @@ export function TierHistory({
   mentorName: string;
   /** The teen's first name, for the empty state. */
   emptyName: string;
+  /** Show only the newest N entries (pack v4.0, F3: Overview's recent
+   *  history). Omitted, the whole record. */
+  limit?: number;
 }) {
   const byEscalation = new Map<string, TierEvent[]>();
   const loose: TierEvent[] = [];
@@ -214,7 +218,7 @@ export function TierHistory({
   }
   return (
     <ol data-tier-history aria-label="Tier and escalation history" className="space-y-2">
-      {items.map((i) => i.node)}
+      {(limit === undefined ? items : items.slice(0, limit)).map((i) => i.node)}
     </ol>
   );
 }

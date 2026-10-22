@@ -385,7 +385,7 @@ export function ChatPage({
   const otherFirst = otherParty === LIVE_ID && !liveMentor?.name ? "The mentor" : otherName.split(" ")[0];
   const presence =
     supportOpen && otherParty && supportThreadId === otherParty && otherName
-      ? /* TODO-COPY */ `${otherFirst} is in this chat`
+      ? /* The NAME only — the Care hero says "{name} is here" (pack v4.0). */ otherFirst
       : undefined;
   /* ═══ PINNED FOR A SUPERVISOR ═══ While an escalation is open on what a
      supervisor is watching, the observed mentor is pinned at the top of their
@@ -1028,7 +1028,6 @@ export function ChatPage({
               now={now}
               tab={railTab}
               onTabChange={setRailTab}
-              presence={presence}
               mode={railMode}
               onModeChange={setRailMode}
               onSendActivity={sendActivity}

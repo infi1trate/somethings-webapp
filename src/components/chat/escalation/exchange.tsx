@@ -58,7 +58,7 @@ import {
 } from "@/lib/tiering/escalation";
 import { assessmentProgress, orderNodes, timelineNodes, type Lens, type TimelineNode } from "@/lib/tiering/timeline";
 import type { Tiering } from "@/lib/tiering/use-tiering";
-import { PLATFORM, TIER_NAME, type Tier } from "@/lib/tiering/tiers";
+import { PLATFORM, TIER_NAME, isAlertTier, type Tier } from "@/lib/tiering/tiers";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -297,9 +297,14 @@ function Quote({ text, who, at, note, slot }: { text: string; who: string; at: n
   );
 }
 
-// ── THE HEADER — absorbs every status fragment; nothing below restates it ──
+// ── THE HERO — one home for tier, responsibility and the Support link ──────
 
-function TimelineHeader({
+/** ═══ ESCALATION HERO (pack v4.0, Workstream B) ═══ Above the Care tabs,
+ *  persistent across them, both lenses. ONE line of headline — the tier (or
+ *  the request), then who holds it — ONE quiet meta line (opened · the
+ *  confirmation state · who else is here), and ONE link. It does NOT say when
+ *  the supervisor was notified: the banner is that fact's single home. */
+export function EscalationHero({
   e,
   tiering,
   teenId,
@@ -308,7 +313,6 @@ function TimelineHeader({
   mentorName,
   presence,
   onSupport,
-  live,
 }: {
   e: EscalationState;
   tiering: Tiering;
@@ -316,24 +320,32 @@ function TimelineHeader({
   lens: Lens;
   supervisorName: string;
   mentorName: string;
+  /** The other party's first name, when they are in Support with you. */
   presence?: string;
   onSupport?: () => void;
-  live: string;
 }) {
   const target = escalationTarget(e);
   const confirmed = e.confirmedTier !== undefined;
+  const closed = e.resolvedAt !== null;
   const nowTier = tiering.stateFor(teenId).tier;
   const who = (() => {
     const ev = [...tiering.eventsFor(teenId)].reverse().find((x) => x.escalationId === e.id && (x.kind === "confirmed" || x.kind === "placed" || x.kind === "stepped-down"));
     return ev ? tiering.nameOf(ev.actor) : null;
   })();
+  /* TODO-COPY, every fragment. */
+  const holder = closed ? "closed" : lens === "mentor" ? `${supervisorName} has this` : `with ${mentorName}`;
+  const state = closed
+    ? /* The movement, not a stale confirmation (measured in v2). */
+      `Closed ${TIME.format(e.resolvedAt!)}${confirmed && nowTier !== null && nowTier !== e.confirmedTier ? ` · Tier ${e.confirmedTier} → Tier ${nowTier} ${TIER_NAME[nowTier]}` : ""}`
+    : target === PLATFORM
+      ? /* The chip already says "Platform concern" — one home. */
+        "In review"
+      : confirmed
+        ? `Tier ${e.confirmedTier} confirmed${who ? ` by ${who}` : ""}${e.confirmedAt ? ` · ${TIME.format(e.confirmedAt)}` : ""}`
+        : "Awaiting confirmation";
   return (
-    <header data-timeline-header className="space-y-1.5">
-      <div data-tier-line className="flex flex-wrap items-center gap-2">
-        <h3 className="text-[var(--text-primary)]" style={TITLE}>
-          {/* TODO-COPY */}
-          Escalation
-        </h3>
+    <header data-care-hero="escalation" data-timeline-header className="space-y-1.5">
+      <p data-tier-line className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {target === PLATFORM ? (
           <span className="inline-flex h-6 items-center rounded-full border border-[color:var(--border-default)] px-2.5 text-[var(--text-secondary)]" style={LABEL}>
             Platform concern
@@ -346,27 +358,28 @@ function TimelineHeader({
         ) : (
           <RequestedChip tier={target} />
         )}
-      </div>
-      <p data-timeline-meta className="tabular-nums text-[var(--text-secondary)]" style={LABEL}>
-        {/* TODO-COPY */}
-        Opened {TIME.format(e.openedAt)} · {supervisorName} notified
-        {presence ? ` · ${presence}` : ""}
+        <span data-hero-holder className="text-[var(--text-primary)]" style={TITLE}>
+          <span aria-hidden>— </span>
+          {holder}
+        </span>
       </p>
-      {target !== PLATFORM && (
-        <p data-tier-line-text className="tabular-nums text-[var(--text-secondary)]" style={LABEL}>
-          {/* TODO-COPY */}
-          {e.resolvedAt !== null
-            ? /* CLOSED: the movement, not the confirmation — a Tier 1 line beside
-                 "moves to Tier 3" read as a contradiction (measured in v2). */
-              `Closed ${TIME.format(e.resolvedAt)}${confirmed && nowTier !== null && nowTier !== e.confirmedTier ? ` · Tier ${e.confirmedTier} → Tier ${nowTier} ${TIER_NAME[nowTier]}` : ""}`
-            : confirmed
-              ? `Tier ${e.confirmedTier} confirmed${who ? ` by ${who}` : ""}${e.confirmedAt ? ` · ${TIME.format(e.confirmedAt)}` : ""}`
-              : "Awaiting confirmation on tiering"}
-        </p>
-      )}
-      {onSupport && e.resolvedAt === null && (
-        /* ═══ THE ONE REMNANT OF GUIDANCE (Supersession 2) ═══ Coaching
-           happens in the Support thread; this is the quiet way there. */
+      <p data-timeline-meta className="flex flex-wrap items-center gap-x-1.5 tabular-nums text-[var(--text-secondary)]" style={LABEL}>
+        <span>Opened {TIME.format(e.openedAt)}</span>
+        <span aria-hidden>·</span>
+        {/* A Platform concern has no tier line: it is a category, not a tier. */}
+        <span data-tier-line-text={target === PLATFORM ? undefined : ""}>{state}</span>
+        {presence && (
+          /* ═══ PRESENCE LIVES HERE ONLY (B3) ═══ A dot and a name. */
+          <>
+            <span aria-hidden>·</span>
+            <span data-hero-presence className="inline-flex items-center gap-1.5">
+              <span aria-hidden className="size-1.5 rounded-full bg-[var(--status-online)]" />
+              {presence} is here
+            </span>
+          </>
+        )}
+      </p>
+      {onSupport && !closed && (
         <button
           type="button"
           data-timeline-support={lens}
@@ -375,15 +388,9 @@ function TimelineHeader({
           style={LABEL}
         >
           {/* TODO-COPY */}
-          {lens === "supervisor" ? `Message ${mentorName} in Support` : "Reply in Support"} <ArrowRight aria-hidden className="size-3.5" />
+          Message {lens === "supervisor" ? mentorName : supervisorName} in Support <ArrowRight aria-hidden className="size-3.5" />
         </button>
       )}
-      {/* ═══ THE CURRENT NODE, ANNOUNCED ═══ A polite region that names the
-          step whenever it changes — the timeline's equivalent of the retired
-          baton's live line, without the banner. */}
-      <p data-timeline-live role="status" aria-live="polite" className="sr-only">
-        {live}
-      </p>
     </header>
   );
 }
@@ -423,6 +430,7 @@ function NodeGlyph({ state, fresh = false }: { state: TimelineNode["state"]; fre
 }
 
 function Node({
+  accent = "neutral",
   node,
   title,
   detail,
@@ -442,6 +450,8 @@ function Node({
   /** Completed: what expanding reveals. */
   expand?: React.ReactNode;
   last: boolean;
+  /** Current: the card's accent ring — the alert family for Tiers 1–2 only. */
+  accent?: "alert" | "neutral";
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -458,7 +468,19 @@ function Node({
             {node.condition ?? title}
           </p>
         ) : node.state === "current" ? (
-          <div data-node-card className="space-y-3">
+          /* ═══ THE ONE EMPHASIS (pack v4.0, Workstream A) ═══ The current
+             step is the panel's single strongest element: the raised surface
+             over the panel's s1, the soft elevation, and an accent ring —
+             alert-family for Tiers 1–2, neutral otherwise. Nothing else on the
+             panel is raised AND ringed. */
+          <div
+            data-node-card
+            data-node-accent={accent}
+            className={cn(
+              "space-y-3 rounded-[16px] bg-[var(--surface-raised)] p-4 shadow-[var(--el-soft)] ring-1",
+              accent === "alert" ? "ring-[color:var(--alert-critical-border)]" : "ring-[color:var(--border-default)]"
+            )}
+          >
             <p data-node-title className="pt-0.5 text-[var(--text-primary)]" style={TITLE}>
               {title}
             </p>
@@ -987,9 +1009,7 @@ export function EscalationExchange({
   tiering,
   supervisorName,
   mentorName,
-  presence,
   onUseWording,
-  onReplyInSupport,
   teenLines,
   mentorLines,
   onSettled,
@@ -1002,10 +1022,7 @@ export function EscalationExchange({
   supervisorName: string;
   /** How the supervisor lens names the mentor, for the Support link. */
   mentorName: string;
-  presence?: string;
   onUseWording: (text: string) => void;
-  /** Opens the Support thread with the other party (Supersession 2). */
-  onReplyInSupport?: () => void;
   teenLines: string[];
   mentorLines: string[];
   /** ═══ THE HOST KEEPS CARE IN FRONT ═══ Called when this panel ends its
@@ -1179,10 +1196,14 @@ export function EscalationExchange({
 
   return (
     <section data-exchange data-lens={lens} data-stage={stage} data-tier={String(tier)} aria-label="Escalation" className="space-y-4">
-      <TimelineHeader e={e} tiering={tiering} teenId={teenId} lens={lens} supervisorName={supervisorName} mentorName={mentorName} presence={presence} onSupport={onReplyInSupport} live={live} />
+      {/* The hero above the Care tabs carries the tier, the holder and the
+          Support link (pack v4.0); the timeline keeps the announcement. */}
+      <p data-timeline-live role="status" aria-live="polite" className="sr-only">
+        {live}
+      </p>
       <ol data-timeline aria-label="Escalation timeline" className="border-t border-[color:var(--border-subtle)] pt-4">
         {nodes.map((n, i) => (
-          <Node key={n.id} node={n} fresh={n.id === freshId} title={titleOf(n)} detail={detailOf(n)} expand={n.state === "completed" ? expandOf(n) : undefined} last={i === nodes.length - 1}>
+          <Node key={n.id} accent={isAlertTier(tier) ? "alert" : "neutral"} node={n} fresh={n.id === freshId} title={titleOf(n)} detail={detailOf(n)} expand={n.state === "completed" ? expandOf(n) : undefined} last={i === nodes.length - 1}>
             {n.state === "current" ? cardOf(n) : undefined}
           </Node>
         ))}

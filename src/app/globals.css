@@ -701,3 +701,24 @@
     transform: none;
   }
 }
+
+/* ═══ THE TIER CELL'S ARRIVAL (pack v4.0, make it magical 3) ═══
+   One beat after a close: the Teen Status card's tier cell warms once in the
+   Bloom ink and settles. Never alert red. REDUCED MOTION: no animation — the
+   close toast carries the news on its own. */
+@keyframes tier-cell-arrive {
+  0% {
+    background-color: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.tier-cell-arrive {
+  animation: tier-cell-arrive 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) 1 both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tier-cell-arrive {
+    animation: none;
+  }
+}

@@ -47,7 +47,7 @@ const SURFACE: Record<Tier, string> = {
 const TIME = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
 
 /** "Day 3 of the 7-day minimum" — TODO-COPY. */
-function timeInTier(state: TierState, now: number): string | null {
+export function timeInTier(state: TierState, now: number): string | null {
   const t = state.tier;
   const day = dayInTier(state, now);
   if (t === null || t === 4 || day === null || state.since === null) return null;

@@ -122,7 +122,9 @@ for (const chat of ["fresh-match", "active-mentorship", "activities-in-flight", 
   await page.goto(`${BASE}/app/chat/t18`, { waitUntil: "networkidle" });
   await page.waitForTimeout(800);
   const tabs2 = await page.evaluate(() => [...document.querySelectorAll('[role="tablist"][aria-label="Conversation tools"] [role="tab"]')].map((t) => t.dataset.railTab));
-  check(tabs[1] === "care" && tabs2[1] === "care" && list > 0, `${chat}: Care after Context, on the focus thread and on another teen`, `${tabs.join(",")} | ${tabs2.join(",")}`);
+  /* RETARGETED (pack v4.0, Supersession 3): Care is the labelled control at
+     the LEFT end of the row, first, behind a divider. */
+  check(tabs[0] === "care" && tabs2[0] === "care" && list > 0, `${chat}: Care first, on the focus thread and on another teen`, `${tabs.join(",")} | ${tabs2.join(",")}`);
   await ctx.close();
 }
 
@@ -174,8 +176,8 @@ console.log("\n── 4 · the Care tabs");
   const { ctx, page } = await open("/app/chat/t14");
   await careTab(page).click();
   await page.waitForTimeout(300);
-  const tabs = await page.evaluate(() => ({ labels: [...document.querySelectorAll("[data-care-tab]")].map((c) => c.textContent), first: document.querySelector("[data-care-panel]")?.firstElementChild?.matches("[data-care-tabs]"), sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
-  check(tabs.labels.join("|") === "Overview|Safety plan|Emergency info|Resources|History" && tabs.first && tabs.sel === "overview", "Overview · Safety plan · Emergency info · Resources · History, at the top, on Overview", JSON.stringify(tabs));
+  const tabs = await page.evaluate(() => ({ labels: [...document.querySelectorAll("[data-care-tab]")].map((c) => c.textContent), first: (() => { const p = document.querySelector("[data-care-panel]"); return !!p?.children[0]?.matches("[data-care-hero]") && !!p?.children[1]?.querySelector("[data-care-tabs]"); })(), sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
+  check(tabs.labels.join("|") === "Overview|Safety plan|Emergency info|Resources|History" && tabs.first && tabs.sel === "overview", "Overview · Safety plan · Emergency info · Resources · History, right under the hero (pack v4.0), on Overview", JSON.stringify(tabs));
   const sub = await page.evaluate(() => document.querySelectorAll("[data-care-sub]").length);
   check(sub === 0, "and the mid-panel sub-chips are gone", `${sub}`);
   await page.locator('[data-care-tab="overview"]').focus();
@@ -413,7 +415,7 @@ let assessed;
   const chip = await page.evaluate(() => document.querySelector('[data-node="assessment"] [data-risk-chip]')?.textContent);
   check(x1?.stage === "M3" && x1.current.join() === "waiting" && x1.done.includes("assessment") && chip === "High risk", "Submit: the assessment settles into a completed node with its risk chip; waiting is current", JSON.stringify({ ...x1, chip }));
   check(x1?.title === "Brandy has this. Stay with Jordan." && !(await page.evaluate(() => !!document.querySelector('[data-node="waiting"] [data-node-card] > :not([data-node-title])'))), "waiting says the pack's line and nothing else", String(x1?.title));
-  check(await page.evaluate(() => /Reply in Support/.test(document.querySelector('[data-timeline-support="mentor"]')?.textContent ?? "")), "and Reply in Support lives in the header");
+  check(await page.evaluate(() => /^Message Brandy in Support/.test(document.querySelector('[data-timeline-support="mentor"]')?.textContent ?? "")), "and Message Brandy in Support lives in the hero");
   await page.screenshot({ path: `${OUT}/03-m3-stay.png` });
   assessed = await store(page);
   await ctx.close();
@@ -447,7 +449,7 @@ let closed;
     reason: document.querySelector('[data-exchange-field="confirm-reason"]')?.value,
     line: document.querySelector("[data-tier-line-text]")?.textContent,
   }));
-  check(s1.checked === "1" && s1.tabStops === 1 && s1.label === "Confirm Tier 1" && !!s1.reason && s1.line === "Awaiting confirmation on tiering", "the request is pre-selected, one tab stop, a prefilled reason", JSON.stringify(s1));
+  check(s1.checked === "1" && s1.tabStops === 1 && s1.label === "Confirm Tier 1" && !!s1.reason && s1.line === "Awaiting confirmation", "the request is pre-selected, one tab stop, a prefilled reason", JSON.stringify(s1));
   /* ═══ NEUTRAL UNTIL CONFIRMED (blocked constant) ═══ */
   const neutral = await alertHits(page, "[data-s1]");
   check(neutral.length === 0, "the tier picker and Confirm are neutral — no alert colour before the confirmation", neutral.slice(0, 3).join(", "));
@@ -560,7 +562,7 @@ console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 e
   /* MEASURED: the closed summary once named "Your supervisor" — the name was
      read off the OPEN escalation, and there is none once it closes. */
   const named = await page.evaluate(() => ({ next: document.querySelector("[data-wrap-next]")?.textContent ?? "", meta: document.querySelector("[data-timeline-meta]")?.textContent ?? "" }));
-  check(/^Brandy checks in/.test(named.next) && /Brandy notified/.test(named.meta), "and it names the supervisor, Brandy — never \u201cYour supervisor\u201d", JSON.stringify(named));
+  check(/* "notified" is the banner's alone now (pack v4.0, B2). */ /^Brandy checks in/.test(named.next) && !/Your supervisor|notified/.test(named.meta), "and it names the supervisor, Brandy — never \u201cYour supervisor\u201d", JSON.stringify(named));
   await page.screenshot({ path: `${OUT}/05-m4-wrap.png` });
   await page.locator('[data-exchange-primary="back-to-care"]').click();
   await page.waitForTimeout(400);

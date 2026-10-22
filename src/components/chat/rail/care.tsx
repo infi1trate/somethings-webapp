@@ -12,13 +12,19 @@
 // ═══ FIVE TABS, FIRST-CLASS, AT THE TOP (pack v3.0, Workstream B) ═══
 // Overview · Safety plan · Emergency info · Resources · History. They replace
 // the mid-panel sub-chips. Overview has three states:
-//   steady    TierCard · Care brief
+//   steady    recent History (pack v4.0; was TierCard · Care brief)
 //   raising   the raise flow, as an Overview takeover (RaiseFlow)
 //   active    the escalation exchange (`escalation/exchange.tsx`)
 // An escalation takes over OVERVIEW ONLY: the other four tabs stay reachable,
 // and the Overview tab carries the escalation dot. The tab is held by the page
 // (`chat-page.tsx`), because the banner's "Emergency info" opens this panel on
 // the Emergency info tab.
+//
+// ═══ THE HERO, THEN THE TABS (pack v4.0) ═══ Overview's steady state was
+// TierCard + Care brief; both moved UP into the Teen Status card, which sits
+// above the tab bar on every tab. Steady Overview is now the two newest
+// History rows and "View history →" (F3). While an escalation is open the
+// hero is the escalation's (`EscalationHero`) and Overview is its timeline.
 //
 // ═══ ONE STORE, TWO VIEWS ═══ A supervisor watching the conversation reads
 // the same record — the assessment, the tier, the note, added chat moments —
@@ -31,13 +37,10 @@
 // red.
 
 import { useRef } from "react";
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { PanelSection } from "@/components/chat/rail/rail-panel";
-import { EscalationExchange } from "@/components/chat/escalation/exchange";
+import { EscalationExchange, EscalationHero } from "@/components/chat/escalation/exchange";
+import { TeenStatusCard } from "@/components/chat/rail/teen-status-card";
 import { EmergencyInfoPanel } from "@/components/chat/escalation/crisis-view";
 import { RaiseFlow } from "@/components/tiering/raise-flow";
-import { TierCard } from "@/components/tiering/tier-card";
 import { TierHistory } from "@/components/tiering/tier-history";
 import type { EmergencyInfo, EscalationState } from "@/lib/chat/types";
 import type { Tiering } from "@/lib/tiering/use-tiering";
@@ -46,8 +49,6 @@ import { cn } from "@/lib/utils";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
-
-const DATE = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 
 export interface CareBrief {
   presentation: string | null;
@@ -90,53 +91,66 @@ function CareTabs({ tab, onTab, dot }: { tab: CareTab; onTab: (t: CareTab) => vo
     if (!to) return;
     e.preventDefault();
     onTab(to);
-    refs.current[to]?.focus();
+    const el = refs.current[to];
+    el?.focus();
+    el?.scrollIntoView({ block: "nearest", inline: "nearest" });
   };
   return (
-    /* A wrapping row rather than a scroller: five labels fit the 360 rail in
-       two lines at worst, and nothing is ever hidden behind an overflow. */
-    <div role="tablist" aria-label="Care" data-care-tabs className="flex flex-wrap gap-1.5">
-      {CARE_TABS.map((s) => {
-        const on = s.id === tab;
-        const withDot = s.id === "overview" && dot;
-        return (
-          <button
-            key={s.id}
-            ref={(el) => {
-              refs.current[s.id] = el;
-            }}
-            type="button"
-            role="tab"
-            id={`care-tab-${s.id}`}
-            data-care-tab={s.id}
-            aria-selected={on}
-            aria-controls="care-tabpanel"
-            tabIndex={on ? 0 : -1}
-            onClick={() => onTab(s.id)}
-            onKeyDown={(e) => onKey(e, s.id)}
-            className={cn(
-              "inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3",
-              on
-                ? "border-transparent bg-[var(--surface-sunken-strong)] text-[var(--text-primary)]"
-                : "border-[color:var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
-              RING
-            )}
-            style={{ font: "var(--type-body)" }}
-          >
-            {s.label}
-            {withDot && (
-              <>
-                <span
-                  aria-hidden
-                  data-overview-dot={dot}
-                  className={cn("size-1.5 rounded-full", dot === "alert" ? "bg-[var(--alert-critical-accent)]" : "bg-[var(--text-primary)]")}
-                />
-                <span className="sr-only">, escalation open</span>
-              </>
-            )}
-          </button>
-        );
-      })}
+    /* ═══ ONE ROW, UNDERLINED (pack v4.0, Supersession 5) ═══ It replaces the
+       wrapping pill chips. On overflow the row scrolls sideways under an edge
+       fade, and the arrow keys bring the focused tab into view — answered:
+       nothing is hidden, it is one swipe or one key away. */
+    <div className="relative border-b border-[color:var(--border-subtle)]">
+      <div role="tablist" aria-label="Care" data-care-tabs className="[scrollbar-width:none] -mb-px flex gap-4 overflow-x-auto">
+        {CARE_TABS.map((s) => {
+          const on = s.id === tab;
+          const withDot = s.id === "overview" && dot;
+          return (
+            <button
+              key={s.id}
+              ref={(el) => {
+                refs.current[s.id] = el;
+              }}
+              type="button"
+              role="tab"
+              id={`care-tab-${s.id}`}
+              data-care-tab={s.id}
+              aria-selected={on}
+              aria-controls="care-tabpanel"
+              tabIndex={on ? 0 : -1}
+              onClick={() => onTab(s.id)}
+              onKeyDown={(e) => onKey(e, s.id)}
+              className={cn(
+                "relative inline-flex min-h-10 shrink-0 items-center gap-1.5 border-b-2 whitespace-nowrap",
+                on
+                  ? "border-[color:var(--text-primary)] text-[var(--text-primary)]"
+                  : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+                RING
+              )}
+              style={{ font: "var(--type-body)" }}
+            >
+              {s.label}
+              {withDot && (
+                <>
+                  <span
+                    aria-hidden
+                    data-overview-dot={dot}
+                    className={cn("size-1.5 rounded-full", dot === "alert" ? "bg-[var(--alert-critical-accent)]" : "bg-[var(--text-primary)]")}
+                  />
+                  <span className="sr-only">, escalation open</span>
+                </>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {/* The edge fade: the panel's own surface, so the last tab reads as
+          continuing rather than cut. Decorative; never intercepts a tap. */}
+      <span
+        aria-hidden
+        data-care-tabs-fade
+        className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-[var(--surface-s1)] to-transparent"
+      />
     </div>
   );
 }
@@ -168,6 +182,7 @@ export function CarePanel({
   teenLines,
   mentorLines,
   onSettled,
+  highlightTier = false,
 }: {
   teenId: string;
   name: string;
@@ -199,107 +214,106 @@ export function CarePanel({
   mentorLines: string[];
   /** The escalation just closed, or its wrap was read — see the exchange. */
   onSettled?: () => void;
+  /** The tier cell's one-beat arrival after a close (pack v4.0, F1). */
+  highlightTier?: boolean;
 }) {
   const state = tiering.stateFor(teenId);
+  const lens = observer ? "supervisor" : "mentor";
+  const mentorName = tiering.liveMentorName || "the mentor";
+  const panelState = raising && !observer && !escalation ? "raising" : escalation ? "active" : "steady";
+  const history = (limit?: number) => (
+    <TierHistory
+      events={tiering.eventsFor(teenId)}
+      escalations={tiering.escalationsFor(teenId)}
+      nameOf={tiering.nameOf}
+      mentorName={observer ? tiering.liveMentorName || "The mentor" : "You"}
+      emptyName={name}
+      limit={limit}
+    />
+  );
 
-  const overview = (() => {
-    // ── RAISING ────────────────────────────────────────────────────────────
-    if (raising && !observer && !escalation) {
-      return (
-        <div data-care-state="raising">
-          <RaiseFlow name={name} current={state.tier} onCancel={onCancelRaise} onConfirm={onConfirmRaise} />
+  const overview =
+    // ── RAISING ──────────────────────────────────────────────────────────────
+    panelState === "raising" ? (
+      <RaiseFlow name={name} current={state.tier} onCancel={onCancelRaise} onConfirm={onConfirmRaise} />
+    ) : escalation ? (
+      // ── THE EXCHANGE (pack v2.0), on Overview only (pack v3.0) ─────────────
+      <EscalationExchange
+        e={escalation}
+        teenId={teenId}
+        name={name}
+        lens={lens}
+        tiering={tiering}
+        supervisorName={supervisorName}
+        mentorName={mentorName}
+        onUseWording={onUseWording}
+        teenLines={teenLines}
+        mentorLines={mentorLines}
+        onSettled={onSettled}
+      />
+    ) : (
+      // ── STEADY: the two most recent History rows (pack v4.0, F3) ──────────
+      <section data-care-recent aria-labelledby="care-recent-label" className="space-y-2">
+        <div className="flex items-baseline justify-between gap-2">
+          {/* TODO-COPY */}
+          <h3 id="care-recent-label" className="text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase">
+            Recent
+          </h3>
+          <button
+            type="button"
+            data-care-view-history
+            onClick={() => onTab("history")}
+            className={cn("inline-flex min-h-8 items-center rounded-sm text-[var(--text-primary)] underline underline-offset-2 hover:no-underline", RING)}
+            style={{ font: "var(--type-field-label)" }}
+          >
+            {/* TODO-COPY */}
+            View history →
+          </button>
         </div>
-      );
-    }
-    // ── THE EXCHANGE (pack v2.0), on Overview only (pack v3.0) ─────────────
-    if (escalation) {
-      return (
-        <div data-care-state="active" data-care-target={String(escalation.requested ?? 1)}>
-          <EscalationExchange
-            e={escalation}
-            teenId={teenId}
-            name={name}
-            lens={observer ? "supervisor" : "mentor"}
-            tiering={tiering}
-            supervisorName={supervisorName}
-            mentorName={tiering.liveMentorName || "the mentor"}
-            presence={presence}
-            onUseWording={onUseWording}
-            onReplyInSupport={onReplyInSupport}
-            teenLines={teenLines}
-            mentorLines={mentorLines}
-            onSettled={onSettled}
-          />
-        </div>
-      );
-    }
-    // ── STEADY: the tier card and the care brief ───────────────────────────
-    return (
-      <div data-care-state="steady" className="space-y-5">
-        <TierCard
+        {history(2)}
+      </section>
+    );
+
+  return (
+    /* ═══ THE HERO SITS ABOVE THE TABS (pack v4.0, Workstream B) ═══ It is
+       the panel's one status, so it holds across every tab: the Teen Status
+       card while steady, the escalation hero while one is open. */
+    <div
+      data-care-panel
+      data-care-state={panelState}
+      data-care-target={escalation ? String(escalation.requested ?? 1) : undefined}
+      className="space-y-4"
+    >
+      {escalation ? (
+        <EscalationHero
+          e={escalation}
+          tiering={tiering}
+          teenId={teenId}
+          lens={lens}
+          supervisorName={supervisorName}
+          mentorName={mentorName}
+          presence={presence}
+          onSupport={onReplyInSupport}
+        />
+      ) : (
+        <TeenStatusCard
           state={state}
           now={now}
           name={name}
-          role={observer ? "supervisor" : "mentor"}
+          role={lens}
+          brief={brief}
+          highlight={highlightTier}
           onEscalate={onStartRaise}
           onRequestStepDown={onRequestStepDown}
           onUpdateTier={onUpdateTier}
         />
-        <PanelSection label="Care brief" divided>
-          <div data-care-brief>
-            {brief.presentation ? (
-              <p className="text-[var(--text-primary)]" style={{ font: "var(--type-card-title)" }}>
-                {brief.presentation}
-                {brief.code && <span className="ml-1.5 font-mono text-[12px] font-normal text-[var(--text-secondary)]">{brief.code}</span>}
-              </p>
-            ) : (
-              <p className="text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
-                {/* TODO-COPY */}
-                No presentation assigned yet.
-              </p>
-            )}
-            {brief.summary && (
-              <p className="mt-1 line-clamp-3 text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
-                {brief.summary}
-              </p>
-            )}
-            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
-              {brief.freshAt !== null && (
-                <span className="tabular-nums text-[var(--text-muted)]" style={{ font: "var(--type-field-label)" }}>
-                  {/* TODO-COPY */}
-                  Updated {DATE.format(brief.freshAt)}
-                </span>
-              )}
-              <Link
-                href={brief.href}
-                data-care-record
-                className={cn("inline-flex min-h-8 items-center gap-1 rounded-sm text-[var(--text-primary)] underline underline-offset-2 hover:no-underline", RING)}
-                style={{ font: "var(--type-body)" }}
-              >
-                {/* TODO-COPY */}
-                View full care record <ArrowRight aria-hidden className="size-4" />
-              </Link>
-            </div>
-          </div>
-        </PanelSection>
-      </div>
-    );
-  })();
-
-  return (
-    <div data-care-panel className="space-y-4">
+      )}
       <CareTabs tab={tab} onTab={onTab} dot={dot} />
       <div id="care-tabpanel" role="tabpanel" aria-labelledby={`care-tab-${tab}`} data-care-tabpanel={tab}>
         {tab === "overview" ? (
           overview
         ) : tab === "history" ? (
-          <TierHistory
-            events={tiering.eventsFor(teenId)}
-            escalations={tiering.escalationsFor(teenId)}
-            nameOf={tiering.nameOf}
-            mentorName={observer ? tiering.liveMentorName || "The mentor" : "You"}
-            emptyName={name}
-          />
+          history()
         ) : tab === "safety-plan" ? (
           <p data-care-safety-plan className="text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
             {/* TODO-COPY. A designed empty state, not a dash. */}
@@ -310,7 +324,7 @@ export function CarePanel({
         ) : (
           <ul data-care-resources className="space-y-2">
             {RESOURCES.map((r) => (
-              <li key={r.name} className="rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2.5">
+              <li key={r.name} className="rounded-[var(--radius-inset)] bg-[var(--surface-raised)] px-3 py-2.5 shadow-[var(--el-soft)]">
                 <p className="text-[var(--text-primary)]" style={{ font: "var(--type-body)" }}>{r.name}</p>
                 <p className="text-[var(--text-secondary)]" style={{ font: "var(--type-field-label)" }}>{r.how}</p>
               </li>

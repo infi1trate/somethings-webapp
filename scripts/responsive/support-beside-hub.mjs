@@ -139,12 +139,16 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
      persistent and fixed after Context — tabs never reorder — and is the
      default while one is open. The claims about size and fill are unchanged. */
   const care = hdr.tabs.find((t) => t.t === "care");
-  check(hdr.tabs[1]?.t === "care" && care.selected === "true" && care.bg === hdr.strong, "Care is after Context, filled, and the default while an escalation is open", JSON.stringify(care));
-  check(hdr.tabs.every((t) => t.w === 40 && t.h === 40 && t.radius >= 20), "every hub tab is a 40px round button", hdr.tabs.map((t) => `${t.t} ${t.w}×${t.h}`).join(" · "));
+  /* ═══ RETARGETED (pack v4.0, Supersession 3) ═══ Care is a LABELLED control
+     at the left end of the row, behind a divider, styled as a tab; the icon
+     tabs keep their 40px round buttons at the right. */
+  const icons = hdr.tabs.filter((t) => t.t !== "care");
+  check(hdr.tabs[0]?.t === "care" && care.selected === "true" && care.bg === hdr.strong && care.h === 40 && care.w > 40 && /Care/.test(care.name), "Care is first, labelled, filled, and the default while an escalation is open", JSON.stringify(care));
+  check(icons.every((t) => t.w === 40 && t.h === 40 && t.radius >= 20), "every icon tab is a 40px round button", icons.map((t) => `${t.t} ${t.w}×${t.h}`).join(" · "));
   check(hdr.tabs.filter((t) => t.t !== "care").every((t) => t.selected === "false" && t.border === hdr.subtle && t.bg === "rgba(0, 0, 0, 0)"), "the rest are outlined border-subtle");
   /* One group, at the header's right inset (16). */
-  check(hdr.tabs.at(-1).right === hdr.hubR - 16 && hdr.tabs.slice(1).every((t, i) => t.x - hdr.tabs[i].right === 8), "one row at the right, 8 apart", `hub ${hdr.hubL}–${hdr.hubR} · last ${hdr.tabs.at(-1).right}`);
-  check(hdr.tabs.map((t) => t.name.replace(/, escalation open$/, "")).join() === "Context,Care,Profile,Tools,History", "named Context · Care · Profile · Tools · History", hdr.tabs.map((t) => t.name).join(" · "));
+  check(care.x === hdr.hubL + 16 && icons.at(-1).right === hdr.hubR - 16 && icons.slice(1).every((t, i) => t.x - icons[i].right === 8), "Care at the left inset, the icons at the right, 8 apart", `hub ${hdr.hubL}–${hdr.hubR} · care ${care.x} · last ${icons.at(-1).right}`);
+  check(hdr.tabs.map((t) => t.name.replace(/, escalation open$/, "")).join() === "Care,Context,Profile,Tools,History", "named Care · Context · Profile · Tools · History", hdr.tabs.map((t) => t.name).join(" · "));
   await toggleSupport(page);
   const s = await page.evaluate(() => {
     const c = getComputedStyle(document.querySelector("[data-canvas-scroller]"));
@@ -165,8 +169,9 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
   /* PRESENCE */
   await page.locator('[data-support-row="s-brandy"] [data-support-row-open]').click();
   await page.waitForTimeout(400);
-  const pres = await page.evaluate(() => document.querySelector("[data-rail-presence]")?.textContent.trim());
-  check(pres === "Brandy is in this chat", "with the notified supervisor open, the hub says she is in this chat", pres);
+  /* RETARGETED (pack v4.0, B3): presence lives in the Care hero only. */
+  const pres = await page.evaluate(() => ({ hero: document.querySelector("[data-hero-presence]")?.textContent.trim(), strip: !!document.querySelector("[data-rail-presence]") }));
+  check(pres.hero === "Brandy is here" && !pres.strip, "with the notified supervisor open, the hero says she is here — and nothing else does", JSON.stringify(pres));
 
   /* KEYBOARD ORDER, and Esc from the support composer */
   const order = await page.evaluate(() => {
@@ -213,11 +218,11 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
   await page.locator('[data-support-pinned] [data-support-row-open]').click();
   await page.waitForTimeout(400);
   const ws = await page.evaluate(() => ({
-    pres: document.querySelector("[data-rail-presence]")?.textContent.trim(),
+    pres: document.querySelector("[data-hero-presence]")?.textContent.trim(),
     role: document.querySelector("[data-support-role]")?.textContent.trim(),
     ph: document.querySelector("[data-support-composer] textarea")?.getAttribute("placeholder"),
   }));
-  check(/ is in this chat$/.test(ws.pres ?? "") && !/^The is/.test(ws.pres ?? ""), "the hub says the mentor is in this chat", ws.pres);
+  check(/ is here$/.test(ws.pres ?? "") && !/^The is/.test(ws.pres ?? ""), "the hero says the mentor is here", ws.pres);
   check(ws.role === "Mentor" && !/Message The$/.test(ws.ph ?? ""), "the support header names them a Mentor, and the composer addresses them", `${ws.role} · ${ws.ph}`);
   await page.screenshot({ path: `${OUT}/02-supervisor-observing-1512.png` });
   await ctx.close();
