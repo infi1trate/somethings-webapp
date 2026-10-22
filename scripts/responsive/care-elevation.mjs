@@ -16,6 +16,9 @@
 //  10  (Phase 2) the truncation audit: nothing in the timeline ellipsised;
 //      answered rows carry a short label, the question verbatim on expand
 //  11  (Phase 2) the two-zone question card
+//  12  (Phase 3) While you're with them: one Support door, the supervisor's
+//      echo, Ava's nudges (never clinical, never sent, never stored), the
+//      steadying line
 //
 // Exit codes: 0 all passed · 1 a check failed.
 
@@ -290,6 +293,51 @@ const timeline = (page) =>
   const w = await timeline(page);
   check(w.variant === "waiting" && !w.pulse && w.breath === "6s", "submitted: the mentor's current node is WAITING — it breathes on a 6s cycle, no pulse", JSON.stringify({ v: w.variant, p: w.pulse, b: w.breath }));
   check(w.cut.length === 0, "and still nothing ellipsised", w.cut.join(" | "));
+
+  /* ── 12 · WHILE YOU'RE WITH THEM (Phase 3) ── */
+  const CLINICAL = /\b(suicid\w*|kill\w*|die|dying|dead|death|harm\w*|safe(ty)?|plan\w*|risk\w*|assess\w*|crisis|emergency|911|988|hospital|diagnos\w*|therap\w*|medic\w*|pills?)\b/i;
+  const mod = () =>
+    page.evaluate(() => {
+      const m = document.querySelector("[data-waiting-module]");
+      const ink = (() => { const e = document.createElement("span"); e.style.color = "var(--text-primary)"; document.body.appendChild(e); const c = getComputedStyle(e).color; e.remove(); return c; })();
+      return {
+        title: document.querySelector('[data-node-state="current"] [data-node-title]')?.textContent.trim(),
+        door: !!m?.querySelector("[data-waiting-open-support]"),
+        heroDoor: !!document.querySelector("[data-timeline-support]"),
+        holder: document.querySelector("[data-hero-holder]")?.textContent.replace("—", "").trim(),
+        holderInModule: /has this/.test(m?.textContent ?? ""),
+        echo: m?.querySelector('[data-quote="supervisor-echo"] figcaption')?.textContent.trim(),
+        label: m?.querySelector("#nudges-label")?.textContent.trim(),
+        nudges: [...(m?.querySelectorAll("[data-nudge]") ?? [])].map((n) => ({ id: n.dataset.nudge, text: n.querySelector("span")?.textContent.trim(), used: n.dataset.nudgeUsed === "true" })),
+        steady: m?.querySelector("[data-steadying]")?.textContent.trim(),
+        presence: document.querySelector("[data-hero-presence]")?.textContent.trim() ?? null,
+        filled: [...(document.querySelector("[data-care-panel]")?.querySelectorAll("button, a") ?? [])].filter((b) => getComputedStyle(b).backgroundColor === ink).length,
+      };
+    });
+  const m0 = await mod();
+  check(m0.title === "While you’re with Jordan" && m0.holder === "Brandy has this" && !m0.holderInModule, "the waiting node is While you’re with Jordan; the holder line stays the hero’s", JSON.stringify({ t: m0.title, h: m0.holder }));
+  check(m0.door && !m0.heroDoor, "one Support door: the module’s Open Support, the hero’s hidden while the mentor waits", JSON.stringify({ door: m0.door, hero: m0.heroDoor }));
+  check(/^Brandy, /.test(m0.echo ?? ""), "the supervisor’s latest Support message, quote-framed and attributed", String(m0.echo));
+  check(m0.label === "Suggested by Ava" && m0.nudges.length >= 2 && m0.nudges.length <= 3, "2–3 nudges, labelled Suggested by Ava", `${m0.label} · ${m0.nudges.length}`);
+  check(m0.nudges.every((n) => !CLINICAL.test(n.text ?? "")), "no nudge is clinical", m0.nudges.map((n) => n.text).join(" | "));
+  check(m0.nudges.some((n) => n.id === "home") && m0.nudges.some((n) => n.id === "tired"), "grounded in what Jordan said: home, and tired", m0.nudges.map((n) => n.id).join());
+  check(m0.filled === 0, "waiting holds no filled button", String(m0.filled));
+  const before = await page.evaluate((k) => localStorage.getItem(k), KEY);
+  await page.locator('[data-nudge="home"]').click();
+  await page.waitForTimeout(300);
+  const after = await page.evaluate((k) => ({ box: document.querySelector('[data-slot="composer"] textarea')?.value ?? null, store: localStorage.getItem(k) }), KEY);
+  const m1 = await mod();
+  const home = m0.nudges.find((n) => n.id === "home")?.text;
+  check(after.box === home && m1.nudges.find((n) => n.id === "home")?.used, "a nudge fills the message box and marks itself used", JSON.stringify({ box: after.box?.slice(0, 30), used: m1.nudges.find((n) => n.id === "home")?.used }));
+  check(JSON.parse(after.store).state.chatMessages?.length === JSON.parse(before).state.chatMessages?.length && !after.store.includes(home ?? "§"), "nothing is sent, and the nudge is in no record", "");
+  await page.waitForTimeout(12_500);
+  const m2 = await mod();
+  check(!!m0.steady && !!m2.steady && m2.steady !== m0.steady && !CLINICAL.test(m2.steady), "the steadying line rotates", `${m0.steady} → ${m2.steady}`);
+  await page.screenshot({ path: `${OUT}/04-waiting-module.png` });
+  await page.locator("[data-waiting-open-support]").click();
+  await page.waitForTimeout(500);
+  const m3 = await mod();
+  check(!m3.door && m3.presence === "Brandy is here", "Support open: the door goes, and the hero says Brandy is here", JSON.stringify({ door: m3.door, p: m3.presence }));
   await ctx.close();
 }
 {

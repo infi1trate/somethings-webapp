@@ -416,8 +416,11 @@ let assessed;
   const x1 = await xs(page);
   const chip = await page.evaluate(() => document.querySelector('[data-node="assessment"] [data-risk-chip]')?.textContent);
   check(x1?.stage === "M3" && x1.current.join() === "waiting" && x1.done.includes("assessment") && chip === "High risk", "Submit: the assessment settles into a completed node with its risk chip; waiting is current", JSON.stringify({ ...x1, chip }));
-  check(x1?.title === "Brandy has this. Stay with Jordan." && !(await page.evaluate(() => !!document.querySelector('[data-node="waiting"] [data-node-card] > :not([data-node-title])'))), "waiting says the pack's line and nothing else", String(x1?.title));
-  check(await page.evaluate(() => /^Message Brandy in Support/.test(document.querySelector('[data-timeline-support="mentor"]')?.textContent ?? "")), "and Message Brandy in Support lives in the hero");
+  /* RETARGETED (pack v4.0, Workstream D): the waiting node is "While you're
+     with Jordan" — the holder line is the hero's — and while the mentor waits
+     the one Support door is the module's Open Support, not the hero's. */
+  check(x1?.title === "While you’re with Jordan" && (await page.evaluate(() => /— Brandy has this/.test(document.querySelector("[data-tier-line]")?.textContent ?? ""))), "waiting is While you’re with Jordan; Brandy has this stays in the hero", String(x1?.title));
+  check(await page.evaluate(() => !document.querySelector("[data-timeline-support]") && !!document.querySelector("[data-waiting-open-support]")), "and the one Support door is the module's Open Support");
   await page.screenshot({ path: `${OUT}/03-m3-stay.png` });
   assessed = await store(page);
   await ctx.close();

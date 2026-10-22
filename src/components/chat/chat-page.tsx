@@ -383,6 +383,10 @@ export function ChatPage({
   /* A first name when there is a name; the whole fallback when there is not
      (measured: an unnamed mentor read "The is in this chat"). */
   const otherFirst = otherParty === LIVE_ID && !liveMentor?.name ? "The mentor" : otherName.split(" ")[0];
+  /* ═══ THE SUPERVISOR'S ECHO (pack v4.0, D2) ═══ Their latest Support
+     message to this mentor, for the waiting node. Read, never copied. */
+  const echoMessage = !observer && escalation ? supportThread(escalation.supervisorId, persona, scenarioId, now)?.messages.filter((m) => !m.mine).at(-1) : undefined;
+  const supervisorEcho = echoMessage ? { text: echoMessage.text, at: echoMessage.at } : undefined;
   const presence =
     supportOpen && otherParty && supportThreadId === otherParty && otherName
       ? /* The NAME only — the Care hero says "{name} is here" (pack v4.0). */ otherFirst
@@ -1013,6 +1017,7 @@ export function ChatPage({
                     otherParty && (observer ? pinMentor : canOpenInSupport(otherParty)) ? () => openInSupport(otherParty) : undefined
                   }
                   presence={presence}
+                  echo={supervisorEcho}
                   emergency={emergencyInfo}
                   brief={careBrief}
                   teenLines={teenLines}

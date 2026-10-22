@@ -38,6 +38,7 @@
 
 import { useRef } from "react";
 import { EscalationExchange, EscalationHero } from "@/components/chat/escalation/exchange";
+import type { SupervisorEcho } from "@/components/chat/escalation/waiting-module";
 import { TeenStatusCard } from "@/components/chat/rail/teen-status-card";
 import { EmergencyInfoPanel } from "@/components/chat/escalation/crisis-view";
 import { RaiseFlow } from "@/components/tiering/raise-flow";
@@ -183,6 +184,7 @@ export function CarePanel({
   mentorLines,
   onSettled,
   highlightTier = false,
+  echo,
 }: {
   teenId: string;
   name: string;
@@ -216,6 +218,8 @@ export function CarePanel({
   onSettled?: () => void;
   /** The tier cell's one-beat arrival after a close (pack v4.0, F1). */
   highlightTier?: boolean;
+  /** The supervisor's latest Support message (pack v4.0, D2). */
+  echo?: SupervisorEcho;
 }) {
   const state = tiering.stateFor(teenId);
   const lens = observer ? "supervisor" : "mentor";
@@ -250,6 +254,9 @@ export function CarePanel({
         teenLines={teenLines}
         mentorLines={mentorLines}
         onSettled={onSettled}
+        supportOpen={!!presence}
+        onSupport={onReplyInSupport}
+        echo={echo}
       />
     ) : (
       // ── STEADY: the two most recent History rows (pack v4.0, F3) ──────────

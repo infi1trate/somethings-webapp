@@ -25,6 +25,8 @@
 
 import { useId, useState } from "react";
 import { ArrowRight, Check, ChevronDown, Lock, Sparkles } from "lucide-react";
+import { Quote } from "@/components/chat/escalation/quote";
+import { WaitingModule, type SupervisorEcho } from "@/components/chat/escalation/waiting-module";
 import { RequestedChip } from "@/components/tiering/requested-chip";
 import { TierLozenge } from "@/components/ui/tier-lozenge";
 import type { EscalationState } from "@/lib/chat/types";
@@ -278,25 +280,6 @@ function noteSummary(note: CrisisNote, id: CrisisSectionId): string {
 
 /** ═══ A NOTE OR A MESSAGE IS ALWAYS QUOTE-FRAMED (Workstream E3) ═══ With
  *  attribution and time, so raw text can never read as a UI header. */
-function Quote({ text, who, at, note, slot }: { text: string; who: string; at: number; note?: string; slot: string }) {
-  return (
-    <figure data-quote={slot} className="rounded-[var(--radius-inset)] border-l-2 border-[color:var(--border-default)] bg-[var(--surface-s1)] py-2 pr-3 pl-3">
-      <blockquote className="text-[var(--text-primary)]" style={BODY}>
-        &ldquo;{text}&rdquo;
-      </blockquote>
-      <figcaption className="mt-1 tabular-nums text-[var(--text-muted)]" style={LABEL}>
-        {who}, {TIME.format(at)}
-      </figcaption>
-      {note && (
-        <p className="mt-1.5 text-[var(--text-secondary)]" style={LABEL}>
-          {/* TODO-COPY */}
-          Note: {note}
-        </p>
-      )}
-    </figure>
-  );
-}
-
 // ── THE HERO — one home for tier, responsibility and the Support link ──────
 
 /** ═══ ESCALATION HERO (pack v4.0, Workstream B) ═══ Above the Care tabs,
@@ -379,7 +362,9 @@ export function EscalationHero({
           </>
         )}
       </p>
-      {onSupport && !closed && (
+      {/* ONE SUPPORT DOOR: while the mentor waits, it is the waiting
+          module's "Open Support" (Workstream D), not the hero's. */}
+      {onSupport && !closed && !(lens === "mentor" && mentorStage(e, tiering.stateFor(teenId)) === "M3") && (
         <button
           type="button"
           data-timeline-support={lens}
@@ -1144,6 +1129,9 @@ export function EscalationExchange({
   teenLines,
   mentorLines,
   onSettled,
+  supportOpen = false,
+  onSupport,
+  echo,
 }: {
   e: EscalationState;
   teenId: string;
@@ -1160,6 +1148,11 @@ export function EscalationExchange({
    *  own escalation (a close, an S1 exit, Mark reviewed) or the mentor
    *  leaves the wrap. */
   onSettled?: () => void;
+  /** Support is open on the other party (the waiting module drops its door). */
+  supportOpen?: boolean;
+  onSupport?: () => void;
+  /** The supervisor's latest Support message, for the mentor's waiting node. */
+  echo?: SupervisorEcho;
 }) {
   const state = tiering.stateFor(teenId);
   const tier = workingTier(e, state);
@@ -1185,8 +1178,8 @@ export function EscalationExchange({
         if (n.state === "current") return lens === "mentor" ? `Go through the assessment with ${name}` : "Assessment in progress";
         return lens === "mentor" ? "Assessment sent" : "Assessment received";
       case "waiting":
-        /* TODO-COPY — the pack's line, as the node's title; nothing else. */
-        return n.state === "current" ? `${supervisorName} has this. Stay with ${name}.` : `${supervisorName} took it from here`;
+        /* TODO-COPY. The holder ("Brandy has this") is the hero's line. */
+        return n.state === "current" ? `While you’re with ${name}` : `${supervisorName} took it from here`;
       case "review":
         return "Review the report";
       case "confirm":
@@ -1216,9 +1209,18 @@ export function EscalationExchange({
           </p>
         );
       case "waiting":
-        /* NOTHING ELSE (Workstream D): the title says it, and "Reply in
-           Support" is the header's. */
-        return null;
+        /* ═══ THE WAITING MODULE (pack v4.0, Workstream D) ═══ */
+        return (
+          <WaitingModule
+            name={name}
+            supervisorName={supervisorName}
+            supportOpen={supportOpen}
+            onSupport={onSupport}
+            echo={echo}
+            teenLines={teenLines}
+            onUseWording={onUseWording}
+          />
+        );
       case "review":
         return <ReviewCard tiering={tiering} teenId={teenId} onSettled={onSettled} />;
       case "confirm":
