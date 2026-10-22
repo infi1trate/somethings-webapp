@@ -239,8 +239,10 @@ for (const theme of ["light", "dark"]) {
     const { rgba, ratio, bgOf } = window.__c;
     const chip = [...document.querySelectorAll('[data-slot="event-chip"]')].find((c) => /closed the escalation/.test(c.innerText));
     const t = chip?.querySelector("span") ?? chip;
-    return [{ name: "resolved chip (sage)", r: t ? Math.round(ratio(rgba(getComputedStyle(t).color), bgOf(t)) * 100) / 100 : null, need: 4.5 }];
+    const sage = (() => { const e = document.createElement("span"); e.style.backgroundColor = "var(--band-sage-bg)"; document.body.appendChild(e); const c = getComputedStyle(e).backgroundColor; e.remove(); return c; })();
+    return [{ name: "resolved chip (sage)", r: t ? Math.round(ratio(rgba(getComputedStyle(t).color), bgOf(t)) * 100) / 100 : null, need: 4.5, green: !!chip && [chip, ...chip.querySelectorAll("*")].some((el) => getComputedStyle(el).backgroundColor === sage) }];
   }, [ENGINE]);
+  check(r3[0].green, `${theme} · the close chip is green-family (sage), the arc's calm end`, String(r3[0].green));
   await m.ctx.close();
   for (const x of [...r1, ...r2, ...r3]) check(x.r !== null && x.r >= x.need, `${theme} · ${x.name}`, x.r === null ? "not found" : `${x.r}:1 (needs ${x.need})`);
 }
