@@ -557,6 +557,10 @@ console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 e
   const xw = await xs(page);
   check(w.stage === "M4" && xw.current.join() === "closed" && xw.upcoming.length === 0 && w.outcome === "Mobile crisis responded" && w.tier === "1→3" && /checks in with Jordan again/.test(w.next ?? "") && /^[A-Z][a-z]+day, [A-Z][a-z]{2} \d{1,2}$/.test(w.follow ?? "") && w.labelOverValue && !w.banner, "closed: a designed summary — outcome, Tier 1 → Tier 3 as lozenges, what happens next, the follow-up date; label over value", JSON.stringify(w));
   check(/^Closed .+ · Tier 1 → Tier 3 Medium risk$/.test(w.line ?? ""), "and the header states the movement, not a stale Tier 1 confirmation", String(w.line));
+  /* MEASURED: the closed summary once named "Your supervisor" — the name was
+     read off the OPEN escalation, and there is none once it closes. */
+  const named = await page.evaluate(() => ({ next: document.querySelector("[data-wrap-next]")?.textContent ?? "", meta: document.querySelector("[data-timeline-meta]")?.textContent ?? "" }));
+  check(/^Brandy checks in/.test(named.next) && /Brandy notified/.test(named.meta), "and it names the supervisor, Brandy — never \u201cYour supervisor\u201d", JSON.stringify(named));
   await page.screenshot({ path: `${OUT}/05-m4-wrap.png` });
   await page.locator('[data-exchange-primary="back-to-care"]').click();
   await page.waitForTimeout(400);
