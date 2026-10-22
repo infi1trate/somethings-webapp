@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // THE HERO METRICS BAR (proto/monitoring-merge)
 //
-// One raised surface (white, 16px, Elevation 1) cut into five cells by
+// One raised surface (white, 20px, the soft elevation — Monitoring v2) cut into five cells by
 // hairlines — not cards, and not clickable in v1. Every number is derived
 // from the teen array (`monitoringMetrics`). The In-crisis cell is the only
 // one that can change colour: past zero it tints `t1-soft`, its numeral and
@@ -85,7 +85,7 @@ export function HeroMetrics({ m, range }: { m: MonitoringMetrics; range?: HeroRa
     <section
       aria-label="Monitoring summary"
       data-hero-metrics
-      className="grid grid-cols-5 gap-px overflow-hidden rounded-[16px] bg-[var(--border-subtle)] shadow-[var(--elevation-1)] @max-[880px]/canvas:grid-cols-3 @max-[520px]/canvas:grid-cols-2"
+      className="grid grid-cols-5 gap-px overflow-hidden rounded-[20px] bg-[var(--border-subtle)] shadow-[var(--el-soft)] @max-[880px]/canvas:grid-cols-3 @max-[520px]/canvas:grid-cols-2"
     >
       {/* TODO-COPY, every label and detail line. */}
       <Cell crisis value={m.inCrisis} label="In crisis" detail="Tier 1 · live" />
