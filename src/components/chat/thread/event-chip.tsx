@@ -64,8 +64,14 @@ const GLYPH: Record<ChatEventKind, LucideIcon> = {
  *  states — an event chip is history, and history should not shout. */
 const TONE: Partial<Record<ChatEventKind, string>> = {
   "escalation-opened": "bg-[var(--band-clay-bg)] text-[var(--band-clay-fg)]",
-  "escalation-resolved": "bg-[var(--band-clay-bg)] text-[var(--band-clay-fg)]",
+  /* ═══ THE CLOSE IS CALM AND FORWARD (pack v3.0, Workstream E2) ═══ Green
+     family, not clay: with the raise it reads as an arc, not an alarm. */
+  "escalation-resolved": "bg-[var(--band-sage-bg)] text-[var(--band-sage-fg)]",
 };
+/** ═══ THE RAISE, WHILE IT IS LIVE ═══ In the alert family while the
+ *  escalation is open on Tier 1–2; once it closes it steps back to its
+ *  historical clay tint. */
+const LIVE_RAISE = "bg-[var(--alert-critical-bg)] text-[var(--alert-critical-fg)]";
 
 /** ═══ THE SENTENCE, COMPOSED FROM THE RECORD ═══
  *
@@ -91,7 +97,8 @@ function sentence(e: ChatEvent, actorName: string): string {
     case "escalation-opened":
       return `${who} raised an escalation`;
     case "escalation-resolved":
-      return `${who} resolved the escalation`;
+      /* "closed", and never the teen: only a supervisor closes (pack v3.0). */
+      return `${who} closed the escalation`;
   }
 }
 
@@ -118,17 +125,20 @@ export function EventChip({
    *  below it. Deleting the original would be rewriting the record; leaving it at
    *  full strength would leave two chips claiming to be current. */
   retracted,
+  live = false,
   onOpen,
 }: {
   event: ChatEvent;
   actorName: string;
   variant?: "inline" | "row";
   retracted?: boolean;
+  /** This is the raise of the escalation still open at Tier 1–2. */
+  live?: boolean;
   onOpen?: (event: ChatEvent) => void;
 }) {
   const Glyph = GLYPH[event.kind];
   const text = sentence(event, actorName);
-  const tone = TONE[event.kind];
+  const tone = live && event.kind === "escalation-opened" ? LIVE_RAISE : TONE[event.kind];
   const opens = eventOpens(event.kind) && !!onOpen;
 
   const body = (

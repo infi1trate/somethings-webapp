@@ -220,9 +220,17 @@ async function raiseVia(page, door, tier, note = "They said they are not okay to
   await DOORS[door](page);
   await page.waitForTimeout(400);
   const before = await page.evaluate(() => ({ flow: !!document.querySelector("[data-raise-flow]"), banner: !!document.querySelector('[data-slot="status-banner"]'), care: document.querySelector('[data-rail-tab="care"]')?.getAttribute("aria-selected") }));
-  await page.locator(`[data-raise-option="${tier}"]`).click();
-  await page.locator("[data-raise-note]").fill(note);
-  await page.locator("[data-raise-confirm]").click();
+  if (tier === "platform") {
+    /* A platform concern is not a tier (pack v3.0, Supersession 3): the quiet
+       link below the tiers opens its own report. */
+    await page.locator("[data-raise-platform]").click();
+    await page.locator("[data-platform-note]").fill(note);
+    await page.locator("[data-platform-send]").click();
+  } else {
+    await page.locator(`[data-raise-option="${tier}"]`).click();
+    await page.locator("[data-raise-note]").fill(note);
+    await page.locator("[data-raise-confirm]").click();
+  }
   await page.waitForTimeout(600);
   return before;
 }
@@ -270,7 +278,14 @@ for (const door of Object.keys(DOORS)) {
   const picked = await page.evaluate(() => document.querySelector('[data-raise-option][aria-checked="true"]')?.dataset.raiseOption);
   check(!!picked, "arrow keys select in the tier picker", String(picked));
   const cur = await page.evaluate(() => [...document.querySelectorAll("[data-raise-option]")].map((o) => o.dataset.raiseOption));
-  check(cur.join() === "1,2,3,platform", "the picker offers Tiers 1–3 and Platform safety — never Tier 4", cur.join(","));
+  check(cur.join() === "1,2,3", "the picker offers strictly Tiers 1–3 — never Tier 4, and no Platform option", cur.join(","));
+  /* ═══ SOMETHING ELSE ═══ The platform concern, as a quiet link below. */
+  const link = await page.evaluate(() => { const l = document.querySelector("[data-raise-platform]"); const g = document.querySelector('[data-raise-flow] [role="radiogroup"]'); return { text: l?.textContent, after: !!(l && g && g.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING), radio: l?.getAttribute("role") }; });
+  check(link.text === "Something else? Report a platform concern" && link.after && link.radio === null, "below the tiers: a quiet link, not a radio, opens the platform report", JSON.stringify(link));
+  await page.locator("[data-raise-platform]").click();
+  await page.waitForTimeout(150);
+  const rep = await page.evaluate(() => ({ form: !!document.querySelector("[data-platform-report]"), lozenge: document.querySelectorAll("[data-platform-report] [data-tier-lozenge]").length }));
+  check(rep.form && rep.lozenge === 0, "its own lighter flow, with no tier in it", JSON.stringify(rep));
   await ctx.close();
   /* Jordan, Tier 3: the current tier is information, not a choice. */
   const j = await open("/app/chat/t13");
@@ -538,9 +553,9 @@ let closed;
 console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 exits at S1 · Platform");
 {
   const { ctx, page } = await open("/app/chat/t13", { chat: "escalation-active", extra: { escalations: closed.escalations, tierEvents: closed.tierEvents, escalationHistory: closed.escalationHistory } });
-  const w = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, outcome: document.querySelector("[data-wrap-outcome]")?.textContent, tier: document.querySelector("[data-wrap-tier]")?.textContent, next: document.querySelector("[data-wrap-next]")?.textContent, line: document.querySelector("[data-tier-line-text]")?.textContent, banner: !!document.querySelector('[data-slot="status-banner"]') }));
+  const w = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, outcome: document.querySelector("[data-wrap-outcome]")?.textContent, tier: [...(document.querySelector("[data-wrap-tier]")?.querySelectorAll("[data-tier-lozenge]") ?? [])].map((l) => l.dataset.tierLozenge).join("→"), next: document.querySelector("[data-wrap-next]")?.textContent, follow: document.querySelector("[data-wrap-follow-up]")?.textContent, labelOverValue: [...document.querySelectorAll("[data-wrap] dl > div")].every((d) => d.firstElementChild?.tagName === "DT" && d.lastElementChild?.tagName === "DD"), line: document.querySelector("[data-tier-line-text]")?.textContent, banner: !!document.querySelector('[data-slot="status-banner"]') }));
   const xw = await xs(page);
-  check(w.stage === "M4" && xw.current.join() === "closed" && xw.upcoming.length === 0 && w.outcome === "Mobile crisis responded" && /moves to Tier 3 Monitoring/.test(w.tier ?? "") && /checks in on Jordan again/.test(w.next ?? "") && !w.banner, "closed: the final node is the summary — outcome, tier now, what happens next; no banner", JSON.stringify(w));
+  check(w.stage === "M4" && xw.current.join() === "closed" && xw.upcoming.length === 0 && w.outcome === "Mobile crisis responded" && w.tier === "1→3" && /checks in with Jordan again/.test(w.next ?? "") && /^[A-Z][a-z]+day, [A-Z][a-z]{2} \d{1,2}$/.test(w.follow ?? "") && w.labelOverValue && !w.banner, "closed: a designed summary — outcome, Tier 1 → Tier 3 as lozenges, what happens next, the follow-up date; label over value", JSON.stringify(w));
   check(/^Closed .+ · Tier 1 → Tier 3 Medium risk$/.test(w.line ?? ""), "and the header states the movement, not a stale Tier 1 confirmation", String(w.line));
   await page.screenshot({ path: `${OUT}/05-m4-wrap.png` });
   await page.locator('[data-exchange-primary="back-to-care"]').click();

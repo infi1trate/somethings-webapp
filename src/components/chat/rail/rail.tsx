@@ -246,6 +246,7 @@ export function Rail({
   onSendActivity,
   onSaveNote,
   onOpenEvent,
+  nameActor,
   onOpenReference,
   presence,
   className,
@@ -278,6 +279,7 @@ export function Rail({
     reminderAt: number | null;
   }) => void;
   onOpenEvent?: (event: ChatEvent) => void;
+  nameActor?: (actorId: string) => string;
   onOpenReference: (ref: ContextRef) => void;
   /** "Brandy is in this chat" — see the header. */
   presence?: string;
@@ -395,6 +397,7 @@ export function Rail({
                 }
                 onOpenNote={(n) => onModeChange({ kind: "reading", noteId: n.id })}
                 onOpenEvent={onOpenEvent}
+                nameActor={nameActor}
                 rescindedArtifactIds={rescinded}
               />
             ))}

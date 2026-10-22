@@ -136,6 +136,8 @@ export function Thread({
   onSend,
   onAddToEscalation,
   addedMoments,
+  nameActor,
+  escalationAlert = false,
   /** For the kebab's dialer link. Null on a thread with no number on file. */
   phone,
   className,
@@ -177,6 +179,10 @@ export function Thread({
   onAddToEscalation?: (message: ChatMessage) => void;
   /** Messages already on the escalation's timeline: id → the mentor's note. */
   addedMoments?: Record<string, string>;
+  /** ═══ WHO DID IT, BY ACTOR ID (pack v3.0, E1) ═══ `lib/chat/actor-name`. */
+  nameActor?: (actorId: string) => string;
+  /** The open escalation is Tier 1–2: its raise chip is in the alert family. */
+  escalationAlert?: boolean;
   phone?: string | null;
   className?: string;
 }) {
@@ -444,9 +450,8 @@ export function Thread({
                       /* TODO-COPY. "You" for the mentor's own actions, the other
                          party's first name otherwise — a mentor scanning needs to
                          know which of them did this. */
-                      actorName={
-                        entry.event.actorId === LIVE_ID ? (observer?.mentorName ?? "You") : theirName
-                      }
+                      actorName={nameActor ? nameActor(entry.event.actorId) : entry.event.actorId === LIVE_ID ? (observer?.mentorName ?? "You") : theirName}
+                      live={escalationAlert && !!escalation && entry.event.kind === "escalation-opened" && entry.event.artifactId === escalation.id}
                       retracted={
                         entry.event.kind === "activity-sent" &&
                         !!artifacts[entry.event.artifactId]?.rescindedAt

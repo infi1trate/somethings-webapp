@@ -121,7 +121,7 @@ export function timelineNodes(e: EscalationState, state: TierState, lens: Lens):
         /* The condition names the step before it, so it stays true as the
            note fills in. TODO-COPY. */
         const after = i === 0 ? "the tier is confirmed" : CRISIS_SECTION_LABEL[sections[i - 1]].toLowerCase();
-        push({ id: `note:${id}`, kind: "note", section: id, condition: `${CRISIS_SECTION_LABEL[id]} · after ${after}` }, sectionDone(e.crisisNote, id), e.crisisNote?.updatedAt ?? null);
+        push({ id: `note:${id}`, kind: "note", section: id, condition: `${CRISIS_SECTION_LABEL[id]} · after ${after}` }, sectionDone(e.crisisNote, id), e.crisisNote?.sectionAt?.[id] ?? e.crisisNote?.updatedAt ?? null);
       });
       push({ id: "outcome", kind: "outcome", condition: "Record the outcome · after the note is complete" }, !!e.outcome, e.outcome?.chosenAt ?? e.outcome?.savedAt ?? null);
       push({ id: "debrief", kind: "debrief", condition: "Write the debrief · after the outcome" }, !!e.outcome?.savedAt, e.outcome?.savedAt ?? null);

@@ -275,6 +275,9 @@ export interface EscalationState {
 }
 
 export interface CrisisNote {
+  /** When each section was first completed — its own node's time on the
+   *  timeline (pack v3.0). `updatedAt` stays the note's last write. */
+  sectionAt?: Partial<Record<"subtype" | "safety-plan" | "resources" | "referral" | "emergency", number>>;
   subtype?: string;
   tags?: string[];
   safetyPlan?: { status: string; usage: string };

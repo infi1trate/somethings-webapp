@@ -16,7 +16,7 @@ import {
   supervisorStage,
 } from "@/lib/tiering/escalation";
 import { seedEscalations, seedTierEvents, seedEscalationEvents } from "@/lib/tiering/seed";
-import { RAISE_TARGETS, TIER_NAME } from "@/lib/tiering/tiers";
+import { RAISE_TIERS, TIER_NAME } from "@/lib/tiering/tiers";
 import { DEMO_TEENS } from "@/lib/record/people-demo";
 import type { EscalationState } from "@/lib/chat/types";
 
@@ -41,8 +41,9 @@ describe("the canon's names", () => {
     expect(Object.values(TIER_NAME).some((n) => /monitoring/i.test(n))).toBe(false);
   });
 
-  it("lets a mentor raise Tiers 1–3 or Platform safety, never Tier 4", () => {
-    expect(RAISE_TARGETS).toEqual([1, 2, 3, "platform"]);
+  it("lets a mentor raise strictly Tiers 1–3 — never Tier 4, and a platform concern is not a tier", () => {
+    /* pack v3.0, Supersession 3: Platform safety left the taxonomy. */
+    expect(RAISE_TIERS).toEqual([1, 2, 3]);
   });
 });
 

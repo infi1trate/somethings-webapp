@@ -21,8 +21,9 @@
 // the Emergency info tab.
 //
 // ═══ ONE STORE, TWO VIEWS ═══ A supervisor watching the conversation reads
-// the same records — checklist, safety answers, guidance — without the
-// controls, and gets "Update tier" where a mentor gets "Escalate".
+// the same record — the assessment, the tier, the note, added chat moments —
+// on its own lens of the timeline, and gets "Update tier" where a mentor gets
+// "Escalate".
 //
 // ═══ RED ONLY IN TIER 1–2 CONTEXTS ═══ The in-panel Emergency information
 // button is gone (pack v3.0, Supersession 5): the banner chip is the one entry,

@@ -64,6 +64,7 @@ import { cn } from "@/lib/utils";
 import { CarePanel, type CareBrief, type CareTab } from "@/components/chat/rail/care";
 import { StepDownRequestDialog, TierUpdateDialog } from "@/components/tiering/tier-update-module";
 import { AddMomentDialog } from "@/components/chat/escalation/add-moment-dialog";
+import { actorName } from "@/lib/chat/actor-name";
 import { useTiering } from "@/lib/tiering/use-tiering";
 import { workingTier } from "@/lib/tiering/escalation";
 import { isAlertTier, type RaiseTarget } from "@/lib/tiering/tiers";
@@ -403,6 +404,17 @@ export function ChatPage({
    *  Because the banner's "Emergency info" opens it on a tab. Stored WITH the
    *  thread it was picked on, as `pickedTab` is, so a new conversation opens on
    *  Overview with no effect to reset it. */
+  /** ═══ WHO DID IT — ONE RESOLVER, BOTH HOSTS, BOTH LENSES (pack v3.0, E1) ═══
+   *  The thread's chips and the History rail named any non-mentor actor as
+   *  the teen; a supervisor's close read "Jordan resolved the escalation". */
+  const nameActor = (actorId: string) =>
+    actorName(actorId, {
+      viewerId: tiering.viewer.id,
+      teenId: thread?.id ?? "",
+      teenFirst: thread?.displayName.split(" ")[0] ?? "",
+      mentorName: observer?.mentorName ?? "",
+      supervisorFirst: DEMO_PEOPLE.find((x) => x.id === (latest?.supervisorId ?? "s-brandy"))?.name.split(" ")[0] ?? "",
+    });
   /** The message being added to the escalation (pack v3.0). */
   const [momentFrom, setMomentFrom] = useState<ChatMessage | null>(null);
   const [pickedCareTab, setPickedCareTab] = useState<{ threadId: string; tab: CareTab } | null>(null);
@@ -432,9 +444,11 @@ export function ChatPage({
     contact: null,
   };
   const supervisorFirst =
-    (escalation && DEMO_PEOPLE.find((x) => x.id === escalation.supervisorId)?.name.split(" ")[0]) || "Your supervisor";
-  /* GUIDANCE LIVES ON THE RECORD NOW (pack v2.0) — `escalation.guidance`,
-     written by the supervisor's S2 composer, read by the mentor's M3. */
+    /* The escalation on screen — open, or closed and awaiting its wrap — so a
+       closed summary still names Brandy rather than "Your supervisor". */
+    ((careEscalation ?? escalation) && DEMO_PEOPLE.find((x) => x.id === (careEscalation ?? escalation)!.supervisorId)?.name.split(" ")[0]) || "Your supervisor";
+  /* COACHING IS IN SUPPORT (pack v3.0, Supersession 2) — v2's guidance on
+     the record is deleted; the timeline links to the Support thread. */
   /** The conversation's own lines, for the supervisor's debrief draft. */
   const teenLines = useMemo(() => messages.filter((m) => m.sender === "them" && m.text).map((m) => m.text!), [messages]);
   const mentorLines = useMemo(() => messages.filter((m) => m.sender === "mentor" && m.text).map((m) => m.text!), [messages]);
@@ -601,7 +615,7 @@ export function ChatPage({
 
   /* ═══ RETIRED (pack v2.0): the checklist's `checkStep`, the safety check's
      handlers and the mentor's `resolveEscalation`. The assessment, the
-     supervisor's confirmation, guidance, crisis note, outcome and close are
+     supervisor's confirmation, crisis note, outcome, debrief and close are
      all `useTiering` moves now, on the one record. */
 
   /** ═══ RESCINDING WRITES, AND NEVER UNWRITES ═══
@@ -803,6 +817,8 @@ export function ChatPage({
                 /* ═══ ADD TO ESCALATION (pack v3.0, Workstream C) ═══ The mentor's
                    only; the supervisor reads the moments on the timeline. */
                 onAddToEscalation={!observer && escalation ? setMomentFrom : undefined}
+                nameActor={nameActor}
+                escalationAlert={!!escalation && isAlertTier(workingTier(escalation, tiering.stateFor(thread.id)))}
                 addedMoments={escalation ? Object.fromEntries((escalation.moments ?? []).map((m) => [m.messageId, m.note])) : undefined}
                 /* ═══ SEND GOES SOMEWHERE (pack v3.0, Phase 0's confirmed bug) ═══
                    An observer has no composer, so no sender. */
@@ -963,6 +979,7 @@ export function ChatPage({
             )}
           >
             <Rail
+              nameActor={nameActor}
               thread={thread}
               artifacts={artifacts}
               events={events}

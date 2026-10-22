@@ -20,7 +20,7 @@ import { isSupervisorTier, staffActorFor } from "@/lib/record/permission-map";
 import { LIVE_ID } from "@/lib/record/subject";
 import { useMounted } from "@/lib/use-mounted";
 import { tierStateFor, type TierActor, type TierEvent, type TierState } from "@/lib/tiering/events";
-import { CLOSE_OUT_TIER, assessmentOf, isOpen } from "@/lib/tiering/escalation";
+import { CLOSE_OUT_TIER, assessmentOf, crisisSections, isOpen, sectionDone } from "@/lib/tiering/escalation";
 import { seedEscalationEvents, seedEscalationHistory, seedEscalations, seedTierEvents } from "@/lib/tiering/seed";
 import type { RaiseTarget, Tier } from "@/lib/tiering/tiers";
 
@@ -230,7 +230,18 @@ export function useTiering(now: number): Tiering {
       saveCrisisNote: (teenId, patch) => {
         const e = escalationFor(teenId);
         if (!isOpen(e)) return; // append-only once closed
-        putEscalation({ ...e, crisisNote: { ...e.crisisNote, ...patch, updatedAt: Date.now() } });
+        const at = Date.now();
+        const next = { ...e.crisisNote, ...patch };
+        /* STAMP EACH SECTION ONCE, the first time it is complete — its node's
+           time. An edit later re-saves the note, not the section's moment. */
+        const sectionAt = { ...e.crisisNote?.sectionAt };
+        for (const id of crisisSections(e.confirmedTier ?? 1)) {
+          if (!sectionDone(next, id) || sectionAt[id] !== undefined) continue;
+          /* Done BEFORE this save (a record from before the stamp existed):
+             its moment is the note's previous write, not now. */
+          sectionAt[id] = sectionDone(e.crisisNote, id) ? (e.crisisNote?.updatedAt ?? at) : at;
+        }
+        putEscalation({ ...e, crisisNote: { ...next, sectionAt, updatedAt: at } });
       },
       /* ═══ OUTCOME, THEN DEBRIEF — two nodes (pack v3.0) ═══ Choosing writes
          the outcome with no debrief yet; saving the debrief completes it. */

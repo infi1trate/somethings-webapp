@@ -456,17 +456,20 @@ console.log("\n── closing @ escalation-active");
       /* THE HISTORY SURVIVES: both events, opened and resolved. Closing
          writes resolvedAt rather than deleting the row. */
       opened: chips.some((c) => /raised an escalation/.test(c)),
-      resolvedChip: chips.some((c) => /resolved the escalation/.test(c)),
+      /* pack v3.0 (E1): "closed", and the actor is the supervisor — never
+         the teen ("Jordan resolved the escalation" was the defect). */
+      resolvedChip: chips.some((c) => /^Brandy closed the escalation/.test(c)),
+      teenActor: chips.some((c) => /^Jordan (closed|resolved)/.test(c)),
       stage: document.querySelector("[data-exchange]")?.dataset.stage,
       outcome: document.querySelector("[data-wrap-outcome]")?.textContent,
       tab: [...document.querySelectorAll('[role="tab"][aria-selected="true"]')].map((t) => t.textContent.trim()),
     };
   })()`);
   check(resolved.bannerGone, "the banner is gone");
-  check(resolved.opened && resolved.resolvedChip, "both events survive in the transcript");
+  check(resolved.opened && resolved.resolvedChip && !resolved.teenActor, "both events survive in the transcript — the close names the supervisor, never the teen");
   /* AN ACCOUNT, NOT TWO TIMESTAMPS. An escalation whose only trace is when it
      opened and closed tells nobody whether a teenager is all right. */
-  check(resolved.stage === "M4" && /Tier 3 confirmed/.test(resolved.outcome ?? "") && resolved.tab.some((t) => t.startsWith("Care")), "the mentor is shown how it ended, in Care (M4)", JSON.stringify(resolved));
+  check(resolved.stage === "M4" && /Standard tier update/.test(resolved.outcome ?? "") && resolved.tab.some((t) => t.startsWith("Care")), "the mentor is shown how it ended, in Care (M4)", JSON.stringify(resolved));
   await p.locator('[data-exchange-primary="back-to-care"]').click();
   await p.waitForTimeout(400);
   /* History is a Care tab of its own now (pack v3.0). */
@@ -482,7 +485,7 @@ console.log("\n── closing @ escalation-active");
     banner: !!document.querySelector('[data-slot="status-banner"]'),
     exchange: !!document.querySelector("[data-exchange]"),
     resolvedChip: [...document.querySelectorAll('${LIST} > li[data-slot="event-chip"]')]
-      .some((li) => /resolved the escalation/.test(li.innerText)),
+      .some((li) => /closed the escalation/.test(li.innerText)),
   }))()`);
   check(!after.banner && !after.exchange && after.resolvedChip, "and it stays closed through a reload");
   await p.context().close();

@@ -163,7 +163,7 @@ function previewOfEvent(e: ChatEvent): string {
     case "escalation-opened":
       return `Raised an escalation`;
     case "escalation-resolved":
-      return `Resolved the escalation`;
+      return `Closed the escalation`;
   }
 }
 

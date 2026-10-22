@@ -229,12 +229,10 @@ function Choice<T extends string>({ options, value, onChange, label, slot }: { o
 
 // ── THE RISK CHIP ───────────────────────────────────────────────────────────
 
-/** ═══ ADVISORY, NEVER A TIER ═══ Computed live from the answers. Keyed on
- *  the level, so each change settles once (make it magical, 2). Alert colour
- *  is allowed here because the assessment exists only for Tier 1–2; the
- *  level is ALSO in words, so it is never colour alone. */
-/** `compact` drops the "Assessment suggests:" lead-in, for the spine row,
- *  whose label already says what the chip is about. */
+/** ═══ ADVISORY, NEVER A TIER ═══ Computed from the answers, keyed on the
+ *  level so each change settles once. NEUTRAL (pack v3.0, F3): the level is
+ *  in words. `compact` drops the "Assessment suggests:" lead-in, for a
+ *  timeline line whose title already says what the chip is about. */
 export function RiskChip({ level, compact = false }: { level: RiskLevel | null; compact?: boolean }) {
   if (!level) return null;
   return (
@@ -242,14 +240,12 @@ export function RiskChip({ level, compact = false }: { level: RiskLevel | null; 
       key={level}
       data-risk-chip={level}
       className={cn(
-        "tier-settle inline-flex h-6 shrink-0 items-center rounded-full border px-2.5",
-        /* INK ON ITS OWN SOFT FILL. On the card surface `--t1-ink` measured
-           4.36:1 in dark (fails AA); on `--t1-soft` it clears in both themes. */
-        level === "high"
-          ? "border-[color:var(--t1)] bg-[var(--t1-soft)] text-[var(--t1-ink)]"
-          : level === "moderate"
-            ? "border-[color:var(--t2)] bg-[var(--t2-soft)] text-[var(--t2-ink)]"
-            : "border-[color:var(--border-default)] bg-[var(--surface-card)] text-[var(--text-secondary)]"
+        /* ═══ NEUTRAL, IN EVERY LEVEL (pack v3.0, Workstream F3) ═══ Red in the
+           mentor's escalation view is the banner's, the escalation dot's and
+           the Tier 1–2 lozenges' alone. The chip was alert-tinted for
+           Moderate and High; it is words in a neutral chip now, and the level
+           is never colour alone anyway. */
+        "tier-settle inline-flex h-6 shrink-0 items-center rounded-full border border-[color:var(--border-default)] bg-[var(--surface-card)] px-2.5 text-[var(--text-primary)]"
       )}
       style={LABEL}
     >
@@ -394,10 +390,19 @@ function TimelineHeader({
 
 // ── THE NODE ────────────────────────────────────────────────────────────────
 
-function NodeGlyph({ state }: { state: TimelineNode["state"] }) {
+/** ═══ WHEN THIS PAGE OPENED ═══ Module scope, not render: a node completed
+ *  after this moment was completed HERE, and is the one that settles. Nodes
+ *  already done when the page opened stay still, so a load never animates
+ *  the whole spine at once. */
+const OPENED_AT = Date.now();
+
+function NodeGlyph({ state, fresh = false }: { state: TimelineNode["state"]; fresh?: boolean }) {
   if (state === "completed")
     return (
-      <span aria-hidden className="relative z-[1] flex size-6 items-center justify-center rounded-full bg-[var(--surface-s2)] text-[var(--text-primary)]">
+      /* ═══ THE HANDOFF (make it magical 1) ═══ The node that just completed
+         checks and settles — one beat — while the next node takes the pulse.
+         `tier-settle` is off under reduced motion. */
+      <span aria-hidden data-node-fresh={fresh || undefined} className={cn("relative z-[1] flex size-6 items-center justify-center rounded-full bg-[var(--surface-s2)] text-[var(--text-primary)]", fresh && "tier-settle")}>
         <Check className="size-3.5" />
       </span>
     );
@@ -424,8 +429,11 @@ function Node({
   children,
   expand,
   last,
+  fresh,
 }: {
   node: TimelineNode;
+  /** The one node completed most recently, in this session. */
+  fresh?: boolean;
   title: string;
   /** A short trailing element on a completed line (e.g. the risk chip). */
   detail?: React.ReactNode;
@@ -442,7 +450,7 @@ function Node({
       {/* THE SPINE: a hairline from this node to the next. */}
       {!last && <span aria-hidden className="absolute top-6 bottom-0 left-[11.5px] w-px bg-[var(--border-subtle)]" />}
       <div className="pt-0.5">
-        <NodeGlyph state={node.state} />
+        <NodeGlyph state={node.state} fresh={fresh} />
       </div>
       <div className={cn("min-w-0", last ? "pb-0" : "pb-4")}>
         {node.state === "upcoming" ? (
@@ -458,14 +466,17 @@ function Node({
           </div>
         ) : (
           <>
-            <div className="flex min-h-7 items-center gap-2">
+            {/* A line that WRAPS rather than truncates when it carries a detail:
+                measured, "Assessment received" + its chip + the time cut the
+                title to "Assessment rec…" at the 360 rail. */}
+            <div className={cn("flex min-h-7 items-center gap-x-2 gap-y-1", detail && "flex-wrap")}>
               {expand ? (
                 <button
                   type="button"
                   aria-expanded={open}
                   aria-controls={panelId}
                   onClick={() => setOpen((o) => !o)}
-                  className={cn("flex min-w-0 flex-1 items-center gap-1.5 rounded-sm text-left text-[var(--text-primary)]", RING)}
+                  className={cn("flex min-w-0 items-center gap-1.5 rounded-sm text-left text-[var(--text-primary)]", detail ? "shrink-0" : "flex-1", RING)}
                   style={BODY}
                 >
                   <span className="min-w-0 truncate">{title}</span>
@@ -478,7 +489,7 @@ function Node({
               )}
               {detail}
               {node.at !== null && (
-                <span data-node-time className="shrink-0 tabular-nums text-[var(--text-muted)]" style={LABEL}>
+                <span data-node-time className="ml-auto shrink-0 tabular-nums text-[var(--text-muted)]" style={LABEL}>
                   {TIME.format(node.at)}
                 </span>
               )}
@@ -956,6 +967,16 @@ function CloseCard({ e, name, tiering, teenId, onSettled }: { e: EscalationState
   );
 }
 
+/** Label over value — the closed summary's one row shape. */
+function WrapRow({ label, children, slot }: { label: string; children: React.ReactNode; slot: string }) {
+  return (
+    <div className="space-y-0.5">
+      <dt className="text-[var(--text-muted)]" style={LABEL}>{label}</dt>
+      <dd data-wrap-row={slot} className="text-[var(--text-primary)]" style={BODY}>{children}</dd>
+    </div>
+  );
+}
+
 // ── THE EXCHANGE ────────────────────────────────────────────────────────────
 
 export function EscalationExchange({
@@ -1061,34 +1082,53 @@ export function EscalationExchange({
         return <DebriefCard e={e} name={name} tiering={tiering} teenId={teenId} teenLines={teenLines} mentorLines={mentorLines} />;
       case "close":
         return <CloseCard e={e} name={name} tiering={tiering} teenId={teenId} onSettled={onSettled} />;
-      case "closed":
+      case "closed": {
+        /* ═══ THE CLOSED STATE IS A DESIGNED SUMMARY (Workstream E4) ═══
+           Label over value, one type step each; the tier MOVEMENT as two
+           lozenges; the follow-up as a date. It settles in once (make it
+           magical 2: the system exhales). */
+        const from = e.confirmedTier;
+        const to = state.tier;
+        const outcomeLabel = e.outcome ? (OUTCOMES.find((o) => o.id === e.outcome!.id)?.label ?? (e.outcome.id === "tier_update" ? "Standard tier update" : "Reviewed")) : null;
         return (
-          <div data-wrap className="space-y-3">
-            <dl className="space-y-1.5" style={BODY}>
-              {e.outcome && (
-                <div>
-                  <dt className="text-[var(--text-muted)]" style={LABEL}>Outcome</dt>
-                  <dd data-wrap-outcome className="text-[var(--text-primary)]">{OUTCOMES.find((o) => o.id === e.outcome!.id)?.label ?? (e.outcome.id === "tier_update" ? `Tier ${e.confirmedTier} confirmed` : "Reviewed")}</dd>
-                </div>
+          <div data-wrap className="tier-settle space-y-4 rounded-[var(--radius-inset)] border border-[color:var(--border-subtle)] bg-[var(--surface-s1)] p-4">
+            <dl className="space-y-3">
+              {outcomeLabel && (
+                <WrapRow label="Outcome" slot="outcome">
+                  <span data-wrap-outcome>{outcomeLabel}</span>
+                </WrapRow>
               )}
-              {state.tier !== null && (
-                <div>
-                  <dt className="text-[var(--text-muted)]" style={LABEL}>Tier now</dt>
-                  <dd data-wrap-tier className="text-[var(--text-primary)]">
-                    {/* The close-out copy — `CLOSE_OUT_TIER_COPY`, see its note. */}
-                    {e.followUp ? `${name} moves to ${CLOSE_OUT_TIER_COPY}` : `Tier ${state.tier}`}
-                  </dd>
-                </div>
+              {to !== null && (
+                <WrapRow label="Tier" slot="tier">
+                  <span data-wrap-tier className="inline-flex flex-wrap items-center gap-1.5">
+                    {from !== undefined && from !== to ? (
+                      <>
+                        <TierLozenge tier={from} long />
+                        <span aria-hidden className="text-[var(--text-muted)]">→</span>
+                        <span className="sr-only">to</span>
+                        <TierLozenge tier={to} long />
+                      </>
+                    ) : (
+                      <TierLozenge tier={to} long />
+                    )}
+                  </span>
+                </WrapRow>
               )}
-              <div>
-                <dt className="text-[var(--text-muted)]" style={LABEL}>What happens next</dt>
-                <dd data-wrap-next className="text-[var(--text-secondary)]">
+              <WrapRow label="What happens next" slot="next">
+                <span data-wrap-next className="text-[var(--text-secondary)]">
                   {/* TODO-COPY */}
                   {e.followUp
-                    ? `${supervisorName} checks in on ${name} again ${new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(e.followUp.dueAt)}. Keep talking with ${name} as you normally would.`
+                    ? `${supervisorName} checks in with ${name} again. Keep talking with ${name} as you normally would.`
                     : `Nothing more is needed from you on this one. Keep talking with ${name} as you normally would.`}
-                </dd>
-              </div>
+                </span>
+              </WrapRow>
+              {e.followUp && (
+                <WrapRow label="Follow-up" slot="follow-up">
+                  <span data-wrap-follow-up className="tabular-nums">
+                    {new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric" }).format(e.followUp.dueAt)}
+                  </span>
+                </WrapRow>
+              )}
             </dl>
             <Primary
               slot="back-to-care"
@@ -1102,6 +1142,7 @@ export function EscalationExchange({
             </Primary>
           </div>
         );
+      }
       default:
         return null;
     }
@@ -1132,6 +1173,8 @@ export function EscalationExchange({
   };
 
   const current = nodes.find((n) => n.state === "current");
+  /* At most ONE settling node: the latest completion, if it happened here. */
+  const freshId = nodes.filter((n) => n.state === "completed" && n.at !== null && n.at >= OPENED_AT).sort((x, y) => (y.at ?? 0) - (x.at ?? 0))[0]?.id;
   const live = current ? `Now: ${titleOf(current)}` : "";
 
   return (
@@ -1139,7 +1182,7 @@ export function EscalationExchange({
       <TimelineHeader e={e} tiering={tiering} teenId={teenId} lens={lens} supervisorName={supervisorName} mentorName={mentorName} presence={presence} onSupport={onReplyInSupport} live={live} />
       <ol data-timeline aria-label="Escalation timeline" className="border-t border-[color:var(--border-subtle)] pt-4">
         {nodes.map((n, i) => (
-          <Node key={n.id} node={n} title={titleOf(n)} detail={detailOf(n)} expand={n.state === "completed" ? expandOf(n) : undefined} last={i === nodes.length - 1}>
+          <Node key={n.id} node={n} fresh={n.id === freshId} title={titleOf(n)} detail={detailOf(n)} expand={n.state === "completed" ? expandOf(n) : undefined} last={i === nodes.length - 1}>
             {n.state === "current" ? cardOf(n) : undefined}
           </Node>
         ))}
