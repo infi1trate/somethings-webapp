@@ -39,7 +39,7 @@ export const AUDIT_LABEL: Record<TierEventKind, string> = {
   "stepped-down": "Stepped down",
 };
 
-function AuditLozenge({ children }: { children: React.ReactNode }) {
+export function AuditLozenge({ children }: { children: React.ReactNode }) {
   return (
     <span
       data-audit-lozenge

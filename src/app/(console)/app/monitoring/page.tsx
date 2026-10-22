@@ -45,7 +45,7 @@ export default function MonitoringRoute({
   return (
     <AppChrome active={supervisor ? "monitoring" : "home"}>
       {supervisor ? (
-        <MonitoringOverview />
+        <MonitoringOverview tab={str(query.tab) === "events" ? "events" : "watch"} />
       ) : (
         <DestinationPlaceholder title="Monitoring" status="Every teen, by stepped-care tier, for a supervisor's judgment. A supervisor surface." />
       )}

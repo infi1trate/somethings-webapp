@@ -68,7 +68,19 @@ function Cell({
   );
 }
 
-export function HeroMetrics({ m }: { m: MonitoringMetrics }) {
+/** ═══ ON THE EVENTS TAB, THE RANGE'S NUMBERS (Monitoring v2) ═══ The flags
+ *  and escalations cells count the selected range instead of the fixed 48h /
+ *  30d; the live cells (in crisis, high risk, active teens) stay live. */
+export interface HeroRange {
+  label: string;
+  flags: number;
+  surge: number;
+  escalations: number;
+  open: number;
+  closed: number;
+}
+
+export function HeroMetrics({ m, range }: { m: MonitoringMetrics; range?: HeroRange }) {
   return (
     <section
       aria-label="Monitoring summary"
@@ -78,8 +90,17 @@ export function HeroMetrics({ m }: { m: MonitoringMetrics }) {
       {/* TODO-COPY, every label and detail line. */}
       <Cell crisis value={m.inCrisis} label="In crisis" detail="Tier 1 · live" />
       <Cell value={m.highRisk} label="High risk" detail={`Tier 2 · ${m.reviewsDue} review${m.reviewsDue === 1 ? "" : "s"} due`} />
-      <Cell value={m.openFlags48h} label="Open risk flags" detail="in last 48h" />
-      <Cell value={m.escalations30d} label="Escalations · 30d" detail={`${m.escalationsOpen} open · ${m.escalationsClosed} closed`} />
+      {range ? (
+        <>
+          <Cell value={range.flags} label={`Risk flags · ${range.label}`} detail={`${range.surge} surge`} />
+          <Cell value={range.escalations} label={`Escalations · ${range.label}`} detail={`${range.open} open · ${range.closed} closed`} />
+        </>
+      ) : (
+        <>
+          <Cell value={m.openFlags48h} label="Open risk flags" detail="in last 48h" />
+          <Cell value={m.escalations30d} label="Escalations · 30d" detail={`${m.escalationsOpen} open · ${m.escalationsClosed} closed`} />
+        </>
+      )}
       <Cell value={m.activeTeens} label="Active teens" detail={`${m.mentors} mentors · ${m.engagedThisWeek} engaged this week`} />
     </section>
   );
