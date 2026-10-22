@@ -44,7 +44,7 @@ function LiveRow({ teen }: { teen: MonitoringTeen }) {
       data-t1-live={teen.id}
       className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] border border-[color:var(--t1)] bg-[var(--t1-soft)] px-4 py-2"
     >
-      <TierAvatar name={teen.teen} tier={1} />
+      <TierAvatar name={teen.teen} live={!!teen.presence} />
       <span className="truncate text-[14px] leading-[20px] font-semibold text-[var(--text-primary)]">{teen.teen}</span>
       <TierLozenge tier={1} />
       {/* Secondary, not tertiary: tertiary is 4.39:1 on t1-soft. */}

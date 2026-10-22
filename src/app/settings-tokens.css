@@ -98,6 +98,16 @@
   /* bloom: Elevation/1 — the support panel, the only elevated surface in the
      layout (SUP-2). Figma: drop shadow #00000021, offset 0 3, radius 6. */
   --elevation-1: 0 3px 6px rgb(0 0 0 / 0.13);
+  /* ═══ MONITORING v2 — Bloom names, no new colours ═══ The soft, layered
+     elevation that replaces keylines on Monitoring's surfaces (the prompt's
+     values, warmGrey/950 at low alpha), its hover step, Bloom's
+     `border/border-strong` (warmGrey/300) and `border/border-focus`
+     (periwinkle/500) with its soft halo (periwinkle/50). */
+  --el-soft: 0 1px 2px rgb(14 13 12 / 0.04), 0 8px 24px rgb(14 13 12 / 0.06);
+  --el-soft-hover: 0 2px 4px rgb(14 13 12 / 0.05), 0 14px 36px rgb(14 13 12 / 0.09);
+  --border-strong: #b5b0a6; /* bloom: border/border-strong — warmGrey/300 */
+  --border-focus: #4d55fd; /* bloom: border/border-focus — periwinkle/500 */
+  --border-focus-soft: #dfdfff; /* periwinkle/50 */
   /* bloom: Shadow/Small — the support composer (SUP-4). Figma: #00000014,
      offset 0 0, radius 16. */
   --shadow-small: 0 0 16px rgb(0 0 0 / 0.08);
@@ -773,6 +783,14 @@
      a near-black ground (this file's header says the same of Elevation), so
      dark deepens them the way `--shadow-panel` does. */
   --elevation-1: 0 3px 6px rgb(0 0 0 / 0.45);
+  /* Monitoring v2, dark: the soft elevation deepened the way Elevation 1 is;
+     border-strong is warmGrey/700, border-focus periwinkle/300 (Bloom's dark
+     focus), its halo the same hue at 30%. */
+  --el-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.35);
+  --el-soft-hover: 0 2px 4px rgb(0 0 0 / 0.35), 0 14px 36px rgb(0 0 0 / 0.45);
+  --border-strong: #58534b; /* bloom: border/border-strong (dark) — warmGrey/700 */
+  --border-focus: #8c91ff; /* bloom: border/border-focus (dark) — periwinkle/300 */
+  --border-focus-soft: rgb(140 145 255 / 0.3);
   --shadow-small: 0 0 16px rgb(0 0 0 / 0.4);
   /* Same value: the Figma dark mode is not readable through the connector, and
      this green holds against a dark surface (flagged). */

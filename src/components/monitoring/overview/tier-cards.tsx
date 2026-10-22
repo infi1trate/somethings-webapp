@@ -66,11 +66,11 @@ function Card({ teen, measure }: { teen: MonitoringTeen; measure?: (el: HTMLElem
       aria-labelledby={nameId}
       data-monitoring-card={teen.id}
       data-tier={teen.tier}
-      className={cn("flex flex-col gap-3 rounded-[16px] px-4 py-3.5", tierSurface(teen.tier, true))}
+      className={cn("flex flex-col gap-3 rounded-[16px] px-4 py-3.5", tierSurface(teen.tier))}
     >
       {/* HEADER */}
       <header className="flex items-start gap-3">
-        <TierAvatar name={teen.teen} tier={teen.tier} size={32} />
+        <TierAvatar name={teen.teen} live={!!teen.presence} />
         <div className="min-w-0 flex-1">
           <h4 id={nameId} className="m-0 truncate font-sans text-[15px] leading-[20px] font-semibold text-[var(--text-primary)]">
             {teen.teen}

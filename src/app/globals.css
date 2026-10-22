@@ -674,3 +674,30 @@
     content: none;
   }
 }
+
+/* ═══ MONITORING v2 — FOCUS AND LIFT ═══════════════════════════════════════
+   The focus ring: 1px border-focus, 2px off, inside a 3px soft halo.
+   The lift: 2px up and the soft shadow's hover step, 160ms ease-out — none
+   under reduced motion (the shadow still changes, so hover still reads). */
+.mon-focus:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px var(--border-focus-soft);
+}
+.mon-lift {
+  transition: transform 160ms ease-out, box-shadow 160ms ease-out;
+}
+.mon-lift:hover,
+.mon-lift:has(:focus-visible) {
+  transform: translateY(-2px);
+  box-shadow: var(--el-soft-hover);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mon-lift {
+    transition: none;
+  }
+  .mon-lift:hover,
+  .mon-lift:has(:focus-visible) {
+    transform: none;
+  }
+}

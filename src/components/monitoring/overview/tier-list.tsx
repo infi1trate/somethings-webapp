@@ -66,7 +66,7 @@ function Row({ teen }: { teen: MonitoringTeen }) {
     >
       {/* TEEN */}
       <div role="cell" className="flex min-w-0 items-center gap-3">
-        <TierAvatar name={teen.teen} tier={teen.tier} />
+        <TierAvatar name={teen.teen} live={!!teen.presence} />
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
             {/* ═══ THE NAME IS THE DOOR (pack v3.0) ═══ Into the conversation,
