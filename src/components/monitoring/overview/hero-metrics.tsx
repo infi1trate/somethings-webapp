@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // THE HERO METRICS BAR (proto/monitoring-merge)
 //
-// One raised surface (white, 16px, Elevation 1) cut into five cells by
+// One raised surface (white, 20px, the soft elevation — Monitoring v2) cut into five cells by
 // hairlines — not cards, and not clickable in v1. Every number is derived
 // from the teen array (`monitoringMetrics`). The In-crisis cell is the only
 // one that can change colour: past zero it tints `t1-soft`, its numeral and
@@ -68,18 +68,39 @@ function Cell({
   );
 }
 
-export function HeroMetrics({ m }: { m: MonitoringMetrics }) {
+/** ═══ ON THE EVENTS TAB, THE RANGE'S NUMBERS (Monitoring v2) ═══ The flags
+ *  and escalations cells count the selected range instead of the fixed 48h /
+ *  30d; the live cells (in crisis, high risk, active teens) stay live. */
+export interface HeroRange {
+  label: string;
+  flags: number;
+  surge: number;
+  escalations: number;
+  open: number;
+  closed: number;
+}
+
+export function HeroMetrics({ m, range }: { m: MonitoringMetrics; range?: HeroRange }) {
   return (
     <section
       aria-label="Monitoring summary"
       data-hero-metrics
-      className="grid grid-cols-5 gap-px overflow-hidden rounded-[16px] bg-[var(--border-subtle)] shadow-[var(--elevation-1)] @max-[880px]/canvas:grid-cols-3 @max-[520px]/canvas:grid-cols-2"
+      className="grid grid-cols-5 gap-px overflow-hidden rounded-[20px] bg-[var(--border-subtle)] shadow-[var(--el-soft)] @max-[880px]/canvas:grid-cols-3 @max-[520px]/canvas:grid-cols-2"
     >
       {/* TODO-COPY, every label and detail line. */}
       <Cell crisis value={m.inCrisis} label="In crisis" detail="Tier 1 · live" />
       <Cell value={m.highRisk} label="High risk" detail={`Tier 2 · ${m.reviewsDue} review${m.reviewsDue === 1 ? "" : "s"} due`} />
-      <Cell value={m.openFlags48h} label="Open risk flags" detail="in last 48h" />
-      <Cell value={m.escalations30d} label="Escalations · 30d" detail={`${m.escalationsOpen} open · ${m.escalationsClosed} closed`} />
+      {range ? (
+        <>
+          <Cell value={range.flags} label={`Risk flags · ${range.label}`} detail={`${range.surge} surge`} />
+          <Cell value={range.escalations} label={`Escalations · ${range.label}`} detail={`${range.open} open · ${range.closed} closed`} />
+        </>
+      ) : (
+        <>
+          <Cell value={m.openFlags48h} label="Open risk flags" detail="in last 48h" />
+          <Cell value={m.escalations30d} label="Escalations · 30d" detail={`${m.escalationsOpen} open · ${m.escalationsClosed} closed`} />
+        </>
+      )}
       <Cell value={m.activeTeens} label="Active teens" detail={`${m.mentors} mentors · ${m.engagedThisWeek} engaged this week`} />
     </section>
   );

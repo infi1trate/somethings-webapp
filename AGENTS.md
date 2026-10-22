@@ -379,6 +379,39 @@ exchange's presentation and five v1/v2 rules, each marked in place above.**
 - **Send sends.** The composer was never wired (Phase 1 shell); `chatMessages`
   is append-only and merged at read time.
 
+### Monitoring v2 — Events, and the Watch tab elevated (proto/monitoring-v2)
+
+Answered 2026-10-22 ("go" on the context report). **Supersedes the
+proto/monitoring-merge signifier — rings, the long lozenge, mono secondary
+lines — in place in the code; the tier rule itself (alert colour on 1–2 only,
+never colour alone) is unchanged.**
+
+- **Watch · Events.** A tablist in the title row, deep-linked as
+  `?tab=events`. **Named Events, not Activity:** `/app/activity` is the bell's
+  ledger, a different feed on its own fixture cast; a second "Activity" would
+  collide with it.
+- **Events is one derived list** (`lib/monitoring/events.ts`) from the store
+  the Watch tab reads — escalation records and the tier log — plus the
+  roster's flag counts expanded to one event per flag, seeded reviews/notes
+  (document fields TBD), and ~40 generated events over 90 days. Newest first:
+  it is a log, unlike the per-teen timeline. Tier changes are immutable and
+  wear the audit lozenge. The export is exactly the filtered set.
+- **Links:** an open escalation opens the live chat timeline; anything else
+  opens the record's Care history; a generated teen has neither.
+- **Zero is `text-muted`, not Bloom's text/disabled** (~1.5:1) — a "0" is
+  content and must pass AA (answered).
+- **Weight is still not a channel.** The prompt asked for semibold names; the
+  measured Lausanne fact above means that renders as 400, so names and group
+  names use Avantt (`font-display`) at the specified sizes.
+- **New tokens, Bloom-named, no new colours:** `--el-soft` /
+  `--el-soft-hover`, `--border-strong`, `--border-focus` (+ `-soft`), and the
+  `.mon-focus` / `.mon-lift` utilities.
+- **Cards are the default view** for a session with no saved choice.
+- **Whole-row and whole-card links** are the name's link stretched over the
+  surface (`after:inset-0`), so the list's row/cell semantics survive.
+- **Sticky list header** works from a 960 canvas up; below it the table must
+  scroll sideways, and a sideways scroller cannot pin to the page.
+
 ### Monitoring asserts only what it can compute (arch-mon)
 
 **SUPERSEDED IN PART by the section above**: the tiers and their cadences now

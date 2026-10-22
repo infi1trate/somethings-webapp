@@ -19,7 +19,7 @@ import { monitoringEntryHref } from "@/lib/monitoring/entry-href";
 import { RequestedChip } from "@/components/tiering/requested-chip";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
 import { answerAlert, responseClock as clock, useResponseSecondsLeft } from "@/lib/monitoring/alert-clock";
-import { TierAvatar, TierGroupHeader, TierLozenge } from "@/components/monitoring/overview/tier-bits";
+import { TierAvatar, TierGroupHeader, TierTag } from "@/components/monitoring/overview/tier-bits";
 import { cn } from "@/lib/utils";
 
 const RING = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -28,8 +28,9 @@ const RING = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visib
    with the strip so the two always agree. */
 export function PresenceChip({ text }: { text: string }) {
   return (
-    <span className="inline-flex h-5 shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--border-default)] bg-[var(--surface-raised)] px-2 font-mono text-[11px] leading-none text-[var(--text-secondary)]">
-      <span aria-hidden className="size-1.5 rounded-full bg-[var(--ok)]" />
+    /* Monitoring v2: sans, and no dot of its own — the avatar's presence dot
+       is the one ring; the chip says who. */
+    <span data-presence-chip className="inline-flex h-5 shrink-0 items-center rounded-full bg-[var(--surface-sunken)] px-2 text-[12px] leading-[16px] text-[var(--text-secondary)]">
       {text}
     </span>
   );
@@ -42,11 +43,13 @@ function LiveRow({ teen }: { teen: MonitoringTeen }) {
   return (
     <div
       data-t1-live={teen.id}
-      className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] border border-[color:var(--t1)] bg-[var(--t1-soft)] px-4 py-2"
+      /* THE ONE KEYLINE (Monitoring v2): the live Tier 1 lane keeps its t1
+         line; every other surface is tint and elevation. */
+      className="flex min-h-16 flex-wrap items-center gap-x-3 gap-y-2 rounded-[14px] border border-[color:var(--t1)] bg-[var(--t1-soft)] px-4 py-3"
     >
-      <TierAvatar name={teen.teen} tier={1} />
-      <span className="truncate text-[14px] leading-[20px] font-semibold text-[var(--text-primary)]">{teen.teen}</span>
-      <TierLozenge tier={1} />
+      <TierAvatar name={teen.teen} live={!!teen.presence} />
+      <span className="truncate font-display text-[15px] leading-[20px] font-bold text-[var(--text-primary)]">{teen.teen}</span>
+      <TierTag tier={1} />
       {/* Secondary, not tertiary: tertiary is 4.39:1 on t1-soft. */}
       <span className="truncate text-[13px] text-[var(--text-secondary)]">{teen.mentor}</span>
       {/* ═══ SUPERSEDED: "★ Recommended T1" → "Requested: Tier 1" ═══ The
@@ -91,7 +94,7 @@ export function Tier1Lane({ teens }: { teens: MonitoringTeen[] }) {
       {live.length === 0 ? (
         <div
           data-t1-empty
-          className="flex min-h-14 items-center rounded-[10px] border border-[color:var(--border-default)] bg-[var(--surface-raised)] px-4 text-[14px] text-[var(--text-tertiary)]"
+          className="flex min-h-16 items-center rounded-[14px] bg-[var(--surface-canvas)] px-4 text-[14px] leading-[20px] text-[var(--text-tertiary)]"
         >
           {/* TODO-COPY */}
           Nothing in crisis

@@ -1,22 +1,27 @@
 "use client";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MONITORING — THE CARD VIEW (proto/monitoring-merge)
+// MONITORING — THE CARD VIEW, NOW THE DEFAULT (Monitoring v2, Part B)
 //
-// The same array as the list, three columns, 12px apart, one tier group per
-// h3. A card is an `article` named by the teen; 16px radius, padded 14 / 16:
-//   header   ringed 32px avatar · name 15px · mentor (· presence) 12px ·
-//            the long lozenge ("T2 · High risk") at the right
-//   engaged  the 7-day sparkline · days engaged / on platform ("48 / 132")
-//   stats    a 2×2: risk flags · escalations · surveys · time in tier
-//   footer   review reason (or "No review due") · Open ›
-// Tier is the ring, the lozenge and the surface — T3 cards take Elevation 2,
-// the cards' own signifier — and alert colour stays on Tiers 1 and 2.
-//
-// OPEN is a stub: there is no teen record in the prototype yet.
+// The same array as the list, one tier group per h3. A card is an `article`
+// named by the teen — 20px radius, 20 in, at least 240 tall, 16px apart,
+// 3-up (2-up below a 960 canvas, ~1200 viewport; 1-up on a phone). Top to
+// bottom, and SPACING does the grouping — there is no line inside a card:
+//   header   36px neutral avatar (presence dot when live) · name 17/22 ·
+//            mentor 13 beneath · the tier tag top-right
+//   metric   days engaged as a 28/32 heading numeral, "engaged · of N on
+//            platform" beneath; the 96×24 sparkline on the right, on its
+//            baseline — what a supervisor reads first, so it has the weight
+//   signals  risk flags · escalations · surveys, three equal columns: label
+//            12 tertiary, then glyph + 15 tabular, then its detail
+//   tier     "Time in tier" · "Day 1 of 7" over a 3px track (not on Tier 4)
+//   footer   the review reason as a soft pill, and a chevron
+// The whole card is the link (the name's, stretched); it lifts on hover.
+// Tier rides on the tag and the surface — T3 by elevation, not colour.
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { monitoringEntryHref } from "@/lib/monitoring/entry-href";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
 import { useWindowedRange } from "@/lib/ui/use-windowed-range";
@@ -31,13 +36,11 @@ import {
   SURVEY,
   TierAvatar,
   TierGroupHeader,
-  TierLozenge,
+  TierTag,
   tierDetailInk,
   tierSurface,
 } from "@/components/monitoring/overview/tier-bits";
 import { cn } from "@/lib/utils";
-
-const RING = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
 function flagTone(t: MonitoringTeen): "t1" | "t2" | null {
   if (t.tier === 1) return "t1";
@@ -45,163 +48,112 @@ function flagTone(t: MonitoringTeen): "t1" | "t2" | null {
   return null;
 }
 
-/** One cell of the 2×2: a label, then the value line. */
-function Stat({ label, detail, children }: { label: string; detail: string; children: React.ReactNode }) {
+/** One signal: label 12 above, the glyph and number, the detail beneath —
+ *  the same reading order in all three. No box. */
+function Signal({ label, detail, quiet, children }: { label: string; detail?: string | null; quiet: string; children: React.ReactNode }) {
   return (
-    <div className="min-w-0">
-      <div className={cn("text-[11px] leading-[14px]", detail)}>{label}</div>
-      <div className="mt-0.5 flex min-w-0 items-center gap-1.5">{children}</div>
+    <div data-card-signal={label} className="min-w-0">
+      <div className={cn("text-[12px] leading-[16px]", quiet)}>{label}</div>
+      <div className="mt-1">{children}</div>
+      <div data-signal-detail className={cn("mt-0.5 truncate text-[12px] leading-[16px]", quiet)}>{detail || "\u00a0"}</div>
     </div>
   );
 }
 
 function Card({ teen, measure }: { teen: MonitoringTeen; measure?: (el: HTMLElement | null) => void }) {
-  const detail = tierDetailInk(teen.tier);
+  const quiet = tierDetailInk(teen.tier);
   const tint = teen.tier <= 2;
   const nameId = `card-${teen.id}-name`;
-  const tit = teen.timeInTier;
+  const tit = teen.tier !== 4 ? teen.timeInTier : undefined;
+  const link = monitoringEntryHref(teen);
+  const escDetail = teen.escalations.count > 0 && teen.escalations.lastStatus ? `${teen.escalations.lastStatus}${teen.escalations.lastWhen ? ` ${teen.escalations.lastWhen}` : ""}` : null;
+  const surveyDetail = teen.surveys.count > 0 && teen.surveys.lastInstrument ? `${teen.surveys.lastInstrument}${teen.surveys.lastDate ? ` · ${teen.surveys.lastDate}` : ""}` : null;
+  const flagDetail = teen.riskFlags.count > 0 && teen.riskFlags.window ? `${teen.riskFlags.window}${teen.riskFlags.trigger === "slow-burn" ? " ↗" : ""}` : null;
   return (
     <article
       ref={measure}
       aria-labelledby={nameId}
       data-monitoring-card={teen.id}
       data-tier={teen.tier}
-      className={cn("flex flex-col gap-3 rounded-[16px] px-4 py-3.5", tierSurface(teen.tier, true))}
+      className={cn("group relative flex min-h-60 flex-col rounded-[20px] p-5", tierSurface(teen.tier), link && "mon-lift cursor-pointer")}
     >
-      {/* HEADER */}
+      {/* 1 · HEADER */}
       <header className="flex items-start gap-3">
-        <TierAvatar name={teen.teen} tier={teen.tier} size={32} />
+        <TierAvatar name={teen.teen} live={!!teen.presence} />
         <div className="min-w-0 flex-1">
-          <h4 id={nameId} className="m-0 truncate font-sans text-[15px] leading-[20px] font-semibold text-[var(--text-primary)]">
-            {teen.teen}
-          </h4>
-          <p className={cn("m-0 flex min-w-0 items-center gap-1.5 truncate text-[12px] leading-[16px]", detail)}>
-            {teen.mentor}
-            {teen.presence && (
-              <>
-                <span aria-hidden>·</span>
-                <PresenceChip text={teen.presence} />
-              </>
+          <h4 id={nameId} className="m-0 truncate font-display text-[17px] leading-[22px] font-bold text-[var(--text-primary)]">
+            {link ? (
+              /* THE WHOLE CARD IS THE LINK: the name's, stretched over it. */
+              <Link href={link.href} data-card-open={link.kind} className="mon-focus rounded-sm after:absolute after:inset-0 after:rounded-[20px] after:content-['']">
+                {teen.teen}
+              </Link>
+            ) : (
+              teen.teen
             )}
+          </h4>
+          <p className="m-0 mt-0.5 flex min-w-0 items-center gap-1.5 truncate text-[13px] leading-[18px] text-[var(--text-secondary)]">
+            {teen.mentor}
+            {teen.presence && <PresenceChip text={teen.presence} />}
           </p>
         </div>
-        <TierLozenge tier={teen.tier} long />
+        <TierTag tier={teen.tier} />
       </header>
 
-      {/* ENGAGED */}
-      <div className="flex items-center justify-between gap-3">
-        <span className="flex items-center gap-2">
-          <span className={cn("text-[11px]", detail)}>
-            {/* TODO-COPY */}
-            Engaged · 7d
+      {/* 2 · THE PRIMARY METRIC — read first, so it has the weight */}
+      <div data-card-metric className="mt-4">
+        {/* The sparkline sits on the NUMERAL's baseline (the line's last
+            baseline is the bars' bottom), the label beneath both. */}
+        <div className="flex items-baseline justify-between gap-3">
+          <span data-card-days className="font-display text-[28px] leading-[32px] font-bold tabular-nums text-[var(--text-primary)]">
+            {teen.daysEngaged}
           </span>
-          <Sparkline values={teen.engagement7d} />
-        </span>
-        <span data-card-days className="font-mono text-[13px] tabular-nums text-[var(--text-primary)]">
-          {teen.daysEngaged} <span className={detail}>/ {teen.daysOnPlatform}</span>
-          <span className="sr-only"> days engaged of {teen.daysOnPlatform} on platform</span>
-        </span>
-      </div>
-
-      {/* THE 2×2 */}
-      <div data-card-stats className="grid grid-cols-2 gap-x-4 gap-y-3">
-        {/* TODO-COPY, the four labels. */}
-        <Stat label="Risk flags" detail={detail}>
-          <GlyphCount
-            icon={FLAG}
-            count={teen.riskFlags.count}
-            tone={flagTone(teen)}
-            onTint={tint}
-            label=" risk flags"
-            suffix={
-              teen.riskFlags.count > 0 && teen.riskFlags.window ? (
-                <span className={cn("font-mono text-[11px]", detail)}>
-                  {teen.riskFlags.window}
-                  {teen.riskFlags.trigger === "slow-burn" && " ↗"}
-                </span>
-              ) : null
-            }
-          />
-        </Stat>
-        <Stat label="Escalations" detail={detail}>
-          <GlyphCount
-            icon={ESCALATION}
-            count={teen.escalations.count}
-            tone={teen.tier === 1 ? "t1" : null}
-            onTint={tint}
-            label=" escalations"
-            suffix={
-              teen.escalations.count > 0 && teen.escalations.lastStatus ? (
-                <span className={cn("truncate font-mono text-[11px]", detail)}>
-                  {teen.escalations.lastStatus}
-                  {teen.escalations.lastWhen && ` ${teen.escalations.lastWhen}`}
-                </span>
-              ) : null
-            }
-          />
-        </Stat>
-        <Stat label="Surveys" detail={detail}>
-          <GlyphCount
-            icon={SURVEY}
-            count={teen.surveys.count}
-            onTint={tint}
-            label=" surveys"
-            suffix={
-              teen.surveys.count > 0 && teen.surveys.lastInstrument ? (
-                <span className={cn("truncate font-mono text-[11px]", detail)}>
-                  {teen.surveys.lastInstrument}
-                  {teen.surveys.lastDate && ` · ${teen.surveys.lastDate}`}
-                </span>
-              ) : null
-            }
-          />
-        </Stat>
-        <Stat label="Time in tier" detail={detail}>
-          {tit ? (
-            <span data-card-tit className="flex w-full min-w-0 flex-col gap-1">
-              <span className="font-mono text-[13px] tabular-nums text-[var(--text-primary)]">
-                Day {tit.day} <span className={detail}>/ {tit.minimum}</span>
-              </span>
-              <span aria-hidden className="h-[3px] w-full overflow-hidden rounded-full bg-[var(--border-subtle)]">
-                <span
-                  className="block h-full rounded-full bg-[var(--text-secondary)]"
-                  style={{ width: `${Math.min(100, Math.round((tit.day / tit.minimum) * 100))}%` }}
-                />
-              </span>
-            </span>
-          ) : (
-            <span className={cn("font-mono text-[13px]", tint ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]")}>—</span>
-          )}
-        </Stat>
-      </div>
-
-      {/* FOOTER */}
-      <footer
-        className={cn(
-          "mt-auto flex items-center justify-between gap-3 border-t pt-2.5",
-          teen.tier <= 2 ? "border-[color:var(--border-default)]" : "border-[color:var(--border-subtle)]"
-        )}
-      >
-        <span className={cn("truncate font-mono text-[11px] leading-[14px]", detail)}>
+          <Sparkline values={teen.engagement7d} height={24} width={96} />
+        </div>
+        <div data-card-days-label className="text-[13px] leading-[18px] text-[var(--text-secondary)]">
           {/* TODO-COPY */}
-          {teen.reviewReason ?? "No review due"}
-        </span>
-        {/* ═══ OPEN › GOES SOMEWHERE (pack v3.0) ═══ The conversation, or
-            the record where there is no thread; absent when there is neither
-            — a no-op button was a door that did not open. */}
-        {(() => {
-          const link = monitoringEntryHref(teen);
-          return link ? (
-            <Link
-              href={link.href}
-              data-card-open={link.kind}
-              aria-label={`Open ${teen.teen}${link.kind === "conversation" ? "'s conversation" : "'s record"}`}
-              className={cn("inline-flex min-h-6 shrink-0 items-center rounded-full px-2 text-[12px] font-medium text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
-            >
-              Open ›
-            </Link>
-          ) : null;
-        })()}
+          engaged · of {teen.daysOnPlatform} on platform
+        </div>
+      </div>
+
+      {/* 3 · THE SIGNALS — three equal columns, no boxes */}
+      <div data-card-stats className="mt-5 grid grid-cols-3 gap-3">
+        {/* TODO-COPY, the three labels. */}
+        <Signal label="Risk flags" quiet={quiet} detail={flagDetail}>
+          <GlyphCount icon={FLAG} count={teen.riskFlags.count} tone={flagTone(teen)} onTint={tint} label=" risk flags" />
+        </Signal>
+        <Signal label="Escalations" quiet={quiet} detail={escDetail}>
+          <GlyphCount icon={ESCALATION} count={teen.escalations.count} tone={teen.tier === 1 ? "t1" : null} onTint={tint} label=" escalations" />
+        </Signal>
+        <Signal label="Surveys" quiet={quiet} detail={surveyDetail}>
+          <GlyphCount icon={SURVEY} count={teen.surveys.count} onTint={tint} label=" surveys" />
+        </Signal>
+      </div>
+
+      {/* 4 · TIME IN TIER — one line over a track; never on Tier 4 */}
+      {tit && (
+        <div data-card-tit className="mt-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className={cn("text-[12px] leading-[16px]", quiet)}>Time in tier</span>
+            <span className="text-[13px] leading-[18px] text-[var(--text-secondary)]">
+              Day {tit.day} of {tit.minimum}
+            </span>
+          </div>
+          <span aria-hidden data-tit-track className="mt-1.5 block h-[3px] w-full overflow-hidden rounded-full bg-[var(--border-subtle)]">
+            <span className="block h-full rounded-full bg-[var(--text-secondary)]" style={{ width: `${Math.min(100, Math.round((tit.day / tit.minimum) * 100))}%` }} />
+          </span>
+        </div>
+      )}
+
+      {/* 5 · FOOTER — no hairline above it; a pill only when a review is due */}
+      <footer className="mt-auto flex items-center justify-between gap-3 pt-4">
+        {teen.reviewReason ? (
+          <span data-card-review className="truncate rounded-full bg-[var(--surface-sunken)] px-2.5 py-0.5 text-[12px] leading-[16px] text-[var(--text-secondary)]">
+            {teen.reviewReason}
+          </span>
+        ) : (
+          <span />
+        )}
+        {link && <ChevronRight aria-hidden data-card-chevron className="size-4 shrink-0 text-[var(--icon-secondary)]" />}
       </footer>
     </article>
   );
@@ -209,11 +161,11 @@ function Card({ teen, measure }: { teen: MonitoringTeen; measure?: (el: HTMLElem
 
 /** Collapsed, Tier 4 previews one row of three. */
 const T4_CARD_PREVIEW = 3;
-const GAP = 12;
-/** Three across, then two, then one, read off the canvas (`@container/canvas`)
- *  as Care Reviews and Risk Flags do, so a phone and a desktop with Support
- *  open take the same step. */
-const GRID = "grid grid-cols-3 gap-3 @max-[1000px]/canvas:grid-cols-2 @max-[620px]/canvas:grid-cols-1";
+const GAP = 16;
+/** Three across (1440), two below a 960 canvas (~1200 viewport), one on a
+ *  phone — read off the canvas (`@container/canvas`), so a phone and a
+ *  desktop with Support open take the same step. 16px apart. */
+const GRID = "grid grid-cols-3 gap-4 @max-[960px]/canvas:grid-cols-2 @max-[620px]/canvas:grid-cols-1";
 
 /** ═══ TIER 4 CARDS, WINDOWED BY ROWS ═══ A row's height is the first card's,
  *  measured (the cards in a tier share one anatomy), plus the 12px gap; and
@@ -301,7 +253,7 @@ export function MonitoringCards({ teens }: { teens: MonitoringTeen[] }) {
         tier={4}
         teens={t4}
         all={t4.length}
-        action={<ShowAll open={t4Open} onToggle={() => setT4Open((o) => !o)} controls="tier-4-cards" />}
+        action={<ShowAll inline open={t4Open} onToggle={() => setT4Open((o) => !o)} controls="tier-4-cards" />}
       >
         <div id="tier-4-cards">
           <Tier4Cards teens={t4} open={t4Open} />

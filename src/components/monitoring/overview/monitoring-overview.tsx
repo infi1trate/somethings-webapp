@@ -18,7 +18,8 @@
 // /app/escalations and /app/risk-flags redirect here. Escalations surface as
 // the Tier 1 lane and the escalations column; flags roll up to the teen row.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { LayoutGrid, List } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { monitoringMetrics, SUPERVISORS_ON_SHIFT } from "@/lib/monitoring/tier-roster";
@@ -29,6 +30,8 @@ import { HeroMetrics } from "@/components/monitoring/overview/hero-metrics";
 import { MonitoringList } from "@/components/monitoring/overview/tier-list";
 import { MonitoringCards } from "@/components/monitoring/overview/tier-cards";
 import { Tier1AlertStrip } from "@/components/monitoring/overview/tier1-alert-strip";
+import { EventsTab } from "@/components/monitoring/events/events-tab";
+import { DEFAULT_FILTER, filterEvents, rangeSummary, type EventFilter } from "@/lib/monitoring/events";
 import { cn } from "@/lib/utils";
 
 /** ═══ LIST / CARDS ═══ Two 36×32 icon buttons in a bordered 10px group;
@@ -66,11 +69,72 @@ function LayoutToggle() {
 
 const DATE = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" });
 
-export function MonitoringOverview() {
+export type MonitoringTab = "watch" | "events";
+const TABS: { id: MonitoringTab; label: string }[] = [
+  { id: "watch", label: "Watch" },
+  { id: "events", label: "Events" },
+];
+
+/** ═══ WATCH · EVENTS (Monitoring v2) ═══ A segmented tablist in the title
+ *  row, left of the view toggle. The tab is the URL (`?tab=events`), so it
+ *  deep-links; arrows move between the two. */
+function TabSwitch({ tab, onTab }: { tab: MonitoringTab; onTab: (t: MonitoringTab) => void }) {
+  const refs = useRef<Partial<Record<MonitoringTab, HTMLButtonElement | null>>>({});
+  return (
+    <div role="tablist" aria-label="Monitoring views" data-monitoring-tabs className="flex shrink-0 gap-0.5 rounded-[10px] border border-[color:var(--border-default)] p-0.5">
+      {TABS.map((t, i) => {
+        const on = t.id === tab;
+        return (
+          <button
+            key={t.id}
+            ref={(el) => {
+              refs.current[t.id] = el;
+            }}
+            type="button"
+            role="tab"
+            id={`monitoring-tab-${t.id}`}
+            aria-selected={on}
+            aria-controls="monitoring-tabpanel"
+            tabIndex={on ? 0 : -1}
+            data-monitoring-tab={t.id}
+            onClick={() => onTab(t.id)}
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+              e.preventDefault();
+              const next = TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length].id;
+              onTab(next);
+              refs.current[next]?.focus();
+            }}
+            className={cn(
+              "h-8 rounded-[8px] px-3 text-[13px] leading-[18px] font-medium transition-colors",
+              on ? "bg-[var(--surface-raised)] text-[var(--text-primary)] shadow-[var(--elevation-1)]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+            )}
+          >
+            {/* TODO-COPY */}
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function MonitoringOverview({ tab = "watch" }: { tab?: MonitoringTab }) {
   /* Fixed at mount, the house pattern: `Date.now()` in render is impure. */
   const [now] = useState(() => Date.now());
-  const { teens, live } = useTierRoster(now);
+  const router = useRouter();
+  const { teens, live, events } = useTierRoster(now);
   const m = useMemo(() => monitoringMetrics(teens), [teens]);
+  /* ═══ THE EVENTS FILTER, PAGE-LOCAL ═══ One filter for the stream, the
+     summary line, the export and the hero's range cells. */
+  const [filter, setFilterState] = useState<EventFilter>(DEFAULT_FILTER);
+  const setFilter = (p: Partial<EventFilter>) => setFilterState((f) => ({ ...f, ...p }));
+  const filtered = useMemo(() => filterEvents(events, filter, now), [events, filter, now]);
+  const sum = useMemo(() => rangeSummary(filtered), [filtered]);
+  const mentors = useMemo(() => [...new Set(events.map((e) => e.mentorName))].sort(), [events]);
+  const supervisors = useMemo(() => [...new Set(events.map((e) => e.supervisorName).filter((x): x is string => !!x))].sort(), [events]);
+  const onTab = (t: MonitoringTab) => router.replace(t === "watch" ? "/app/monitoring" : "/app/monitoring?tab=events", { scroll: false });
   const layout = useMonitoringLayout();
   /* The alert clock is module state; telling it is an external write. */
   useEffect(() => {
@@ -95,13 +159,31 @@ export function MonitoringOverview() {
             {today} · {m.onWatch} on watch · {SUPERVISORS_ON_SHIFT} supervisors on shift
           </p>
         </div>
-        <LayoutToggle />
+        <div className="flex shrink-0 items-center gap-2">
+          <TabSwitch tab={tab} onTab={onTab} />
+          {tab === "watch" && <LayoutToggle />}
+        </div>
       </div>
 
-      <HeroMetrics m={m} />
+      <HeroMetrics
+        m={m}
+        range={
+          tab === "events"
+            ? { label: filter.range === "custom" ? "custom" : filter.range, flags: sum.flags, surge: sum.surge, escalations: sum.escalations, open: sum.open, closed: sum.closed }
+            : undefined
+        }
+      />
 
-      {/* ── THE TIERS, from the same array either way ───────────────── */}
-      {layout === "cards" ? <MonitoringCards teens={teens} /> : <MonitoringList teens={teens} />}
+      <div id="monitoring-tabpanel" role="tabpanel" aria-labelledby={`monitoring-tab-${tab}`}>
+        {tab === "events" ? (
+          <EventsTab events={filtered} filter={filter} setFilter={setFilter} now={now} mentors={mentors} supervisors={supervisors} />
+        ) : /* ── THE TIERS, from the same array either way ───────────── */
+        layout === "cards" ? (
+          <MonitoringCards teens={teens} />
+        ) : (
+          <MonitoringList teens={teens} />
+        )}
+      </div>
     </div>
   );
 }

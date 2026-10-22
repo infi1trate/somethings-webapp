@@ -9,14 +9,19 @@
 // LINES; this is the bar form Monitoring's engagement week asks for, added
 // once here rather than inside the surface.
 
-export function BarSparkline({ values }: { values: number[] }) {
+/** ═══ SIZES (Monitoring v2) ═══ The row's 18px: 4px bars, 2px apart. The
+ *  card's 96×24: seven bars sharing the width. Rounded ends, `border-strong`
+ *  (it was `border-default`, square). */
+export function BarSparkline({ values, height = 18, width }: { values: number[]; height?: 16 | 18 | 24; width?: number }) {
   return (
-    <span aria-hidden data-sparkline className="inline-flex h-4 shrink-0 items-end gap-[2px]">
+    /* The card's form: 8px bars spread across the width, a 3px round — a
+       full pill turned a low bar into a dot (measured at 24px tall). */
+    <span aria-hidden data-sparkline className={width ? "inline-flex shrink-0 items-end justify-between" : "inline-flex shrink-0 items-end gap-[2px]"} style={{ height, width }}>
       {values.map((v, i) => (
         <span
           key={i}
-          className="block w-1 rounded-[1px] bg-[var(--border-default)]"
-          style={{ height: `${Math.max(8, v)}%` }}
+          className={width ? "block w-2 rounded-[3px] bg-[var(--border-strong)]" : "block w-1 rounded-full bg-[var(--border-strong)]"}
+          style={{ height: `${Math.max(width ? 20 : 12, v)}%` }}
         />
       ))}
     </span>
