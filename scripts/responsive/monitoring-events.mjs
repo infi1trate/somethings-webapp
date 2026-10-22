@@ -7,11 +7,13 @@
 //      sticky filter row, the empty and end states
 //   4  a row expands to its record and links to the teen's timeline; tier
 //      changes wear the audit lozenge
+//   5  Export CSV respects the filter and carries the audit columns
 //   6  contrast, both themes; keyboard on every control
 //
 // Exit codes: 0 all passed · 1 a check failed.
 
 import { chromium } from "playwright";
+import { readFile } from "node:fs/promises";
 import { STORE_VERSION as VERSION } from "./store-version.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
@@ -199,6 +201,25 @@ console.log("\n── 4 · a row expands to its record; tier changes wear the au
   check(/fields TBD/.test(await note.innerText()), "an undefined document says fields TBD");
   const lozenges = await page.evaluate(() => [...document.querySelectorAll('[data-event-kind="tier_change"]')].every((r) => !!r.querySelector("[data-audit-lozenge]") && !r.querySelector("[data-event-chip]")));
   check(lozenges, "every tier change carries the audit lozenge, not a state chip");
+  await ctx.close();
+}
+
+// ── 5 · EXPORT ────────────────────────────────────────────────────────────
+console.log("\n── 5 · Export CSV respects the filter");
+{
+  const { ctx, page } = await open("/app/monitoring?tab=events");
+  for (const k of ["flag", "tier_change", "note"]) await page.locator(`[data-filter-chip="${k}"]`).click();
+  await page.waitForTimeout(250);
+  const s = await state(page);
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.locator("[data-export-csv]").click()]);
+  const text = await readFile(await dl.path(), "utf8");
+  const lines = text.split("\n");
+  const head = lines[0].split(",");
+  check(dl.suggestedFilename() === "monitoring-events-30d.csv", "named for its range", dl.suggestedFilename());
+  check(["teen", "mentor", "supervisor", "flagged_at", "confirmed_at", "closed_at", "response_seconds", "from_tier", "to_tier", "document"].every((c) => head.includes(c)), "the audit columns: teen, mentor, supervisor, flagged/confirmed/closed, response seconds, from/to tier, document", lines[0]);
+  check(lines.length - 1 === s.rows && lines.slice(1).every((l) => l.startsWith("escalation,")), "one row per filtered event — escalations only, as filtered", `${lines.length - 1} rows · ${s.rows} on screen`);
+  const closedRow = lines.slice(1).find((l) => /,closed,/.test(l));
+  check(!!closedRow && /\d{4}-\d\d-\d\dT[\d:.]+Z,\d{4}-\d\d-\d\dT/.test(closedRow), "a closed escalation carries its ISO timestamps", closedRow?.slice(0, 120));
   await ctx.close();
 }
 

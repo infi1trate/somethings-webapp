@@ -418,6 +418,42 @@ export function rangeSummary(events: MonitoringEvent[]) {
   };
 }
 
+/* ── EXPORT ─────────────────────────────────────────────────────────────── */
+
+const iso = (ms?: number) => (ms === undefined ? "" : new Date(ms).toISOString());
+const cell = (v: string | number | undefined) => {
+  const s = v === undefined ? "" : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+export const CSV_COLUMNS = ["type", "at", "teen", "mentor", "supervisor", "tier", "flagged_at", "confirmed_at", "closed_at", "response_seconds", "from_tier", "to_tier", "state", "document", "detail"] as const;
+
+/** The audit deliverable: the filtered events, one row each. */
+export function eventsCsv(events: MonitoringEvent[]): string {
+  const rows = events.map((e) =>
+    [
+      e.kind,
+      iso(e.at),
+      e.teenName,
+      e.mentorName,
+      e.supervisorName ?? "",
+      e.tier ?? "",
+      iso(e.flaggedAt),
+      iso(e.confirmedAt),
+      iso(e.closedAt),
+      e.responseSeconds ?? "",
+      e.fromTier ?? "",
+      e.toTier ?? "",
+      e.state,
+      e.document?.title ?? "",
+      e.detail,
+    ]
+      .map(cell)
+      .join(",")
+  );
+  return [CSV_COLUMNS.join(","), ...rows].join("\n");
+}
+
 /** Where an event's teen opens: the live timeline while its escalation is
  *  open, the record's Care tab (the tier history) otherwise; a generated teen
  *  has neither. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EscalationState } from "@/lib/chat/types";
-import { DEFAULT_FILTER, duration, filterEvents, monitoringEvents, rangeSummary, timelineHref, type EventSources } from "@/lib/monitoring/events";
+import { DEFAULT_FILTER, duration, eventsCsv, filterEvents, monitoringEvents, rangeSummary, timelineHref, CSV_COLUMNS, type EventSources } from "@/lib/monitoring/events";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
 import type { TierEvent } from "@/lib/tiering/events";
 
@@ -81,10 +81,25 @@ describe("filters compose", () => {
   });
 });
 
-describe("the summary line", () => {
+describe("the summary line and the export", () => {
   const events = monitoringEvents(sources());
   it("counts escalations by tier, the median response, flags and surge, tier changes", () => {
     expect(rangeSummary(events)).toMatchObject({ escalations: 1, t1: 1, t2: 0, medianResponseSeconds: 48, flags: 4, surge: 4, tierChanges: 2 });
+  });
+  it("exports the audit columns, one row per filtered event, with ISO timestamps", () => {
+    const csv = eventsCsv(events.filter((e) => e.kind === "escalation")).split("\n");
+    expect(csv[0]).toBe(CSV_COLUMNS.join(","));
+    expect(csv).toHaveLength(2);
+    const row = csv[1].split(",");
+    expect(row[0]).toBe("escalation");
+    expect(row[2]).toBe("Riley M.");
+    expect(row[4]).toBe("Stephen R.");
+    expect(row[6]).toMatch(/^\d{4}-\d\d-\d\dT/);
+    expect(row[9]).toBe("48");
+    expect([row[10], row[11]]).toEqual(["3", "3"]);
+  });
+  it("quotes a cell that holds a comma", () => {
+    expect(eventsCsv(events.filter((e) => e.kind === "escalation"))).toContain('"Flagged Tier 1 by Noah K. · confirmed Tier 1 by Stephen R. in 0:48 · closed → Tier 3, 2h 14m"');
   });
   it("formats durations as m:ss under an hour", () => {
     expect([duration(48_000), duration(55 * 60_000), duration(134 * 60_000)]).toEqual(["0:48", "55:00", "2h 14m"]);

@@ -19,12 +19,13 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpDown, Check, ChevronDown, FileText, Flag, Triangle } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, Download, FileText, Flag, Triangle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AuditLozenge } from "@/components/tiering/tier-history";
 import {
   KIND_LABEL,
   duration,
+  eventsCsv,
   rangeSummary,
   timelineHref,
   type EventFilter,
@@ -112,7 +113,7 @@ function Picker({ label, value, onChange, options, slot }: { label: string; valu
 
 // ── FILTER ROW ──────────────────────────────────────────────────────────────
 
-function FilterRow({ f, set, mentors, supervisors }: { f: EventFilter; set: (p: Partial<EventFilter>) => void; mentors: string[]; supervisors: string[] }) {
+function FilterRow({ f, set, mentors, supervisors, onExport }: { f: EventFilter; set: (p: Partial<EventFilter>) => void; mentors: string[]; supervisors: string[]; onExport: () => void }) {
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   return (
     <div data-events-filter className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -162,6 +163,16 @@ function FilterRow({ f, set, mentors, supervisors }: { f: EventFilter; set: (p: 
       </div>
       <Picker slot="mentor" label="Mentor" value={f.mentor} onChange={(v) => set({ mentor: v })} options={mentors} />
       <Picker slot="supervisor" label="Supervisor" value={f.supervisor} onChange={(v) => set({ supervisor: v })} options={supervisors} />
+      <button
+        type="button"
+        data-export-csv
+        onClick={onExport}
+        className={cn("ml-auto inline-flex h-8 items-center gap-1.5 rounded-full border border-[color:var(--border-default)] px-3 text-[13px] leading-[18px] text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
+      >
+        <Download aria-hidden className="size-3.5" />
+        {/* TODO-COPY */}
+        Export CSV
+      </button>
     </div>
   );
 }
@@ -317,10 +328,22 @@ export function EventsTab({ events, filter, setFilter, now, mentors, supervisors
   }, [events, now]);
   const big = events.length > 200;
 
+  const exportCsv = () => {
+    const blob = new Blob([eventsCsv(events)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `monitoring-events-${filter.range === "custom" ? `${filter.from ?? "start"}_${filter.to ?? "today"}` : filter.range}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <section data-events aria-label="Events" ref={root} className="space-y-3">
       <div ref={head} data-events-head className="sticky top-0 z-[2] -mx-2 space-y-2 bg-[var(--surface-canvas)] px-2 py-2">
-        <FilterRow f={filter} set={setFilter} mentors={mentors} supervisors={supervisors} />
+        <FilterRow f={filter} set={setFilter} mentors={mentors} supervisors={supervisors} onExport={exportCsv} />
         <Summary events={events} range={filter.range} />
       </div>
       {events.length === 0 ? (
