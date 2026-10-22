@@ -11,6 +11,11 @@
 //   6  the hero above the tabs, on every tab; "notified" is the banner's
 //      alone; presence is the hero's alone
 //   7  steady Overview: the two newest History rows and View history →
+//   8  (Phase 2) the future is one collapsed "Up next" path row
+//   9  (Phase 2) Action vs Waiting current nodes: pulse vs a 6s breath
+//  10  (Phase 2) the truncation audit: nothing in the timeline ellipsised;
+//      answered rows carry a short label, the question verbatim on expand
+//  11  (Phase 2) the two-zone question card
 //
 // Exit codes: 0 all passed · 1 a check failed.
 
@@ -189,6 +194,119 @@ for (const [label, persona, chat] of [
   await page.waitForTimeout(600);
   const m = await measure(page);
   check(m.ringed.length === 1 && m.ringed[0] === "node:neutral", "Tier 3: the one emphasis keeps a neutral ring — alert is Tiers 1–2 only", m.ringed.join());
+  await ctx.close();
+}
+
+// ── 8–11 · TIMELINE CRAFT AND THE QUESTION CARD (Phase 2) ──────────────────
+console.log("\n── 3 · the timeline (Phase 2)");
+const timeline = (page) =>
+  page.evaluate(() => {
+    const x = document.querySelector("[data-exchange]");
+    const up = x?.querySelector("[data-up-next]");
+    const toggle = up?.querySelector("[data-up-next-toggle]");
+    const steps = up?.querySelector("[data-up-next-steps]");
+    const cur = x?.querySelector('[data-node-state="current"]');
+    /* Anything in the timeline drawn with an ellipsis, or clipped. */
+    const cut = [...(x?.querySelectorAll("*") ?? [])].filter((el) => {
+      const s = getComputedStyle(el);
+      return el.getClientRects().length && s.textOverflow === "ellipsis" && el.scrollWidth > el.clientWidth;
+    }).map((el) => el.textContent.trim().slice(0, 40));
+    const breath = cur?.querySelector(".node-breath");
+    return {
+      rows: x?.querySelectorAll("[data-up-next]").length ?? 0,
+      first: x?.querySelector("[data-timeline]")?.firstElementChild?.matches("[data-up-next]") ?? false,
+      path: x?.querySelector("[data-up-next-path]")?.textContent.trim() ?? null,
+      expanded: toggle?.getAttribute("aria-expanded"),
+      hidden: steps ? steps.hidden : null,
+      lock: !!up?.querySelector("svg"),
+      conditions: [...(steps?.querySelectorAll("[data-node-condition]") ?? [])].map((c) => c.textContent.trim()),
+      strayUpcoming: [...(x?.querySelectorAll('[data-node-state="upcoming"]') ?? [])].filter((n) => !n.closest("[data-up-next]")).length,
+      variant: cur?.querySelector("[data-node-card]")?.dataset.nodeVariant ?? null,
+      pulse: !!cur?.querySelector("[data-node-pulse]"),
+      breath: breath ? getComputedStyle(breath).animationDuration : null,
+      cut,
+    };
+  });
+{
+  const { ctx, page } = await open("/app/chat/t13", { chat: "escalation-active" });
+  const t = await timeline(page);
+  check(t.rows === 1 && t.first && t.strayUpcoming === 0, "the future is ONE row, at the top of the timeline", JSON.stringify({ rows: t.rows, first: t.first, stray: t.strayUpcoming }));
+  check(/^Up next: .+ → Close$/.test(t.path ?? "") && t.lock, "it reads “Up next: … → Close”, with the lock", String(t.path));
+  check(t.expanded === "false" && t.hidden === true, "collapsed by default", JSON.stringify({ e: t.expanded, h: t.hidden }));
+  await page.locator("[data-up-next-toggle]").click();
+  const t2 = await timeline(page);
+  check(t2.expanded === "true" && t2.hidden === false && t2.conditions.length >= 2 && t2.conditions.every((c) => / · /.test(c)), "expanded, each step shows with its condition", t2.conditions.join(" | "));
+  check(t.variant === "action" && t.pulse && !t.breath, "the mentor's assessment is an ACTION node: it pulses", JSON.stringify({ v: t.variant, p: t.pulse }));
+
+  /* ── THE QUESTION CARD ── */
+  const q = await page.evaluate(() => {
+    const card = document.querySelector("[data-assessment-active]");
+    const zones = [...(card?.querySelectorAll("[data-zone]") ?? [])];
+    const tok = (v) => { const e = document.createElement("span"); e.style.background = `var(${v})`; document.body.appendChild(e); const c = getComputedStyle(e).backgroundColor; e.remove(); return c; };
+    const ans = card?.querySelector('[data-zone="answer"]');
+    return {
+      zones: zones.map((z) => z.dataset.zone),
+      /* The visible label: the screen-reader-only suffix ("· Question 3 of 6") dropped. */
+      labels: zones.map((z) => { const l = z.querySelector("[data-zone-label]")?.cloneNode(true); l?.querySelectorAll(".sr-only").forEach((x) => x.remove()); return l?.textContent.trim(); }),
+      hint: ans?.querySelector("[data-zone-hint]")?.textContent.trim(),
+      ask: card?.querySelector("[data-assessment-wording]")?.textContent.trim(),
+      askInAsk: !!card?.querySelector('[data-zone="ask"] [data-assessment-wording]'),
+      yesNoInAnswer: card?.querySelectorAll('[data-zone="answer"] [data-yes-no]').length,
+      disabled: [...(card?.querySelectorAll("[data-yes-no]") ?? [])].some((b) => b.disabled || b.getAttribute("aria-disabled") === "true"),
+      answerBg: ans ? getComputedStyle(ans).backgroundColor : null, s1: tok("--surface-s1"),
+      cardBorder: card ? getComputedStyle(card).borderTopWidth : null,
+      question: card?.querySelector('[data-zone="ask"] [data-question-live] p:nth-of-type(2)')?.textContent.trim(),
+    };
+  });
+  check(q.zones.join() === "ask,answer" && q.labels[0] === "Ask Jordan" && q.labels[1] === "Jordan’s answer", "two zones: Ask Jordan, then Jordan’s answer", JSON.stringify(q.labels));
+  check(q.hint === "Record what Jordan tells you." && q.yesNoInAnswer === 2 && !q.disabled, "zone 2 carries the microcopy and Yes / No — never disabled", JSON.stringify({ h: q.hint, n: q.yesNoInAnswer, d: q.disabled }));
+  check(q.answerBg === q.s1 && q.cardBorder === "0px", "zone 2 is a sunken well, subordinate; no card inside the node card", JSON.stringify({ bg: q.answerBg, border: q.cardBorder }));
+  check(q.askInAsk && /^Ask in chat/.test(q.ask ?? ""), "“Ask in chat” lives in zone 1", String(q.ask));
+  const sentBefore = await page.evaluate((k) => (JSON.parse(localStorage.getItem(k)).state.chatMessages ?? []).length, KEY);
+  await page.locator("[data-assessment-wording]").click();
+  await page.waitForTimeout(300);
+  const ins = await page.evaluate((k) => ({ box: document.querySelector('[data-slot="composer"] textarea')?.value ?? null, sent: (JSON.parse(localStorage.getItem(k)).state.chatMessages ?? []).length }), KEY);
+  check(ins.box && q.question?.includes(ins.box) && ins.sent === sentBefore, "Ask in chat puts the question in the message box, editable — nothing is sent", JSON.stringify({ box: ins.box?.slice(0, 40), sent: ins.sent, before: sentBefore }));
+
+  /* ── ANSWERED ROWS: short label, verbatim on expand ── */
+  const rows = await page.evaluate(() => [...document.querySelectorAll("[data-answered]")].map((r) => ({ id: r.dataset.answered, label: r.querySelector("[data-answer-label]")?.textContent.trim() })));
+  check(rows.length >= 1 && rows.every((r) => r.label && !/^Have you/.test(r.label) && !/…/.test(r.label)), "answered rows carry the short label, not a cut question", rows.map((r) => r.label).join(" · "));
+  await page.locator(`[data-answered="${rows[0]?.id}"] button`).click();
+  const verb = await page.evaluate((id) => document.querySelector(`[data-answered="${id}"] [data-answer-verbatim]`)?.textContent.trim(), rows[0]?.id);
+  check(verb === "“Have you wished you were dead or wished you could go to sleep and not wake up?”", "expanded, the question VERBATIM", String(verb));
+  check(t.cut.length === 0, "nothing in the timeline is ellipsised", t.cut.join(" | "));
+  await page.screenshot({ path: `${OUT}/03-question-card.png` });
+
+  /* ── WAITING: answer everything no, submit — the mentor waits ── */
+  for (let i = 0; i < 8; i++) {
+    const no = page.locator('[data-yes-no$=":no"]').first();
+    if (!(await no.count())) break;
+    await no.click();
+    await page.waitForTimeout(120);
+  }
+  await page.locator('[data-exchange-field="mentor-summary"]').fill("Probe: Jordan is talking, no plan.");
+  await page.locator('[data-exchange-primary="submit-assessment"]').click();
+  await page.waitForTimeout(500);
+  const w = await timeline(page);
+  check(w.variant === "waiting" && !w.pulse && w.breath === "6s", "submitted: the mentor's current node is WAITING — it breathes on a 6s cycle, no pulse", JSON.stringify({ v: w.variant, p: w.pulse, b: w.breath }));
+  check(w.cut.length === 0, "and still nothing ellipsised", w.cut.join(" | "));
+  await ctx.close();
+}
+{
+  /* Supervisor S0: the mentor is assessing — the supervisor's node waits. */
+  const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active" });
+  const t = await timeline(page);
+  check(t.variant === "waiting" && t.breath === "6s", "supervisor S0: assessment in progress is a WAITING node", JSON.stringify({ v: t.variant, b: t.breath }));
+  check(t.rows === 1 && /^Up next: Confirm tier → .*Close$/.test(t.path ?? ""), "and the path starts at Confirm tier", String(t.path));
+  await ctx.close();
+}
+{
+  /* Supervisor, T2 confirmed, mid-note: completed note rows wrap, never cut. */
+  const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-tier2" });
+  const t = await timeline(page);
+  const sub = await page.evaluate(() => [...document.querySelectorAll("[data-node-sub]")].map((s) => s.textContent.trim()));
+  check(t.cut.length === 0 && t.variant === "action" && t.pulse, "a supervisor's note step is an ACTION node, and nothing is ellipsised", JSON.stringify({ cut: t.cut, v: t.variant }));
+  check(sub.length >= 1, "a completed note section states its summary on a second line, whole", sub.join(" | "));
   await ctx.close();
 }
 

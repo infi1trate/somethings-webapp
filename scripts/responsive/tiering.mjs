@@ -377,7 +377,9 @@ let assessed;
   const x0 = await xs(page);
   check(x0?.lens === "mentor" && x0.stage === "M2" && x0.current.join() === "assessment" && !x0.baton, "mid-assessment: the assessment is the one current node — no baton banner", JSON.stringify(x0));
   check(x0?.order.join() === "upcoming,upcoming,current,completed", "upcoming on top, then the current node, then completed below", x0?.order.join());
-  check(x0?.upcoming.join() === "closed,waiting" && /Supervisor closes or steps down/.test(await page.evaluate(() => document.querySelector('[data-node="closed"] [data-node-condition]')?.textContent ?? "")), "the exit is always visible, ghosted, with its condition", x0?.upcoming.join());
+  /* RETARGETED (pack v4.0, Supersession 1): the future is one "Up next"
+     path that reads FORWARDS — the next step, then the exit. */
+  check(x0?.upcoming.join() === "waiting,closed" && /Supervisor closes or steps down/.test(await page.evaluate(() => document.querySelector('[data-node="closed"] [data-node-condition]')?.textContent ?? "")), "the exit is always on the Up next path, with its condition", x0?.upcoming.join());
   check(x0?.live === "Now: Go through the assessment with Jordan", "the current node is announced in the header's live region", String(x0?.live));
   check(s0.active.join() === "q3" && s0.answered.join() === "q1,q2", "exactly one active question (Q3); Q1–Q2 collapsed above; Q4–Q6 not rendered", JSON.stringify({ a: s0.active, d: s0.answered }));
   /* Quotes normalised: the panel sets the question in typographic quotes. */
@@ -430,7 +432,7 @@ let closed;
   const z0 = await xs(z.page);
   const prog = await z.page.evaluate(() => ({ text: document.querySelector("[data-s0-progress]")?.textContent, questions: document.querySelectorAll("[data-node-state='current'] [data-assessment-active], [data-node-state='current'] [data-s1-answer]").length }));
   check(z0?.stage === "S0" && z0.current.join() === "assessment" && prog.text === "2 of 6 answered" && prog.questions === 0, "assessment in progress: the current node is a count — no live question sprawl", JSON.stringify({ z0, prog }));
-  check(z0?.upcoming.join() === "close,confirm", "and Confirm waits, ghosted, with the exit above it", z0?.upcoming.join());
+  check(z0?.upcoming.join() === "confirm,close", "and Confirm waits on the Up next path, before the exit", z0?.upcoming.join());
   await z.ctx.close();
 
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active", extra: { escalations: assessed.escalations, tierEvents: assessed.tierEvents } });
@@ -477,7 +479,7 @@ let closed;
   const s2 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, line: document.querySelector("[data-tier-line-text]")?.textContent, lozenge: !!document.querySelector("[data-tier-line] .tier-settle [data-tier-lozenge]") }));
   const x2 = await xs(page);
   check(s2.stage === "S2" && /^Tier 1 confirmed by .+ · \d/.test(s2.line ?? "") && s2.lozenge, "S2: the header's chip has settled into the Tier 1 lozenge, signed and timed", JSON.stringify(s2));
-  check(x2?.current.join() === "note:subtype" && x2.upcoming.join() === "close,note:safety-plan", "the note assembles as nodes: Clinical subtype is current, the next section a ghost", JSON.stringify({ cur: x2?.current, up: x2?.upcoming }));
+  check(x2?.current.join() === "note:subtype" && x2.upcoming.join() === "note:safety-plan,close", "the note assembles as nodes: Clinical subtype is current, the next section first on the path", JSON.stringify({ cur: x2?.current, up: x2?.upcoming }));
   /* ═══ NO GUIDANCE COMPOSER (Supersession 2) ═══ */
   const g = await page.evaluate(() => ({ composer: !!document.querySelector("[data-send-guidance], [data-guidance-composer]"), link: document.querySelector('[data-timeline-support="supervisor"]')?.textContent ?? null }));
   check(!g.composer && /^Message .+ in Support/.test(g.link ?? ""), "no guidance composer — a quiet Message {mentor} in Support link instead", JSON.stringify(g));

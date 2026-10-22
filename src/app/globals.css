@@ -722,3 +722,25 @@
     animation: none;
   }
 }
+
+/* ═══ THE WAITING NODE'S BREATH (pack v4.0, make it magical 1) ═══
+   A current step that is someone else's: its dot breathes on a slow 6s
+   opacity cycle — calm, never the outward "act now" pulse. REDUCED MOTION:
+   still, at full ink. */
+@keyframes node-breath {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.node-breath {
+  animation: node-breath 6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .node-breath {
+    animation: none;
+  }
+}
