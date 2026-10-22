@@ -205,7 +205,7 @@ console.log("\n── 6 · cards: the default; the whole card is the link; it li
 {
   /* No saved layout: a new session. */
   const { ctx, page } = await open({ layout: "" });
-  const d = await page.evaluate(() => ({ cards: !!document.querySelector("[data-monitoring-cards]"), cols: getComputedStyle(document.querySelector('[data-tier-group="3"] [data-card-grid]')).gridTemplateColumns.split(" ").length }));
+  const d = await page.evaluate(() => { const g = document.querySelector('[data-tier-group="3"] [data-card-grid]'); return { cards: !!document.querySelector("[data-monitoring-cards]"), cols: g ? getComputedStyle(g).gridTemplateColumns.split(" ").length : 0 }; });
   check(d.cards && d.cols === 3, "a new session opens on the cards, 3-up at 1440", JSON.stringify(d));
   const card = page.locator('[data-monitoring-card="t19"]');
   await card.scrollIntoViewIfNeeded();
