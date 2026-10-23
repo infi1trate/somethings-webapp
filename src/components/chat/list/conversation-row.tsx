@@ -30,8 +30,10 @@
 // is a case where the difference matters — a mentor scanning fifteen rows for the
 // one that needs them is exactly the reader a colour-only signal fails.
 
+import { Shield } from "lucide-react";
 import { RecordAvatar } from "@/components/record/record-avatar";
 import type { ChatThread } from "@/lib/chat/types";
+import type { RaiseTarget, Tier } from "@/lib/tiering/tiers";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -59,11 +61,24 @@ function shortAgo(at: number, now: number): string {
   return `${Math.floor(days / 30)}mo`;
 }
 
+/** ═══ AN OPEN ESCALATION ON THIS CONVERSATION (pack v5.0, C1) ═══ */
+export interface RowEscalation {
+  /** The confirmed tier, else what was requested. */
+  tier: Tier | Exclude<RaiseTarget, Tier>;
+  /** Opened after the page's clock — the shield arrives with one pulse. */
+  fresh: boolean;
+}
+
+/* The tier lozenge's ink: alert family for Tiers 1–2 ONLY (blocked
+   constant), neutral for Tier 3 and a platform concern. */
+const SHIELD_INK: Record<string, string> = { 1: "text-[var(--t1-ink)]", 2: "text-[var(--t2-ink)]" };
+
 export function ConversationRow({
   thread,
   selected,
   now,
   onSelect,
+  escalation,
 }: {
   thread: ChatThread;
   selected: boolean;
@@ -73,6 +88,7 @@ export function ConversationRow({
    *  render disagree about what "3d" means. */
   now: number;
   onSelect: () => void;
+  escalation?: RowEscalation;
 }) {
   const clock = now;
   const unread = thread.unreadCount > 0;
@@ -81,6 +97,8 @@ export function ConversationRow({
    *  who, then whether anything is waiting, then what was last said. */
   const label = [
     thread.displayName,
+    /* TODO-COPY. Said in words, so the shield is never colour alone. */
+    escalation ? (escalation.tier === "platform" ? "platform concern open" : `escalation open, Tier ${escalation.tier}`) : null,
     unread ? `${thread.unreadCount} unread` : null,
     thread.needsCheckIn ? "worth a check-in" : null,
     thread.preview
@@ -142,6 +160,19 @@ export function ConversationRow({
               system's own next step, so nothing is invented. Conditional here
               rather than unconditional because these rows DO sit on the card most
               of the time, where muted is correct and quieter. */}
+          {/* ═══ THE SHIELD, AT THE LEADING META POSITION (C1) ═══ Before the
+              time, beside (never instead of) the unread disc. It arrives with
+              one soft pulse when the escalation is new (make it magical 2),
+              then holds still. Resolved escalations show nothing. */}
+          {escalation && (
+            <span
+              aria-hidden
+              data-row-escalation={String(escalation.tier)}
+              className={cn("inline-flex shrink-0 self-center", SHIELD_INK[String(escalation.tier)] ?? "text-[var(--text-secondary)]", escalation.fresh && "shield-arrive")}
+            >
+              <Shield className="size-3.5" strokeWidth={2.25} />
+            </span>
+          )}
           <span
             className={cn(
               "shrink-0 tabular-nums",

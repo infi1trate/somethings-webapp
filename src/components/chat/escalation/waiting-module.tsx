@@ -5,9 +5,8 @@
 //
 // ═══ SUPERSEDES "the pack's line and nothing else" (v3.0, Workstream D) ═══
 // While the supervisor has the escalation, the mentor's current node holds:
-//   1  the one Support door — "Open Support" — while Support is closed. Once
-//      it is open, the door goes: the hero says who is there (presence lives
-//      in the hero alone, B3), and the holder line is the hero's too.
+//   1  (pack v5.0: the Support door left for the hero's ghost button — the
+//      one door in every state; the holder is this node's title)
 //   2  the supervisor's echo — their latest Support message, quote-framed,
 //      so coaching is visible without leaving the conversation
 //   3  2–3 Ava nudges grounded in the thread (`lib/chat/stay-close.ts`):
@@ -17,7 +16,7 @@
 // The completed timeline stays below, as it always does.
 
 import { useEffect, useState } from "react";
-import { ArrowRight, Check, Sparkles } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { Quote } from "@/components/chat/escalation/quote";
 import { STEADYING_EVERY_MS, STEADYING_LINES, stayCloseNudges } from "@/lib/chat/stay-close";
 import { cn } from "@/lib/utils";
@@ -35,17 +34,12 @@ export interface SupervisorEcho {
 export function WaitingModule({
   name,
   supervisorName,
-  supportOpen,
-  onSupport,
   echo,
   teenLines,
   onUseWording,
 }: {
   name: string;
   supervisorName: string;
-  /** Support is open on the supervisor — the door is not needed. */
-  supportOpen: boolean;
-  onSupport?: () => void;
   echo?: SupervisorEcho;
   teenLines: string[];
   onUseWording: (text: string) => void;
@@ -60,24 +54,6 @@ export function WaitingModule({
   }, []);
   return (
     <div data-waiting-module className="space-y-3">
-      {!supportOpen && onSupport && (
-        <div data-waiting-support className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[var(--text-secondary)]" style={LABEL}>
-            {/* TODO-COPY */}
-            Questions for {supervisorName}?
-          </p>
-          <button
-            type="button"
-            data-waiting-open-support
-            onClick={onSupport}
-            className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3.5 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
-            style={BODY}
-          >
-            {/* TODO-COPY */}
-            Open Support <ArrowRight aria-hidden className="size-3.5" />
-          </button>
-        </div>
-      )}
       {echo && <Quote slot="supervisor-echo" text={echo.text} who={supervisorName} at={echo.at} />}
       <section data-nudges aria-labelledby="nudges-label" className="space-y-1.5">
         <p id="nudges-label" className="inline-flex items-center gap-1.5 text-[var(--text-muted)]" style={LABEL}>

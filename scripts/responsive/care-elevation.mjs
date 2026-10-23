@@ -146,7 +146,9 @@ for (const [label, extra] of [["Tier 4", {}], ["Tier 2", T2]]) {
   const { ctx, page } = await open("/app/chat/t14", { extra });
   const m = await measure(page);
   check(m.heroKind === "steady" && m.heroFirst && m.tabsAfterHero, `${label}: the Teen Status card is the hero, above the tabs`, JSON.stringify({ k: m.heroKind, f: m.heroFirst, t: m.tabsAfterHero }));
-  check(m.cells.join("|") === "Clinical diagnosis|Risk tier", `${label}: two cells — Clinical diagnosis · Risk tier`, m.cells.join(" · "));
+  /* RETARGETED (pack v5.0, Supersession 5): the mentor's card is the Risk
+     tier cell alone — the diagnosis is not in the DOM at all. */
+  check(m.cells.join("|") === "Risk tier" && !(await page.evaluate(() => !!document.querySelector("[data-care-brief]"))), `${label}: the mentor sees the Risk tier cell only — no diagnosis in the DOM`, m.cells.join(" · "));
   check(m.heroBg === m.raised && m.bodyBg === m.s1 && m.canvasBg === m.base && m.s1 !== m.raised, `${label}: the thread on the base, the Care body one step deeper (s1), the card raised`, `${m.canvasBg} · ${m.bodyBg} · ${m.heroBg}`);
   check(m.washed === 0, `${label}: no whole-card wash — the tint lives in the lozenge alone`, String(m.washed));
   check(m.ringed.length === 0, `${label}: steady has no current step, so nothing is raised AND ringed`, m.ringed.join());
@@ -241,7 +243,8 @@ const timeline = (page) =>
   const { ctx, page } = await open("/app/chat/t13", { chat: "escalation-active" });
   const t = await timeline(page);
   check(t.rows === 1 && t.first && t.strayUpcoming === 0, "the future is ONE row, at the top of the timeline", JSON.stringify({ rows: t.rows, first: t.first, stray: t.strayUpcoming }));
-  check(/^Up next: .+ → Close$/.test(t.path ?? "") && t.lock, "it reads “Up next: … → Close”, with the lock", String(t.path));
+  /* (pack v5.0, D1) "A, then B": arrow chains are retired. */
+  check(/^Up next: .+, then Close & follow-up$/.test(t.path ?? "") && !/→/.test(t.path ?? "") && t.lock, "it reads “Up next: …, then Close & follow-up”, with the lock — no arrows", String(t.path));
   check(t.expanded === "false" && t.hidden === true, "collapsed by default", JSON.stringify({ e: t.expanded, h: t.hidden }));
   await page.locator("[data-up-next-toggle]").click();
   const t2 = await timeline(page);
@@ -281,7 +284,9 @@ const timeline = (page) =>
   /* ── ANSWERED ROWS: short label, verbatim on expand ── */
   const rows = await page.evaluate(() => [...document.querySelectorAll("[data-answered]")].map((r) => ({ id: r.dataset.answered, label: r.querySelector("[data-answer-label]")?.textContent.trim() })));
   check(rows.length >= 1 && rows.every((r) => r.label && !/^Have you/.test(r.label) && !/…/.test(r.label)), "answered rows carry the short label, not a cut question", rows.map((r) => r.label).join(" · "));
-  await page.locator(`[data-answered="${rows[0]?.id}"] button`).click();
+  /* (pack v5.0) The answered rows live in the collapsed group below the card. */
+  await page.locator("[data-answered-toggle]").click();
+  await page.locator(`[data-answered="${rows[0]?.id}"] button`).first().click();
   const verb = await page.evaluate((id) => document.querySelector(`[data-answered="${id}"] [data-answer-verbatim]`)?.textContent.trim(), rows[0]?.id);
   check(verb === "“Have you wished you were dead or wished you could go to sleep and not wake up?”", "expanded, the question VERBATIM", String(verb));
   check(t.cut.length === 0, "nothing in the timeline is ellipsised", t.cut.join(" | "));
@@ -311,8 +316,7 @@ const timeline = (page) =>
         title: document.querySelector('[data-node-state="current"] [data-node-title]')?.textContent.trim(),
         door: !!m?.querySelector("[data-waiting-open-support]"),
         heroDoor: !!document.querySelector("[data-timeline-support]"),
-        holder: document.querySelector("[data-hero-holder]")?.textContent.replace("—", "").trim(),
-        holderInModule: /has this/.test(m?.textContent ?? ""),
+        holderInHero: /has this/.test(document.querySelector("[data-care-hero]")?.textContent ?? ""),
         echo: m?.querySelector('[data-quote="supervisor-echo"] figcaption')?.textContent.trim(),
         label: m?.querySelector("#nudges-label")?.textContent.trim(),
         nudges: [...(m?.querySelectorAll("[data-nudge]") ?? [])].map((n) => ({ id: n.dataset.nudge, text: n.querySelector("span")?.textContent.trim(), used: n.dataset.nudgeUsed === "true" })),
@@ -322,8 +326,9 @@ const timeline = (page) =>
       };
     });
   const m0 = await mod();
-  check(m0.title === "While you’re with Jordan" && m0.holder === "Brandy has this" && !m0.holderInModule, "the waiting node is While you’re with Jordan; the holder line stays the hero’s", JSON.stringify({ t: m0.title, h: m0.holder }));
-  check(m0.door && !m0.heroDoor, "one Support door: the module’s Open Support, the hero’s hidden while the mentor waits", JSON.stringify({ door: m0.door, hero: m0.heroDoor }));
+  /* RETARGETED (pack v5.0, Supersessions 1–2). */
+  check(m0.title === "Brandy has this. Stay with Jordan." && !m0.holderInHero, "the holder's one home is the waiting node's title, not the hero", JSON.stringify({ t: m0.title, hero: m0.holderInHero }));
+  check(!m0.door && m0.heroDoor, "one Support door: the hero's ghost button, in this state too", JSON.stringify({ door: m0.door, hero: m0.heroDoor }));
   check(/^Brandy, /.test(m0.echo ?? ""), "the supervisor’s latest Support message, quote-framed and attributed", String(m0.echo));
   check(m0.label === "Suggested by Ava" && m0.nudges.length >= 2 && m0.nudges.length <= 3, "2–3 nudges, labelled Suggested by Ava", `${m0.label} · ${m0.nudges.length}`);
   check(m0.nudges.every((n) => !CLINICAL.test(n.text ?? "")), "no nudge is clinical", m0.nudges.map((n) => n.text).join(" | "));
@@ -341,10 +346,10 @@ const timeline = (page) =>
   const m2 = await mod();
   check(!!m0.steady && !!m2.steady && m2.steady !== m0.steady && !CLINICAL.test(m2.steady), "the steadying line rotates", `${m0.steady} → ${m2.steady}`);
   await page.screenshot({ path: `${OUT}/04-waiting-module.png` });
-  await page.locator("[data-waiting-open-support]").click();
+  await page.locator("[data-timeline-support]").click();
   await page.waitForTimeout(500);
   const m3 = await mod();
-  check(!m3.door && m3.presence === "Brandy is here", "Support open: the door goes, and the hero says Brandy is here", JSON.stringify({ door: m3.door, p: m3.presence }));
+  check(m3.presence === "Brandy is here", "Support open: the hero says Brandy is here", JSON.stringify({ p: m3.presence }));
   await ctx.close();
 }
 {
@@ -352,7 +357,7 @@ const timeline = (page) =>
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active" });
   const t = await timeline(page);
   check(t.variant === "waiting" && t.breath === "6s", "supervisor S0: assessment in progress is a WAITING node", JSON.stringify({ v: t.variant, b: t.breath }));
-  check(t.rows === 1 && /^Up next: Confirm tier → .*Close$/.test(t.path ?? ""), "and the path starts at Confirm tier", String(t.path));
+  check(t.rows === 1 && /^Up next: Confirm tier, then .*Close & follow-up$/.test(t.path ?? ""), "and the path starts at Confirm tier", String(t.path));
   await ctx.close();
 }
 {

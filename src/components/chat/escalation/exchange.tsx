@@ -24,11 +24,10 @@
 // Emergency information button (Supersession 5).
 
 import { useEffect, useId, useState } from "react";
-import { ArrowRight, Check, ChevronDown, Lock, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Lock, MessageSquare, Sparkles } from "lucide-react";
 import { announceClose } from "@/components/chat/escalation/close-toast";
 import { Quote } from "@/components/chat/escalation/quote";
 import { WaitingModule, type SupervisorEcho } from "@/components/chat/escalation/waiting-module";
-import { RequestedChip } from "@/components/tiering/requested-chip";
 import { TierLozenge } from "@/components/ui/tier-lozenge";
 import type { EscalationState, MessageOrigin } from "@/lib/chat/types";
 import { REFERRAL_TYPE } from "@/lib/record/people-demo";
@@ -45,7 +44,6 @@ import {
   RISK_LABEL,
   SAFETY_PLAN_STATUS,
   activeStep,
-  answeredCount,
   askedSteps,
   assessmentOf,
   autoOutcome,
@@ -278,17 +276,21 @@ function noteSummary(note: CrisisNote, id: CrisisSectionId): string {
 }
 
 
-// ── QUOTE FRAME ─────────────────────────────────────────────────────────────
+// ── THE HERO — state only ───────────────────────────────────────────────────
 
-/** ═══ A NOTE OR A MESSAGE IS ALWAYS QUOTE-FRAMED (Workstream E3) ═══ With
- *  attribution and time, so raw text can never read as a UI header. */
-// ── THE HERO — one home for tier, responsibility and the Support link ──────
-
-/** ═══ ESCALATION HERO (pack v4.0, Workstream B) ═══ Above the Care tabs,
- *  persistent across them, both lenses. ONE line of headline — the tier (or
- *  the request), then who holds it — ONE quiet meta line (opened · the
- *  confirmation state · who else is here), and ONE link. It does NOT say when
- *  the supervisor was notified: the banner is that fact's single home. */
+/** ═══ ESCALATION HERO v2 (pack v5.0, Workstream A1) ═══ Above the Care tabs,
+ *  persistent across them, both lenses. It owns STATE and nothing else:
+ *    overline   ESCALATION
+ *    headline   the request ("Tier 1 requested") — or, once confirmed, the
+ *               tier itself as its lozenge (red arrives with the confirmation)
+ *    meta       ONE interpuncted line: opened · the state · who is here
+ *    Support    a ghost button, always the hero's last line while it is open
+ *  ═══ SUPERSEDES v4's holder line (Supersession 1) ═══ "— Brandy has this"
+ *  left the hero: the waiting node is its single home. And the underlined
+ *  Support link is a ghost button in a fixed position (Supersession 2) — the
+ *  one Support door in every state, so the waiting module no longer has its
+ *  own. It does NOT say when the supervisor was notified: the banner is that
+ *  fact's single home. */
 export function EscalationHero({
   e,
   tiering,
@@ -317,36 +319,41 @@ export function EscalationHero({
     const ev = [...tiering.eventsFor(teenId)].reverse().find((x) => x.escalationId === e.id && (x.kind === "confirmed" || x.kind === "placed" || x.kind === "stepped-down"));
     return ev ? tiering.nameOf(ev.actor) : null;
   })();
-  /* TODO-COPY, every fragment. */
-  const holder = closed ? "closed" : lens === "mentor" ? `${supervisorName} has this` : `with ${mentorName}`;
+  /* TODO-COPY, every fragment. The headline already names the tier, so the
+     meta line never repeats it — except as the close's movement. */
   const state = closed
     ? /* The movement, not a stale confirmation (measured in v2). */
-      `Closed ${TIME.format(e.resolvedAt!)}${confirmed && nowTier !== null && nowTier !== e.confirmedTier ? ` · Tier ${e.confirmedTier} → Tier ${nowTier} ${TIER_NAME[nowTier]}` : ""}`
+      /* No arrow chain (pack v5.0, D1): the headline lozenge is where it
+         began; the line says where it went. */
+      `Closed ${TIME.format(e.resolvedAt!)}${confirmed && nowTier !== null && nowTier !== e.confirmedTier ? ` · moved to Tier ${nowTier} ${TIER_NAME[nowTier]}` : ""}`
     : target === PLATFORM
-      ? /* The chip already says "Platform concern" — one home. */
-        "In review"
+      ? "In review"
       : confirmed
-        ? `Tier ${e.confirmedTier} confirmed${who ? ` by ${who}` : ""}${e.confirmedAt ? ` · ${TIME.format(e.confirmedAt)}` : ""}`
+        ? `Confirmed${who ? ` by ${who}` : ""}${e.confirmedAt ? ` · ${TIME.format(e.confirmedAt)}` : ""}`
         : "Awaiting confirmation";
+  const other = lens === "supervisor" ? mentorName : supervisorName;
   return (
-    <header data-care-hero="escalation" data-timeline-header className="space-y-1.5">
+    <header data-care-hero="escalation" data-timeline-header className="space-y-1">
+      <p data-hero-overline className="text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase">
+        {/* TODO-COPY */}
+        Escalation
+      </p>
       <p data-tier-line className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {target === PLATFORM ? (
-          <span className="inline-flex h-6 items-center rounded-full border border-[color:var(--border-default)] px-2.5 text-[var(--text-secondary)]" style={LABEL}>
+          <span data-hero-headline className="text-[var(--text-primary)]" style={TITLE}>
             Platform concern
           </span>
         ) : confirmed ? (
-          /* The chip settles into the lozenge in place (v2's magic, kept). */
-          <span key={`c-${e.confirmedTier}`} className="tier-settle inline-flex">
+          /* The request settles into the lozenge in place (v2's magic, kept). */
+          <span key={`c-${e.confirmedTier}`} data-hero-headline className="tier-settle inline-flex">
             <TierLozenge tier={e.confirmedTier!} long />
           </span>
         ) : (
-          <RequestedChip tier={target} />
+          /* Neutral until confirmed (blocked constant): words, not colour. */
+          <span data-hero-headline className="text-[var(--text-primary)]" style={TITLE}>
+            Tier {target} requested
+          </span>
         )}
-        <span data-hero-holder className="text-[var(--text-primary)]" style={TITLE}>
-          <span aria-hidden>— </span>
-          {holder}
-        </span>
       </p>
       <p data-timeline-meta className="flex flex-wrap items-center gap-x-1.5 tabular-nums text-[var(--text-secondary)]" style={LABEL}>
         <span>Opened {TIME.format(e.openedAt)}</span>
@@ -354,7 +361,8 @@ export function EscalationHero({
         {/* A Platform concern has no tier line: it is a category, not a tier. */}
         <span data-tier-line-text={target === PLATFORM ? undefined : ""}>{state}</span>
         {presence && (
-          /* ═══ PRESENCE LIVES HERE ONLY (B3) ═══ A dot and a name. */
+          /* ═══ PRESENCE ═══ A dot and a name — a fact about now, so it rides
+             the state line rather than earning a line of its own. */
           <>
             <span aria-hidden>·</span>
             <span data-hero-presence className="inline-flex items-center gap-1.5">
@@ -364,18 +372,17 @@ export function EscalationHero({
           </>
         )}
       </p>
-      {/* ONE SUPPORT DOOR: while the mentor waits, it is the waiting
-          module's "Open Support" (Workstream D), not the hero's. */}
-      {onSupport && !closed && !(lens === "mentor" && mentorStage(e, tiering.stateFor(teenId)) === "M3") && (
+      {onSupport && !closed && (
         <button
           type="button"
           data-timeline-support={lens}
           onClick={onSupport}
-          className={cn("inline-flex min-h-8 items-center gap-1 rounded-sm text-[var(--text-primary)] underline underline-offset-2 hover:no-underline", RING)}
-          style={LABEL}
+          className={cn("-ml-2.5 inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
+          style={BODY}
         >
+          <MessageSquare aria-hidden className="size-4 text-[var(--icon-secondary)]" />
           {/* TODO-COPY */}
-          Message {lens === "supervisor" ? mentorName : supervisorName} in Support <ArrowRight aria-hidden className="size-3.5" />
+          Message {other} in Support
         </button>
       )}
     </header>
@@ -385,7 +392,7 @@ export function EscalationHero({
 // ── UP NEXT — the future as one collapsed path ─────────────────────────────
 
 /** ═══ ONE ROW, COLLAPSED BY DEFAULT (pack v4.0, Supersession 1) ═══
- *  "Up next: Confirm tier → Close", with the lock. Expanding lists each step
+ *  "Up next: Confirm tier, then Close & follow-up", with the lock. Expanding lists each step
  *  with its condition. The steps stay in the DOM while collapsed (`hidden`),
  *  so the record of what comes next is still there for assistive tech on
  *  expand and for the probes that read it. */
@@ -412,7 +419,8 @@ function UpNext({ steps, stepName }: { steps: TimelineNode[]; stepName: (n: Time
         >
           {/* TODO-COPY */}
           <span data-up-next-path className="min-w-0 break-words">
-            Up next: {path.map(stepName).join(" → ")}
+            {/* "A, then B" — arrow chains are retired (pack v5.0, D1). */}
+            Up next: {path.map(stepName).join(", then ")}
           </span>
           <ChevronDown aria-hidden className={cn("size-3.5 shrink-0 transition-transform motion-reduce:transition-none", open && "rotate-180")} />
         </button>
@@ -420,7 +428,7 @@ function UpNext({ steps, stepName }: { steps: TimelineNode[]; stepName: (n: Time
           {path.map((n) => (
             <li key={n.id} data-node={n.id} data-node-kind={n.kind} data-node-state="upcoming">
               <p data-node-condition className="text-[var(--text-muted)]" style={LABEL}>
-                {n.condition ?? stepName(n)}
+                {n.condition ? `${stepName(n)} · ${n.condition}` : stepName(n)}
               </p>
             </li>
           ))}
@@ -483,6 +491,7 @@ function NodeGlyph({ state, fresh = false, variant = "action" }: { state: Timeli
 type NodeVariant = "action" | "waiting";
 
 function Node({
+  trace = false,
   accent = "neutral",
   variant = "action",
   sub,
@@ -511,6 +520,9 @@ function Node({
   variant?: NodeVariant;
   /** Completed: a second, muted line — wraps, never truncates. */
   sub?: string;
+  /** ═══ THE TRACE (pack v5.0, make it magical 3) ═══ Arriving from a
+   *  notification, the current card draws its accent ring once. */
+  trace?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -533,8 +545,10 @@ function Node({
             data-node-card
             data-node-accent={accent}
             data-node-variant={variant}
+            data-node-trace={trace || undefined}
             className={cn(
               "space-y-3 rounded-[16px] bg-[var(--surface-raised)] p-4 shadow-[var(--el-soft)] ring-1",
+              trace && "ring-trace",
               accent === "alert" ? "ring-[color:var(--alert-critical-border)]" : "ring-[color:var(--border-default)]"
             )}
           >
@@ -600,121 +614,165 @@ function AssessmentCard({ e, name, onAnswer, onUseWording, tiering, teenId }: { 
   const steps = askedSteps(answers);
   const active = activeStep(answers);
   const answered = steps.filter((s) => answers[s.id]);
+  const risk = riskLevel(answers);
   const [summary, setSummary] = useState(e.mentorSummary ?? "");
   const [tried, setTried] = useState(false);
+  const [groupOpen, setGroupOpen] = useState(false);
+  const groupId = useId();
+  /* TODO-COPY. "Question 3 of 6"; Q6's follow-up is "Question 6 · follow-up". */
+  const n = active ? ASSESSMENT_QUESTIONS.findIndex((q) => q.id === (active.followUpOf ?? active.id)) + 1 : 0;
+  const header = active ? (active.followUpOf ? `Question ${n} · follow-up` : `Question ${n} of ${ASSESSMENT_QUESTIONS.length}`) : "";
+
+  /* ═══ THE REVIEW LEDGER (pack v5.0, Supersession 4) ═══ Every question
+     answered: the computed risk at the top, recomputing live as an answer is
+     amended; one short-label row per question (tap to see it verbatim and to
+     change the answer); the note; Submit. The full question text is never
+     the default. */
+  if (!active)
+    return (
+      <div data-m2 data-review-ledger className="space-y-3">
+        {/* The chip carries "Assessment suggests: …" itself — one home. */}
+        <p data-review-risk className="flex">
+          <RiskChip level={risk} />
+        </p>
+        <ol data-assessment-answered className="space-y-1">
+          {answered.map((s) => (
+            <AnsweredRow key={s.id} step={s} value={answers[s.id].value} slot="data-answered" onAmend={onAnswer} />
+          ))}
+        </ol>
+        <Field slot="mentor-summary" label={`In a sentence or two, what's going on with ${name}`} value={summary} onChange={setSummary} invalid={tried && !summary.trim()} />
+        {tried && !summary.trim() && (
+          <p role="alert" className="text-[var(--state-error)]" style={LABEL}>
+            {/* TODO-COPY */}
+            Add a sentence for your supervisor.
+          </p>
+        )}
+        <Primary
+          slot="submit-assessment"
+          onClick={() => {
+            setTried(true);
+            if (!summary.trim()) return;
+            tiering.submitAssessment(teenId, summary);
+          }}
+        >
+          {/* TODO-COPY */}
+          Submit to supervisor
+        </Primary>
+      </div>
+    );
+
   return (
     <div data-m2 className="space-y-3">
-      <div data-assessment className="space-y-2.5">
-        {answered.length > 0 && (
-          <ol data-assessment-answered className="space-y-1">
-            {answered.map((s) => (
-              <AnsweredRow key={s.id} step={s} value={answers[s.id].value} slot="data-answered" />
-            ))}
-          </ol>
-        )}
-        {active && (
-          /* ═══ TWO ZONES (pack v4.0, Supersession 2) ═══
+      {/* ═══ QUESTION FIRST, IN A FIXED PLACE (pack v5.0, Supersession 3) ═══
+          The live question sits at the top of the node and never moves as
+          answers accrue below it — measured at 0, 3 and 6 answers.
+          ═══ TWO ZONES (pack v4.0, Supersession 2), unchanged ═══
              1  ASK {TEEN}      the question, verbatim, and "Ask in chat" — it
                                goes into the message box, editable, never sent
              2  {TEEN}'S ANSWER  Yes / No, on a sunken well: subordinate to
-                               the asking, and never disabled — a mentor may
-                               already have the answer.
-             One surface with a divider, not a card inside the node card. */
-          <div data-assessment-active={active.id} className="space-y-3">
-            <section data-zone="ask" aria-labelledby={`${active.id}-ask`} className="space-y-1.5">
-              {/* ═══ THE NEXT QUESTION IS ANNOUNCED ═══ Answering keeps focus
-                  on the same Yes/No (React reuses the buttons); this polite,
-                  atomic region reads the new question once. */}
-              <div data-question-live aria-live="polite" aria-atomic="true" className="space-y-1">
-                <p id={`${active.id}-ask`} data-zone-label className="text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase">
-                  {/* TODO-COPY */}
-                  Ask {name}
-                  <span className="sr-only">
-                    {" · "}
-                    {active.followUpOf ? "Follow-up" : `Question ${ASSESSMENT_QUESTIONS.findIndex((q) => q.id === active.id) + 1} of ${ASSESSMENT_QUESTIONS.length}`}
-                  </span>
-                </p>
-                <p className="text-[var(--text-primary)]" style={TITLE}>
-                  &ldquo;{active.text}&rdquo;
-                </p>
-                {active.example && (
-                  <p className="text-[var(--text-secondary)]" style={LABEL}>
-                    {active.example}
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                data-assessment-wording={active.id}
-                onClick={() => onUseWording(active.text, { kind: "assessment", questionId: active.id })}
-                className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3.5 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
-                style={BODY}
-              >
-                {/* TODO-COPY */}
-                Ask in chat <ArrowRight aria-hidden className="size-3.5" />
-              </button>
-            </section>
-            <section data-zone="answer" aria-labelledby={`${active.id}-answer`} className="space-y-2 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p id={`${active.id}-answer`} data-zone-label className="text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase">
-                    {/* TODO-COPY */}
-                    {name}&rsquo;s answer
-                  </p>
-                  <p data-zone-hint className="text-[var(--text-secondary)]" style={LABEL}>
-                    {/* TODO-COPY — the pack's line. */}
-                    Record what {name} tells you.
-                  </p>
-                </div>
-                {/* ═══ ANSWERS ARE ACTIONS, NOT A SELECTION ═══ Two buttons in
-                    a labelled group: as radios, an arrow key would answer a
-                    clinical question by accident. */}
-                <div role="group" aria-label={`${name}'s answer`} className="flex gap-1.5">
-                  {(["yes", "no"] as const).map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      data-yes-no={`${active.id}:${v}`}
-                      onClick={() => onAnswer(active.id, v)}
-                      className={cn("inline-flex min-h-9 min-w-14 items-center justify-center rounded-full border border-[color:var(--border-default)] bg-[var(--surface-raised)] px-3 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
-                      style={BODY}
-                    >
-                      {v === "yes" ? "Yes" : "No"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </section>
-            {/* ═══ THE PROGRESS LINE, FOLDED INTO THE CARD (Workstream D) ═══ */}
-            <p data-assessment-progress className="border-t border-[color:var(--border-subtle)] pt-2 tabular-nums text-[var(--text-muted)]" style={LABEL}>
-              {/* TODO-COPY — the pack's line. */}
-              {answeredCount(answers)} of {ASSESSMENT_QUESTIONS.length} answered · your supervisor sees each answer as you give it
-            </p>
-          </div>
-        )}
-      </div>
-      {!active && (
-        <div className="space-y-3">
-          <Field slot="mentor-summary" label={`In a sentence or two, what's going on with ${name}`} value={summary} onChange={setSummary} invalid={tried && !summary.trim()} />
-          {tried && !summary.trim() && (
-            <p role="alert" className="text-[var(--state-error)]" style={LABEL}>
+                               the asking, and never disabled */}
+      <div data-assessment data-assessment-active={active.id} className="space-y-3">
+        <p data-question-header className="tabular-nums text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase">
+          {header}
+        </p>
+        {/* ═══ THE SWAP (make it magical 1) ═══ Keyed on the question, so the
+            card's content changes in place — one soft fade — while the card
+            itself holds still. Off under reduced motion. */}
+        <section key={active.id} data-zone="ask" aria-labelledby={`${active.id}-ask`} className="q-swap space-y-1.5">
+          {/* ═══ THE NEXT QUESTION IS ANNOUNCED ═══ A polite, atomic region. */}
+          <div data-question-live aria-live="polite" aria-atomic="true" className="space-y-1">
+            <p id={`${active.id}-ask`} data-zone-label className="text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase">
               {/* TODO-COPY */}
-              Add a sentence for your supervisor.
+              Ask {name}
+              <span className="sr-only">
+                {" · "}
+                {header}
+              </span>
             </p>
-          )}
-          <Primary
-            slot="submit-assessment"
-            onClick={() => {
-              setTried(true);
-              if (!summary.trim()) return;
-              tiering.submitAssessment(teenId, summary);
-            }}
+            <p className="text-[var(--text-primary)]" style={TITLE}>
+              &ldquo;{active.text}&rdquo;
+            </p>
+            {active.example && (
+              <p className="text-[var(--text-secondary)]" style={LABEL}>
+                {active.example}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            data-assessment-wording={active.id}
+            onClick={() => onUseWording(active.text, { kind: "assessment", questionId: active.id })}
+            className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3.5 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
+            style={BODY}
           >
             {/* TODO-COPY */}
-            Submit to supervisor
-          </Primary>
+            Ask in chat <ArrowRight aria-hidden className="size-3.5" />
+          </button>
+        </section>
+        <section data-zone="answer" aria-labelledby={`${active.id}-answer`} className="space-y-2 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p id={`${active.id}-answer`} data-zone-label className="text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase">
+                {/* TODO-COPY */}
+                {name}&rsquo;s answer
+              </p>
+              <p data-zone-hint className="text-[var(--text-secondary)]" style={LABEL}>
+                {/* TODO-COPY — the pack's line. */}
+                Record what {name} tells you.
+              </p>
+            </div>
+            {/* ═══ ANSWERS ARE ACTIONS, NOT A SELECTION ═══ Two buttons in a
+                labelled group: as radios, an arrow key would answer a clinical
+                question by accident. */}
+            <div role="group" aria-label={`${name}'s answer`} className="flex gap-1.5">
+              {(["yes", "no"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  data-yes-no={`${active.id}:${v}`}
+                  onClick={() => onAnswer(active.id, v)}
+                  className={cn("inline-flex min-h-9 min-w-14 items-center justify-center rounded-full border border-[color:var(--border-default)] bg-[var(--surface-raised)] px-3 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
+                  style={BODY}
+                >
+                  {v === "yes" ? "Yes" : "No"}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      </div>
+      {/* ═══ THE ANSWERED GROUP, COLLAPSED (Supersession 3) ═══ One summary
+          row below the card; expanding shows the short-label rows, where an
+          answer can be changed. */}
+      {answered.length > 0 && (
+        <div data-answered-group>
+          <button
+            type="button"
+            data-answered-toggle
+            aria-expanded={groupOpen}
+            aria-controls={groupId}
+            onClick={() => setGroupOpen((o) => !o)}
+            className={cn("flex min-h-8 w-full items-center gap-1.5 rounded-sm text-left text-[var(--text-secondary)] hover:text-[var(--text-primary)]", RING)}
+            style={LABEL}
+          >
+            {/* The count settles as the record accrues (make it magical 1). */}
+            <span key={answered.length} className="tier-settle tabular-nums">
+              {/* TODO-COPY */}
+              {answered.length} answered
+            </span>
+            <ChevronDown aria-hidden className={cn("size-3.5 transition-transform motion-reduce:transition-none", groupOpen && "rotate-180")} />
+          </button>
+          <ol id={groupId} hidden={!groupOpen} data-assessment-answered className="mt-1 space-y-1">
+            {answered.map((s) => (
+              <AnsweredRow key={s.id} step={s} value={answers[s.id].value} slot="data-answered" onAmend={onAnswer} />
+            ))}
+          </ol>
         </div>
       )}
+      <p data-assessment-progress className="text-[var(--text-muted)]" style={LABEL}>
+        {/* TODO-COPY — the pack's line, once. */}
+        Your supervisor sees each answer as you give it.
+      </p>
     </div>
   );
 }
@@ -722,8 +780,10 @@ function AssessmentCard({ e, name, onAnswer, onUseWording, tiering, teenId }: { 
 /** ═══ AN ANSWERED ROW (pack v4.0, Workstream C) ═══ A short label — what
  *  the question assesses — and the answer, on one line; expanding shows the
  *  question VERBATIM. Never a truncated question: "Have you wished you were
- *  dead o…" was the defect. Both lenses render this one row. */
-function AnsweredRow({ step, value, slot }: { step: ReturnType<typeof askedSteps>[number]; value: "yes" | "no"; slot: "data-answered" | "data-s1-answer" }) {
+ *  dead o…" was the defect. Both lenses render this one row.
+ *  ═══ AMEND IN PLACE (pack v5.0, B1) ═══ With `onAmend` (the mentor, before
+ *  Submit), the expansion also offers Change answer. */
+function AnsweredRow({ step, value, slot, onAmend }: { step: ReturnType<typeof askedSteps>[number]; value: "yes" | "no"; slot: "data-answered" | "data-s1-answer"; onAmend?: (id: string, v: "yes" | "no") => void }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   /* TODO-COPY */
@@ -738,13 +798,39 @@ function AnsweredRow({ step, value, slot }: { step: ReturnType<typeof askedSteps
         className={cn("flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-inset)] px-3 py-1.5 text-left", RING)}
       >
         <span data-answer-label className="min-w-0 flex-1 break-words text-[var(--text-secondary)]">{label}</span>
-        <span className="shrink-0 text-[var(--text-primary)]">{value === "yes" ? "Yes" : "No"}</span>
+        <span data-answer-value className="shrink-0 text-[var(--text-primary)]">{value === "yes" ? "Yes" : "No"}</span>
         <ChevronDown aria-hidden className={cn("size-3.5 shrink-0 text-[var(--icon-secondary)] transition-transform motion-reduce:transition-none", open && "rotate-180")} />
       </button>
       {open && (
-        <p id={id} data-answer-verbatim className="px-3 pb-2 text-[var(--text-primary)]">
-          &ldquo;{step.text}&rdquo;
-        </p>
+        <div id={id} className="space-y-2 px-3 pb-2.5">
+          <p data-answer-verbatim className="text-[var(--text-primary)]">
+            &ldquo;{step.text}&rdquo;
+          </p>
+          {onAmend && (
+            <div role="group" aria-label="Change answer" data-answer-amend className="flex items-center gap-1.5">
+              <span className="mr-1 text-[var(--text-muted)]">
+                {/* TODO-COPY */}
+                Change answer
+              </span>
+              {(["yes", "no"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={value === v}
+                  data-amend={`${step.id}:${v}`}
+                  onClick={() => onAmend(step.id, v)}
+                  className={cn(
+                    "inline-flex min-h-8 min-w-12 items-center justify-center rounded-full border px-3",
+                    value === v ? "border-[color:var(--text-primary)] bg-[var(--surface-raised)] text-[var(--text-primary)]" : "border-[color:var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
+                    RING
+                  )}
+                >
+                  {v === "yes" ? "Yes" : "No"}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </li>
   );
@@ -1138,9 +1224,8 @@ export function EscalationExchange({
   teenLines,
   mentorLines,
   onSettled,
-  supportOpen = false,
-  onSupport,
   echo,
+  arrived = false,
 }: {
   e: EscalationState;
   teenId: string;
@@ -1157,9 +1242,8 @@ export function EscalationExchange({
    *  own escalation (a close, an S1 exit, Mark reviewed) or the mentor
    *  leaves the wrap. */
   onSettled?: () => void;
-  /** Support is open on the other party (the waiting module drops its door). */
-  supportOpen?: boolean;
-  onSupport?: () => void;
+  /** Arrived from a notification: the current card traces its ring once. */
+  arrived?: boolean;
   /** The supervisor's latest Support message, for the mentor's waiting node. */
   echo?: SupervisorEcho;
 }) {
@@ -1194,8 +1278,9 @@ export function EscalationExchange({
         if (n.state === "current") return lens === "mentor" ? `Go through the assessment with ${name}` : "Assessment in progress";
         return lens === "mentor" ? "Assessment sent" : "Assessment received";
       case "waiting":
-        /* TODO-COPY. The holder ("Brandy has this") is the hero's line. */
-        return n.state === "current" ? `While you’re with ${name}` : `${supervisorName} took it from here`;
+        /* TODO-COPY. ═══ THE HOLDER'S SINGLE HOME (pack v5.0, Supersession 1) ═══
+           The hero states state; who has it lives here. */
+        return n.state === "current" ? `${supervisorName} has this. Stay with ${name}.` : `${supervisorName} took it from here`;
       case "review":
         return "Review the report";
       case "confirm":
@@ -1230,8 +1315,6 @@ export function EscalationExchange({
           <WaitingModule
             name={name}
             supervisorName={supervisorName}
-            supportOpen={supportOpen}
-            onSupport={onSupport}
             echo={echo}
             teenLines={teenLines}
             onUseWording={onUseWording}
@@ -1271,8 +1354,8 @@ export function EscalationExchange({
                     {from !== undefined && from !== to ? (
                       <>
                         <TierLozenge tier={from} long />
-                        <span aria-hidden className="text-[var(--text-muted)]">→</span>
-                        <span className="sr-only">to</span>
+                        {/* A word, not an arrow (pack v5.0, D1). */}
+                        <span className="text-[var(--text-muted)]">to</span>
                         <TierLozenge tier={to} long />
                       </>
                     ) : (
@@ -1352,11 +1435,12 @@ export function EscalationExchange({
     n.state === "current" && (n.kind === "waiting" || (n.kind === "assessment" && lens === "supervisor")) ? "waiting" : "action";
   const subOf = (n: TimelineNode): string | undefined =>
     n.kind === "note" && n.state === "completed" ? noteSummary(e.crisisNote ?? {}, n.section!) || undefined : undefined;
-  /* The path's short step names. TODO-COPY. */
+  /* ═══ ONE LABEL SET FOR THE FUTURE (pack v5.0, A3) ═══ The path row and
+     its locked rows read these and only these. TODO-COPY. */
   const stepName = (n: TimelineNode): string => {
     switch (n.kind) {
       case "waiting":
-        return `${supervisorName} takes over`;
+        return `${supervisorName} takes it from here`;
       case "confirm":
         return "Confirm tier";
       case "note":
@@ -1367,7 +1451,7 @@ export function EscalationExchange({
         return "Debrief";
       case "close":
       case "closed":
-        return "Close";
+        return "Close & follow-up";
       default:
         return titleOf(n);
     }
@@ -1390,6 +1474,7 @@ export function EscalationExchange({
             key={n.id}
             accent={isAlertTier(tier) ? "alert" : "neutral"}
             variant={variantOf(n)}
+            trace={arrived && n.state === "current"}
             node={n}
             fresh={n.id === freshId}
             title={titleOf(n)}

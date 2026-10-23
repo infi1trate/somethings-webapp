@@ -52,6 +52,8 @@ function LiveRow({ teen }: { teen: MonitoringTeen }) {
       <TierTag tier={1} />
       {/* Secondary, not tertiary: tertiary is 4.39:1 on t1-soft. */}
       <span className="truncate text-[13px] text-[var(--text-secondary)]">{teen.mentor}</span>
+      {/* The live stage (pack v5.0, C4), one quiet fragment. */}
+      {teen.stage && <span data-teen-stage className="truncate text-[13px] text-[var(--text-secondary)]">· {teen.stage}</span>}
       {/* ═══ SUPERSEDED: "★ Recommended T1" → "Requested: Tier 1" ═══ The
           canon's flagged-but-unconfirmed chip, shared with the chat and the
           record. The teen is in this lane at once; the chip is the placement

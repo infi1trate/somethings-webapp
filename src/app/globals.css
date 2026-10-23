@@ -744,3 +744,71 @@
     animation: none;
   }
 }
+
+/* ═══ THE QUESTION SWAP (pack v5.0, make it magical 1) ═══
+   The live question's content changes in place — one soft fade — while the
+   card holds still.  REDUCED MOTION: none; the content simply changes. */
+@keyframes q-swap {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.q-swap {
+  animation: q-swap 180ms ease-out 1 both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .q-swap {
+    animation: none;
+  }
+}
+
+/* ═══ THE RING TRACE (pack v5.0, make it magical 3) ═══
+   Arriving from a notification's deep link, the current node's card draws
+   its accent ring in once — the notification's promise and the panel's state
+   visibly connect. The ring is the card's own `ring-1`; this animates its
+   width up from nothing. REDUCED MOTION: none — the ring is simply there. */
+@keyframes ring-trace {
+  from {
+    box-shadow: 0 0 0 0 var(--tw-ring-color, var(--border-default)), var(--el-soft);
+  }
+  60% {
+    box-shadow: 0 0 0 3px var(--tw-ring-color, var(--border-default)), var(--el-soft);
+  }
+}
+.ring-trace {
+  animation: ring-trace 300ms cubic-bezier(0.2, 0.8, 0.2, 1) 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ring-trace {
+    animation: none;
+  }
+}
+
+/* ═══ THE SHIELD'S ARRIVAL (pack v5.0, make it magical 2) ═══
+   A conversation row's escalation shield, new since the page opened, arrives
+   with ONE soft pulse and then holds still — findable without being alarming
+   to scan past. REDUCED MOTION: none. */
+@keyframes shield-arrive {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.shield-arrive {
+  animation: shield-arrive 520ms cubic-bezier(0.2, 0.8, 0.2, 1) 1 both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shield-arrive {
+    animation: none;
+  }
+}

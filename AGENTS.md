@@ -431,20 +431,26 @@ upcoming ghosts and the bare waiting line, each in place below.**
   (`rail/teen-status-card.tsx` — Clinical diagnosis · Risk tier; the record's
   `TierCard` is unchanged, answered). Escalation: `EscalationHero` — lozenge,
   holder ("— Brandy has this" / "— with {mentor}"), a quiet meta line, one
-  Support link.
+  Support link. **SUPERSEDED by v5.0:** the holder left the hero for the
+  waiting node; the link is a ghost button; the mentor's card has no
+  Clinical diagnosis cell.
 - **Single homes.** "Notified" is the banner's alone; presence ("Brandy is
   here") is the hero's alone; the holder is the hero's alone. While the
   mentor waits, the one Support door is the waiting module's Open Support and
-  the hero hides its own.
+  the hero hides its own. **SUPERSEDED by v5.0:** the holder's home is the
+  waiting node, and the hero's ghost button is the one door in every state.
 - **Care is a labelled control** at the left of the rail row, behind a
   divider; the Care tabs are one underlined row that scrolls sideways under an
   edge fade (answered: never wraps).
 - **The future is one row:** "Up next: … → Close", collapsed, reading
-  forwards. A current node is an ACTION (pulse) or WAITING (a 6s breath).
+  forwards. **SUPERSEDED by v5.0:** "Up next: …, then Close & follow-up" —
+  arrow chains are retired, and one label set names each step. A current node is an ACTION (pulse) or WAITING (a 6s breath).
   Completed rows never truncate: short labels that wrap; long text on expand.
 - **The question card has two zones:** Ask {teen} (verbatim, "Ask in chat"
   fills the box and sends nothing) and {Teen}'s answer (never disabled).
   Answered rows are `assesses` labels; the question verbatim on expand.
+  **SUPERSEDED IN PART by v5.0:** the question comes first, the answered rows
+  collapse below it, and a review ledger replaces the full-text review.
 - **While you're with them** (`escalation/waiting-module.tsx`): the
   supervisor's latest Support message, quote-framed; 2–3 Ava nudges from
   `lib/chat/stay-close.ts` — grounded in the thread, dropped by a `CLINICAL`
@@ -452,7 +458,8 @@ upcoming ghosts and the bare waiting line, each in place below.**
   steadying line.
 - **History, both hosts:** date groups, one gutter-time anatomy, a compressed
   escalation card (lozenge title row + ONE interpuncted stage line — the
-  arrow chain is retired), two-line clamps with Show more.
+  arrow chain is retired), two-line clamps with Show more. **SUPERSEDED IN
+  PART by v5.0:** the stage line is at most three outcome-led fragments.
 - **The close arc's toast is the surface's only toast**
   (`escalation/close-toast.ts`): the supervisor on close, the mentor once on
   first seeing the summary. It names the tier from `TIER_NAME` ("Tier 3
@@ -461,6 +468,52 @@ upcoming ghosts and the bare waiting line, each in place below.**
 - **A sent assessment question carries `origin`** on `chatMessages`
   (append-only) and a corner glyph that opens the assessment. A nudge carries
   none.
+
+### Care Panel & Escalation — Refinement (pack v5.0, feat/care-v5)
+
+Answered 2026-10-23 ("let's do care v5.0", on the Phase 0 audit). Stacked on
+v4. **Supersedes six v4 rules, each marked in the v4 section above by this
+one:** the hero's holder line, the underlined Support link and the waiting
+module's own Support door, answered-rows-above, the full-text review, the
+mentor's Clinical diagnosis cell, the tier cell's sentences.
+
+- **Bug 1 was data, not render.** `setMonitoringScenarioId` dropped the
+  escalation records but kept `chatEvents`, so the fixture's escalation came
+  back open under a stale close chip; closing again wrote a second. It now
+  clears the chat writes too (as Reset and the chat switch always did), and
+  the thread reads one open and one close per escalation id.
+- **Bug 2:** 405px of Care tabs in a 327px row under an always-on fade. Fades
+  render only on a side with more; tabs snap; the bar is sticky on s1.
+- **The hero owns state only:** ESCALATION overline, the request in words or
+  the confirmed lozenge as headline, one meta line, the Support ghost button
+  last — the one Support door in every state. The holder's single home is
+  the waiting node ("Brandy has this. Stay with Jordan.").
+- **The Teen Status card is role-gated in the component:** Clinical diagnosis
+  for supervisor and lead mentor only. The tier cell is lozenge · ⓘ (the
+  description, the dwell rule, the mentor's step-down request) · a slim "Day
+  N of 14" line · one outline action; a pending request is one status line.
+- **One label set for the future:** the timeline carries "after …" clauses;
+  the view names each step once. No arrow chains on any escalation surface —
+  the path is "A, then B", movements say "moved to", lozenge pairs say "to".
+- **Question first:** the card holds a fixed position ("Question n of 6");
+  answered questions collapse below it and amend in place; the review ledger
+  leads with the live risk chip and never shows full text by default.
+- **Notices are derived, never stored** (`lib/tiering/notifications.ts`, one
+  hook for the bell and Today): only `noticesSeenAt` per persona persists
+  (store v56). A Support notice belongs to an OPEN escalation only — a thread
+  is about no one teen. Deep links are `?care=overview`, read into the
+  default tab, never an effect.
+- **List shields:** Tier 1–2 ink only for Tiers 1–2; neutral otherwise;
+  named in the row's label. The red census counts them as "list shield".
+- **History v3:** the Escalation lozenge + tier, ONE summary line of ≤3
+  fragments, timeline rows on expand. The card has no date of its own — the
+  gutter and the day header already say when (single home).
+- **The mentor's Safety plan** is three conversation starters with Ask in
+  chat; documenting the plan stays the supervisor's crisis-note section.
+- **Known, not fixed here:** Today's Escalations destination card still reads
+  `monitoringData()` fixtures, so it can disagree with the new tiering-store
+  list above it; `monitoring-tiers` hard-codes a weekday ("closed Tue") that
+  drifts with the date.
 
 ### Monitoring asserts only what it can compute (arch-mon)
 
