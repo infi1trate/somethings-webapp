@@ -17,8 +17,9 @@ import { Flag } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { monitoringEntryHref } from "@/lib/monitoring/entry-href";
 import { RequestedChip } from "@/components/tiering/requested-chip";
+import type { Tier } from "@/lib/monitoring/tiers";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
-import { answerAlert, responseClock as clock, useResponseSecondsLeft } from "@/lib/monitoring/alert-clock";
+import { answerAlert, responseClock as clock, useAlertState, useResponseSecondsLeft } from "@/lib/monitoring/alert-clock";
 import { TierAvatar, TierGroupHeader, TierTag } from "@/components/monitoring/overview/tier-bits";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +31,10 @@ export function PresenceChip({ text }: { text: string }) {
   return (
     /* Monitoring v2: sans, and no dot of its own — the avatar's presence dot
        is the one ring; the chip says who. */
-    <span data-presence-chip className="inline-flex h-5 shrink-0 items-center rounded-full bg-[var(--surface-sunken)] px-2 text-[12px] leading-[16px] text-[var(--text-secondary)]">
+    /* ═══ IT SHRINKS (Monitoring v3, §6) ═══ It was `shrink-0`, and the long-
+       names scenario measured a chip 122px past its card. It truncates now,
+       the whole text on hover. */
+    <span data-presence-chip title={text} className="inline-block h-5 max-w-full min-w-0 shrink truncate rounded-full bg-[var(--surface-sunken)] px-2 text-[12px] leading-5 text-[var(--text-secondary)]">
       {text}
     </span>
   );
@@ -38,6 +42,8 @@ export function PresenceChip({ text }: { text: string }) {
 
 function LiveRow({ teen }: { teen: MonitoringTeen }) {
   const left = useResponseSecondsLeft();
+  /* Joined (Monitoring v3, §6): the lane says who is in the session. */
+  const joined = useAlertState().answer === "joined";
   const router = useRouter();
   const link = monitoringEntryHref(teen);
   return (
@@ -64,13 +70,13 @@ function LiveRow({ teen }: { teen: MonitoringTeen }) {
         {teen.riskFlags.count} · {teen.riskFlags.window}
         <span className="sr-only"> risk flags</span>
       </span>
-      {teen.presence && <PresenceChip text={teen.presence} />}
+      {joined ? <PresenceChip text="You in session" /> : teen.presence && <PresenceChip text={teen.presence} />}
       <button
         type="button"
         data-t1-join
         onClick={() => {
-          /* Joining answers the alert: the strip does not come back. */
-          answerAlert();
+          /* Joining answers the alert: the strip becomes the slim bar. */
+          answerAlert("joined");
           /* pack v3.0: and goes into the conversation — the supervisor's
              only door into a chat now that Chats left their nav. */
           if (link) router.push(link.href);
@@ -88,22 +94,31 @@ function LiveRow({ teen }: { teen: MonitoringTeen }) {
   );
 }
 
+/** ═══ AN EMPTY TIER, IN EITHER VIEW (Monitoring v3, §3 · §6) ═══ The Tier
+ *  1 lane's empty treatment, for any tier: a 1px dashed contour, no fill. */
+const EMPTY_LINE: Record<Tier, string> = { 1: "Nothing in crisis", 2: "Nobody at Tier 2 right now", 3: "Nobody at Tier 3 right now", 4: "Nobody at Tier 4" };
+export function EmptyTierLane({ tier }: { tier: Tier }) {
+  return (
+    <div
+      data-t1-empty={tier === 1 || undefined}
+      data-tier-empty={tier}
+      className="flex min-h-16 items-center justify-center rounded-[20px] border border-dashed border-[color:var(--border-default)] px-4 text-[15px] leading-[20px] text-[var(--text-secondary)]"
+    >
+      {/* TODO-COPY */}
+      {EMPTY_LINE[tier]}
+    </div>
+  );
+}
+
 export function Tier1Lane({ teens }: { teens: MonitoringTeen[] }) {
   const live = teens.filter((t) => t.tier === 1);
   return (
     <section aria-labelledby="tier-1-heading" data-tier-group={1}>
       <TierGroupHeader tier={1} count={live.length} id="tier-1-heading" />
       {live.length === 0 ? (
-        /* ═══ THE SAME EMPTY LANE IN BOTH VIEWS (Monitoring v3, §3) ═══ A 1px
-           dashed contour, 20px radius, centred, NO FILL — the canvas fill was
-           invisible on the cards view's canvas (canvas on canvas). */
-        <div
-          data-t1-empty
-          className="flex min-h-16 items-center justify-center rounded-[20px] border border-dashed border-[color:var(--border-default)] px-4 text-[15px] leading-[20px] text-[var(--text-secondary)]"
-        >
-          {/* TODO-COPY */}
-          Nothing in crisis
-        </div>
+        /* ═══ THE SAME EMPTY LANE IN BOTH VIEWS (Monitoring v3, §3) ═══ The
+           canvas fill was invisible on the cards view's canvas. */
+        <EmptyTierLane tier={1} />
       ) : (
         <div className="space-y-1">
           {live.map((t) => (

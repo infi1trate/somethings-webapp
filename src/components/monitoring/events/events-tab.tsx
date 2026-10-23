@@ -29,6 +29,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUpDown, Check, ChevronDown, Download, FileText, Flag, SlidersHorizontal, Triangle, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
 import { AuditLozenge } from "@/components/tiering/tier-history";
 import {
@@ -510,7 +511,7 @@ function DaySection({ label, count, kinds, items, today, eager }: { label: strin
   );
 }
 
-export function EventsTab({ events, filter, setFilter, now, mentors, supervisors }: { events: MonitoringEvent[]; filter: EventFilter; setFilter: (p: Partial<EventFilter>) => void; now: number; mentors: string[]; supervisors: string[] }) {
+export function EventsTab({ events, filter, setFilter, now, mentors, supervisors, exportedOnArrival = false }: { events: MonitoringEvent[]; filter: EventFilter; setFilter: (p: Partial<EventFilter>) => void; now: number; mentors: string[]; supervisors: string[]; exportedOnArrival?: boolean }) {
   /* ═══ STICKY, STACKED ═══ The filter row is sticky at the top; each day
      header sticks just under it. Its measured height is written to a CSS
      variable (a DOM write, not React state), so the two never overlap. */
@@ -545,22 +546,37 @@ export function EventsTab({ events, filter, setFilter, now, mentors, supervisors
     }));
   }, [events, now]);
 
-  const exportCsv = () => {
-    const blob = new Blob([eventsCsv(events)], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `monitoring-events-${filter.range === "custom" ? `${filter.from ?? "start"}_${filter.to ?? "today"}` : filter.range}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+  const fileName = `monitoring-events-${filter.range === "custom" ? `${filter.from ?? "start"}_${filter.to ?? "today"}` : filter.range}.csv`;
+  /* ═══ EXPORT CONFIRMS QUIETLY (Monitoring v3, §6) ═══ A toast naming the
+     file. `download: false` is the dev scenario's arrival — the same path,
+     minus the file. */
+  const exportCsv = (download = true) => {
+    if (download) {
+      const blob = new Blob([eventsCsv(events)], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+    /* TODO-COPY */
+    toast(`Exported ${fileName}`, { id: "monitoring-export", description: `${events.length} event${events.length === 1 ? "" : "s"}` });
   };
+  const arrived = useRef(false);
+  useEffect(() => {
+    if (!exportedOnArrival || arrived.current) return;
+    arrived.current = true;
+    exportCsv(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
+  }, [exportedOnArrival]);
 
   return (
     <section data-events aria-label="Events" ref={root} className="space-y-3">
       <div ref={head} data-events-head className="sticky top-0 z-[2] -mx-2 space-y-2 bg-[var(--surface-canvas)] px-2 py-2">
-        <Toolbar f={filter} set={setFilter} mentors={mentors} supervisors={supervisors} onExport={exportCsv} />
+        <Toolbar f={filter} set={setFilter} mentors={mentors} supervisors={supervisors} onExport={() => exportCsv()} />
         <Summary events={events} range={filter.range} />
       </div>
       {events.length === 0 ? (

@@ -514,7 +514,10 @@ const ENGINE = `(() => {
   /* ACKNOWLEDGE ends it; the lane stays live; Join from the lane does not bring it back. */
   await page.locator("[data-alert-ack]").click();
   await page.waitForTimeout(300);
-  check(!(await page.$("[data-alert-strip]")) && !!(await page.$("[data-t1-live]")), "Acknowledge ends the strip; the lane stays live");
+  /* RETARGETED (Monitoring v3, §6): acknowledging is a state, not a
+     dismissal — the strip stays, the clock stops, it says so. */
+  const acked = await page.evaluate(() => ({ s: document.querySelector("[data-alert-strip]")?.dataset.alertStrip, who: document.querySelector("[data-alert-holder]")?.textContent.trim(), stopped: !!document.querySelector("[data-alert-timer][data-stopped]") }));
+  check(acked.s === "acknowledged" && acked.who === "· Acknowledged by you" && acked.stopped && !!(await page.$("[data-t1-live]")), "Acknowledge: the strip stays, its clock stopped, “Acknowledged by you”; the lane stays live", JSON.stringify(acked));
   /* ═══ JOIN GOES INTO THE CONVERSATION (pack v3.0, Workstream A) ═══ It
      was a no-op with a TODO; with Chats gone from a supervisor's nav it is
      their door into the chat. So the claim is now two: it lands on the
@@ -526,7 +529,7 @@ const ENGINE = `(() => {
      reload is a new session. */
   await page.goBack({ waitUntil: "networkidle" });
   await page.waitForTimeout(800);
-  check(!(await page.$("[data-alert-strip]")), "and back on Monitoring, the answered strip does not come back");
+  check((await page.evaluate(() => document.querySelector("[data-alert-strip]")?.dataset.alertStrip)) === "joined", "and back on Monitoring, the joined alert is the slim bar — the full strip does not come back");
 
   /* A NEW ALERT is a new strip, on a fresh clock. */
   await setMode(page, "monitor");
@@ -538,7 +541,7 @@ const ENGINE = `(() => {
   /* JOIN from the strip answers the alert (the session hand-off is TODO). */
   await page.locator("[data-alert-join]").click();
   await page.waitForTimeout(500);
-  check(!(await page.$("[data-alert-strip]")) && new URL(page.url()).pathname === PATH, "Join session ends the strip and stays on the page (navigation is TODO(monitoring))", page.url());
+  check((await page.evaluate(() => document.querySelector("[data-alert-strip]")?.dataset.alertStrip)) === "joined" && new URL(page.url()).pathname === PATH, "Join session collapses the strip to the slim bar and stays on the page (navigation is TODO(monitoring))", page.url());
   await ctx.close();
 
   const rm = await open(1512, { reducedMotion: "reduce", scenario: "tiers-alert" });

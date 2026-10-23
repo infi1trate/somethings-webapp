@@ -11,19 +11,26 @@ import { useMemo } from "react";
 import { monitoringEvents, type MonitoringEvent } from "@/lib/monitoring/events";
 import { tierRoster, type MonitoringTeen } from "@/lib/monitoring/tier-roster";
 import { useTiering } from "@/lib/tiering/use-tiering";
+import { useOnboardingStore } from "@/lib/onboarding/store";
+import { monitoringMock } from "@/lib/monitoring/monitoring.mock";
 
 export function useTierRoster(now: number): { teens: MonitoringTeen[]; live: boolean; ready: boolean; events: MonitoringEvent[] } {
   const t = useTiering(now);
-  const teens = useMemo(
-    () => (t.ready ? tierRoster({ stateFor: t.stateFor, escalationsFor: t.escalationsFor, liveMentorName: t.liveMentorName, now }) : []),
-    [t, now]
-  );
+  /* ═══ THE DEV BAR'S MONITORING SCENARIO (Monitoring v3, §6) ═══ A transform
+     of the same derived data — never a second source. */
+  const mock = monitoringMock(useOnboardingStore((s) => s.monitoringScenarioId));
+  const teens = useMemo(() => {
+    if (!t.ready) return [];
+    const base = tierRoster({ stateFor: t.stateFor, escalationsFor: t.escalationsFor, liveMentorName: t.liveMentorName, now });
+    return mock?.roster ? mock.roster(base) : base;
+  }, [t, now, mock]);
   /* ═══ THE EVENTS TAB READS THE SAME STORE (Monitoring v2) ═══ Derived
      beside the roster, from the same tiering read, so the two tabs cannot
      disagree about a teen. */
-  const events = useMemo(
-    () => (t.ready ? monitoringEvents({ roster: teens, eventsFor: t.eventsFor, escalationsFor: t.escalationsFor, nameOf: t.nameOf, now }) : []),
-    [t, teens, now]
-  );
+  const events = useMemo(() => {
+    if (!t.ready) return [];
+    const base = monitoringEvents({ roster: teens, eventsFor: t.eventsFor, escalationsFor: t.escalationsFor, nameOf: t.nameOf, now });
+    return mock?.events ? mock.events(base, now) : base;
+  }, [t, teens, now, mock]);
   return { teens, live: teens.some((x) => x.tier === 1), ready: t.ready, events };
 }

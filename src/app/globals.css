@@ -832,3 +832,13 @@
     animation: none;
   }
 }
+
+/* ═══ A SCENARIO'S REDUCED MOTION (Monitoring v3, §6) ═══ The dev bar's
+   "Reduced motion" scenario sets data-motion="reduce" on <html> — and it is
+   honoured exactly as the media query is — no animation, no transition. */
+html[data-motion="reduce"] *,
+html[data-motion="reduce"] *::before,
+html[data-motion="reduce"] *::after {
+  animation: none !important;
+  transition: none !important;
+}

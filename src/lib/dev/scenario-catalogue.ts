@@ -30,6 +30,7 @@ import { ACTIVITY_SCENARIOS } from "@/lib/activity/seed";
 import { CHAT_SCENARIOS } from "@/lib/chat/seed";
 import { TODAY_SCENARIOS } from "@/lib/home/scenarios";
 import { MONITORING_SCENARIO_GROUPS } from "@/lib/monitoring/scenarios";
+import { MONITORING_MOCKS } from "@/lib/monitoring/monitoring.mock";
 import { TASK_SCENARIOS } from "@/lib/tasks/seed";
 import { STAFF_SCENARIOS, TEEN_SCENARIOS } from "@/lib/dev/record-scenarios";
 import {
@@ -106,6 +107,19 @@ export const SCENARIO_CATALOGUE: readonly ScenarioGroup[] = [
     label: "Care Reviews",
     routes: TASKS_ROUTES,
     items: TASK_SCENARIOS.map((s) => item(`${TASKS_PREFIX}${s.id}`, s.label)),
+  },
+  /* ═══ MONITORING v3 (§6) ═══ Every Watch and Events state, one click
+     each, from `monitoring.mock.ts` — first, ahead of the legacy groups; and
+     a Reset back to no scenario. */
+  {
+    label: "Monitoring · Watch",
+    routes: MONITORING_ROUTES,
+    items: [item(`${MONITORING_PREFIX}`, "Reset — no scenario"), ...MONITORING_MOCKS.filter((m) => m.tab === "watch").map((m) => item(`${MONITORING_PREFIX}${m.id}`, m.label))],
+  },
+  {
+    label: "Monitoring · Events",
+    routes: MONITORING_ROUTES,
+    items: MONITORING_MOCKS.filter((m) => m.tab === "events").map((m) => item(`${MONITORING_PREFIX}${m.id}`, m.label)),
   },
   ...MONITORING_SCENARIO_GROUPS.map((g) => ({
     label: `Monitoring · ${g.label}`,

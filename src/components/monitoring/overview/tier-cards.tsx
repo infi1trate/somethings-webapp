@@ -31,7 +31,7 @@ import { monitoringEntryHref } from "@/lib/monitoring/entry-href";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
 import { Tier4Registry } from "@/components/monitoring/overview/tier-list";
 import type { Tier } from "@/lib/monitoring/tiers";
-import { Tier1Lane, PresenceChip } from "@/components/monitoring/overview/tier1-lane";
+import { EmptyTierLane, Tier1Lane, PresenceChip } from "@/components/monitoring/overview/tier1-lane";
 import { ESCALATION, FLAG, Sparkline, SURVEY, TierAvatar, TierGroupHeader, TierTag } from "@/components/monitoring/overview/tier-bits";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
@@ -180,16 +180,20 @@ function TierCards({ tier, teens }: { tier: Tier; teens: MonitoringTeen[] }) {
   return (
     <section aria-labelledby={id} data-tier-group={tier}>
       <TierGroupHeader tier={tier} count={teens.length} id={id} />
-      <div data-card-grid className={GRID}>
-        {teens.map((t) => (
-          <Card key={t.id} teen={t} />
-        ))}
-      </div>
+      {teens.length === 0 ? (
+        <EmptyTierLane tier={tier} />
+      ) : (
+        <div data-card-grid className={GRID}>
+          {teens.map((t) => (
+            <Card key={t.id} teen={t} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
 
-export function MonitoringCards({ teens }: { teens: MonitoringTeen[] }) {
+export function MonitoringCards({ teens, tier4Open = false }: { teens: MonitoringTeen[]; tier4Open?: boolean }) {
   const of = (tier: Tier) => teens.filter((t) => t.tier === tier);
   const t4 = of(4);
   return (
@@ -200,7 +204,7 @@ export function MonitoringCards({ teens }: { teens: MonitoringTeen[] }) {
       {/* TIER 4 — the registry's rows, inside the card view */}
       <section aria-labelledby="tier-4-heading" data-tier-group={4}>
         <TierGroupHeader tier={4} count={t4.length} id="tier-4-heading" />
-        <Tier4Registry teens={t4} />
+        <Tier4Registry teens={t4} defaultOpen={tier4Open} />
       </section>
     </div>
   );

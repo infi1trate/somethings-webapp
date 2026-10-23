@@ -15,6 +15,7 @@
 // who is in crisis. Either axis raising it raises it everywhere.
 
 import { crisisEscalationFixture, scenarioEscalations } from "@/lib/chat/seed";
+import { monitoringMock } from "@/lib/monitoring/monitoring.mock";
 import type { EscalationState } from "@/lib/chat/types";
 import { LIVE_ID } from "@/lib/record/subject";
 import { DEMO_TEENS } from "@/lib/record/people-demo";
@@ -102,12 +103,22 @@ export function seedTierEvents(now: number): TierEvent[] {
 /** Is a Tier 1 alert live on the Monitoring axis? The Tiers group's Alert,
  *  or any escalation-lifecycle scenario (each has one open). */
 export const tierAlertLive = (scenarioId: string | null) =>
-  scenarioId === "tiers-alert" || (scenarioId?.startsWith("escalation-") ?? false);
+  scenarioId === "tiers-alert" || (scenarioId?.startsWith("escalation-") ?? false) || (monitoringMock(scenarioId)?.tier1?.length ?? 0) > 0;
 
 /** The open escalations the scenarios put on screen, keyed by teen id. */
 export function seedEscalations(now: number, chatScenarioId: string, monitoringScenarioId: string | null): Record<string, EscalationState> {
   const out: Record<string, EscalationState> = { ...scenarioEscalations(chatScenarioId, now) };
-  if (tierAlertLive(monitoringScenarioId) && !out.t13) out.t13 = crisisEscalationFixture(now);
+  /* ═══ MONITORING v3 SCENARIOS (§6) ═══ name their Tier 1 teens; each
+     gets an open crisis escalation — Jordan's own fixture, or a clone of it on
+     the teen's thread (the second strip of "Two Tier 1s"). */
+  const mock = monitoringMock(monitoringScenarioId);
+  if (mock?.tier1) {
+    mock.tier1.forEach((teenId, i) => {
+      if (out[teenId]) return;
+      const base = crisisEscalationFixture(now - i * 4 * 60_000);
+      out[teenId] = teenId === "t13" ? base : { ...base, id: `esc-${teenId}-m3`, threadId: teenId, anchorMessageId: null };
+    });
+  } else if (tierAlertLive(monitoringScenarioId) && !out.t13) out.t13 = crisisEscalationFixture(now);
   return out;
 }
 

@@ -24,7 +24,7 @@ import { monitoringEntryHref } from "@/lib/monitoring/entry-href";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
 import { useWindowedRange } from "@/lib/ui/use-windowed-range";
 import type { Tier } from "@/lib/monitoring/tiers";
-import { Tier1Lane, PresenceChip } from "@/components/monitoring/overview/tier1-lane";
+import { EmptyTierLane, Tier1Lane, PresenceChip } from "@/components/monitoring/overview/tier1-lane";
 import {
   ESCALATION,
   FLAG,
@@ -164,7 +164,16 @@ function TierRows({
           <TierGroupHeader tier={tier} count={teens.length} id={id} action={action} />
         </div>
       </div>
-      {children ?? teens.map((t) => <Row key={t.id} teen={t} />)}
+      {children ??
+        (teens.length === 0 ? (
+          <div role="row" className={ROW}>
+            <div role="cell" className="col-span-full">
+              <EmptyTierLane tier={tier} />
+            </div>
+          </div>
+        ) : (
+          teens.map((t) => <Row key={t.id} teen={t} />)
+        ))}
     </div>
   );
 }
@@ -221,8 +230,8 @@ function Tier4Rows({ teens, open }: { teens: MonitoringTeen[]; open: boolean }) 
  *  in a small table of their own, with the column header, so a number in a
  *  registry row still says what it counts. The group header is the card
  *  view's, above it. */
-export function Tier4Registry({ teens }: { teens: MonitoringTeen[] }) {
-  const [open, setOpen] = useState(false);
+export function Tier4Registry({ teens, defaultOpen = false }: { teens: MonitoringTeen[]; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div
       role="region"
@@ -256,10 +265,10 @@ export function Tier4Registry({ teens }: { teens: MonitoringTeen[] }) {
   );
 }
 
-export function MonitoringList({ teens }: { teens: MonitoringTeen[] }) {
+export function MonitoringList({ teens, tier4Open = false }: { teens: MonitoringTeen[]; tier4Open?: boolean }) {
   const of = (tier: Tier) => teens.filter((t) => t.tier === tier);
   const t4 = of(4);
-  const [t4Open, setT4Open] = useState(false);
+  const [t4Open, setT4Open] = useState(tier4Open);
   /* A DATA TABLE KEEPS ITS COLUMNS. Seven tracks need ~944px; below that the
      table scrolls inside its own region rather than the page scrolling
      sideways (WCAG 1.4.10 exempts two-dimensional data from reflow). The

@@ -157,6 +157,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AnnoModeControl } from "@/components/anno/mode-control";
+import { monitoringMock } from "@/lib/monitoring/monitoring.mock";
 import { cn } from "@/lib/utils";
 import { DEV_CLOCK_POSITIONS } from "@/lib/home/dev-clock";
 
@@ -444,8 +445,13 @@ export function DevBar() {
       // ── MONITORING: same shape as Tasks. Selecting "— none —" while on the
       //    page clears the axis back to the task-derived default.
       if (value.startsWith(MONITORING_PREFIX)) {
-        setMonitoringScenario(value.slice(MONITORING_PREFIX.length));
-        if (!onAxis(pathname, MONITORING_ROUTES)) {
+        const id = value.slice(MONITORING_PREFIX.length);
+        setMonitoringScenario(id || null);
+        /* A v3 scenario (§6) names its tab, and lands on it — on the axis or
+           off it. */
+        const mock = monitoringMock(id);
+        if (mock) router.push(mock.tab === "events" ? "/app/monitoring?tab=events" : "/app/monitoring", { scroll: false });
+        else if (!onAxis(pathname, MONITORING_ROUTES)) {
           router.push(MONITORING_ROUTES[0], { scroll: false });
         }
         return;

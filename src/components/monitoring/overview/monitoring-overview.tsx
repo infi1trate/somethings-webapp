@@ -39,6 +39,8 @@ import { Tier1AlertStrip } from "@/components/monitoring/overview/tier1-alert-st
 import { EventsTab } from "@/components/monitoring/events/events-tab";
 import { DEFAULT_FILTER, filterEvents, rangeSummary, type EventFilter } from "@/lib/monitoring/events";
 import { PageHeader } from "@/components/ia/page-header";
+import { monitoringMock, type MonitoringMock } from "@/lib/monitoring/monitoring.mock";
+import { useOnboardingStore } from "@/lib/onboarding/store";
 import { PillSegments } from "@/components/ui/pill-segments";
 import { shiftDateLabel } from "@/lib/home/shift-date";
 import { cn } from "@/lib/utils";
@@ -104,7 +106,15 @@ function TabSwitch({ tab, onTab }: { tab: MonitoringTab; onTab: (t: MonitoringTa
   );
 }
 
+/** ═══ THE DEV BAR'S SCENARIO, AS A KEY (Monitoring v3, §6) ═══ A scenario
+ *  change remounts the page, so its filter, Tier 4 and alert start from the
+ *  scenario's own state rather than the last one's. */
 export function MonitoringOverview({ tab = "watch" }: { tab?: MonitoringTab }) {
+  const scenarioId = useOnboardingStore((s) => s.monitoringScenarioId);
+  return <Overview key={scenarioId ?? "none"} tab={tab} mock={monitoringMock(scenarioId)} />;
+}
+
+function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | undefined }) {
   /* Fixed at mount, the house pattern: `Date.now()` in render is impure. */
   const [now] = useState(() => Date.now());
   const router = useRouter();
@@ -112,7 +122,7 @@ export function MonitoringOverview({ tab = "watch" }: { tab?: MonitoringTab }) {
   const m = useMemo(() => monitoringMetrics(teens), [teens]);
   /* ═══ THE EVENTS FILTER, PAGE-LOCAL ═══ One filter for the stream, the
      summary line, the export and the hero's range cells. */
-  const [filter, setFilterState] = useState<EventFilter>(DEFAULT_FILTER);
+  const [filter, setFilterState] = useState<EventFilter>(() => ({ ...DEFAULT_FILTER, ...mock?.filter?.(now) }));
   const setFilter = (p: Partial<EventFilter>) => setFilterState((f) => ({ ...f, ...p }));
   const filtered = useMemo(() => filterEvents(events, filter, now), [events, filter, now]);
   const sum = useMemo(() => rangeSummary(filtered), [filtered]);
@@ -122,8 +132,22 @@ export function MonitoringOverview({ tab = "watch" }: { tab?: MonitoringTab }) {
   const layout = useMonitoringLayout();
   /* The alert clock is module state; telling it is an external write. */
   useEffect(() => {
-    syncTierAlert(live);
-  }, [live]);
+    syncTierAlert(live, mock?.alert);
+  }, [live, mock]);
+  /* ═══ A SCENARIO'S ENVIRONMENT ═══ Reduced motion and the dark theme are
+     set on <html> while it is active and restored after — environment, never
+     UI. `data-motion="reduce"` is honoured by globals.css as the media query
+     is. */
+  useEffect(() => {
+    const html = document.documentElement;
+    const wasDark = html.classList.contains("dark");
+    if (mock?.env?.reducedMotion) html.dataset.motion = "reduce";
+    if (mock?.env?.theme === "dark") html.classList.add("dark");
+    return () => {
+      delete html.dataset.motion;
+      if (mock?.env?.theme === "dark" && !wasDark) html.classList.remove("dark");
+    };
+  }, [mock]);
   return (
     /* Care Reviews' container, to the class (`tasks-page.tsx`). */
     <div data-monitoring className="mx-auto flex w-full max-w-[1800px] flex-col px-6 py-6 lg:px-8">
@@ -167,12 +191,12 @@ export function MonitoringOverview({ tab = "watch" }: { tab?: MonitoringTab }) {
           motion. */}
       <div key={tab} id="monitoring-tabpanel" role="tabpanel" aria-labelledby={`monitoring-tab-${tab}`} className="tab-fade mt-5">
         {tab === "events" ? (
-          <EventsTab events={filtered} filter={filter} setFilter={setFilter} now={now} mentors={mentors} supervisors={supervisors} />
+          <EventsTab events={filtered} filter={filter} setFilter={setFilter} now={now} mentors={mentors} supervisors={supervisors} exportedOnArrival={!!mock?.exported} />
         ) : /* ── THE TIERS, from the same array either way ───────────── */
         layout === "cards" ? (
-          <MonitoringCards teens={teens} />
+          <MonitoringCards teens={teens} tier4Open={!!mock?.tier4Open} />
         ) : (
-          <MonitoringList teens={teens} />
+          <MonitoringList teens={teens} tier4Open={!!mock?.tier4Open} />
         )}
       </div>
     </div>
