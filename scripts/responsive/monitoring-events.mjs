@@ -47,7 +47,9 @@ async function open(path, { theme, width = 1440, height = 1000 } = {}) {
 const state = (page) =>
   page.evaluate(() => {
     const rows = [...document.querySelectorAll("[data-event]")];
-    const hero = Object.fromEntries([...document.querySelectorAll("[data-hero-cell]")].map((c) => [c.dataset.heroCell, Number(c.querySelector("span.font-display")?.textContent)]));
+    /* (Monitoring v3, §2) One label set on both tabs; the range moved into
+       the detail's first fragment — keyed back together as "Escalations · 30d". */
+    const hero = Object.fromEntries([...document.querySelectorAll("[data-hero-cell]")].map((c) => [`${c.dataset.heroCell} · ${(c.querySelector("[data-hero-detail]")?.textContent ?? "").split(" · ")[0]}`, Number(c.querySelector("span.font-display")?.textContent)]));
     return {
       tab: document.querySelector('[data-monitoring-tab][aria-selected="true"]')?.dataset.monitoringTab,
       url: location.pathname + location.search,
@@ -73,7 +75,10 @@ console.log("\n── 1 · Watch · Events, deep-linked");
   let s = await state(page);
   check(s.tab === "events" && s.rows > 0, "?tab=events opens on Events, with the stream", JSON.stringify({ tab: s.tab, rows: s.rows }));
   const order = await page.evaluate(() => { const t = document.querySelector("[data-monitoring-tabs]"); const toggle = document.querySelector("[data-layout-group]"); return { left: !toggle || !!(t && t.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING), toggleOnEvents: !!toggle }; });
-  check(order.left && !order.toggleOnEvents, "the tabs sit left of the view toggle, which Events does not show", JSON.stringify(order));
+  /* RETARGETED (Monitoring v3, §2): the toggle keeps its slot on Events —
+     hidden, not unmounted — so nothing moves. */
+  const hid = await page.evaluate(() => { const g = document.querySelector("[data-layout-group]"); return g ? getComputedStyle(g).visibility : null; });
+  check(order.left && hid === "hidden", "the tabs sit left of the view toggle, which Events hides in place", JSON.stringify({ ...order, hid }));
   await page.locator('[data-monitoring-tab="events"]').focus();
   await page.keyboard.press("ArrowLeft");
   await page.waitForTimeout(500);

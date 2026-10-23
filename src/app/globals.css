@@ -812,3 +812,23 @@
     animation: none;
   }
 }
+
+/* ═══ THE TAB CROSS-FADE (Monitoring v3, §2) ═══ The content region's 120ms
+   opacity on a Watch ↔ Events switch — nothing else moves. REDUCED MOTION:
+   none. */
+@keyframes tab-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.tab-fade {
+  animation: tab-fade 120ms ease-out 1 both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-fade {
+    animation: none;
+  }
+}

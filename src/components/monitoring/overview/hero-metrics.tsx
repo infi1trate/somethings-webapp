@@ -18,6 +18,10 @@
 import type { MonitoringMetrics } from "@/lib/monitoring/tier-roster";
 import { cn } from "@/lib/utils";
 
+/* ═══ A CELL THAT CANNOT REFLOW (Monitoring v3, §2) ═══ Fixed height, and
+   two text lines that never wrap: the label (the SAME five on both tabs, so
+   no cell changes its label's length between them) and the detail — only
+   numbers and details change. The In-crisis dot sits BEFORE the numeral. */
 function Cell({
   value,
   label,
@@ -35,19 +39,11 @@ function Cell({
       data-hero-cell={label}
       data-hot={hot ? "true" : undefined}
       className={cn(
-        "flex min-w-0 flex-col gap-1 px-5 py-4 transition-colors @max-[880px]/canvas:last:col-span-2",
+        "flex h-[120px] min-w-0 flex-col justify-center gap-1 overflow-hidden px-5 py-4 transition-colors @max-[880px]/canvas:last:col-span-2",
         hot ? "bg-[var(--t1-soft)]" : "bg-[var(--surface-raised)]"
       )}
     >
       <div className="flex items-center gap-2">
-        <span
-          className={cn(
-            "font-display text-[32px] leading-[36px] font-bold tabular-nums",
-            hot ? "text-[var(--t1)]" : value === 0 ? "text-[var(--text-tertiary)]" : "text-[var(--text-primary)]"
-          )}
-        >
-          {value}
-        </span>
         {crisis && (
           <span
             aria-hidden
@@ -58,10 +54,19 @@ function Cell({
             )}
           />
         )}
+        <span
+          data-hero-value
+          className={cn(
+            "font-display text-[32px] leading-[36px] font-bold tabular-nums",
+            hot ? "text-[var(--t1)]" : value === 0 ? "text-[var(--text-tertiary)]" : "text-[var(--text-primary)]"
+          )}
+        >
+          {value}
+        </span>
       </div>
-      <span className="text-[13px] leading-[16px] font-medium text-[var(--text-secondary)]">{label}</span>
+      <span data-hero-label className="truncate whitespace-nowrap text-[13px] leading-[16px] font-medium text-[var(--text-secondary)]">{label}</span>
       {/* Tertiary fails on t1-soft (4.39:1), so the hot cell's detail is secondary. */}
-      <span className={cn("font-mono text-[11px] leading-[14px]", hot ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]")}>
+      <span data-hero-detail className={cn("truncate whitespace-nowrap font-mono text-[11px] leading-[14px]", hot ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]")}>
         {detail}
       </span>
     </div>
@@ -90,18 +95,19 @@ export function HeroMetrics({ m, range, className }: { m: MonitoringMetrics; ran
       {/* TODO-COPY, every label and detail line. */}
       <Cell crisis value={m.inCrisis} label="In crisis" detail="Tier 1 · live" />
       <Cell value={m.highRisk} label="High risk" detail={`Tier 2 · ${m.reviewsDue} review${m.reviewsDue === 1 ? "" : "s"} due`} />
+      {/* The SAME labels on both tabs; the range lives in the detail. */}
       {range ? (
         <>
-          <Cell value={range.flags} label={`Risk flags · ${range.label}`} detail={`${range.surge} surge`} />
-          <Cell value={range.escalations} label={`Escalations · ${range.label}`} detail={`${range.open} open · ${range.closed} closed`} />
+          <Cell value={range.flags} label="Risk flags" detail={`${range.label} · ${range.surge} surge`} />
+          <Cell value={range.escalations} label="Escalations" detail={`${range.label} · ${range.open} open · ${range.closed} closed`} />
         </>
       ) : (
         <>
-          <Cell value={m.openFlags48h} label="Open risk flags" detail="in last 48h" />
-          <Cell value={m.escalations30d} label="Escalations · 30d" detail={`${m.escalationsOpen} open · ${m.escalationsClosed} closed`} />
+          <Cell value={m.openFlags48h} label="Risk flags" detail="open · last 48h" />
+          <Cell value={m.escalations30d} label="Escalations" detail={`30d · ${m.escalationsOpen} open · ${m.escalationsClosed} closed`} />
         </>
       )}
-      <Cell value={m.activeTeens} label="Active teens" detail={`${m.mentors} mentors · ${m.engagedThisWeek} engaged this week`} />
+      <Cell value={m.activeTeens} label="Active teens" detail={`${m.mentors} mentors · ${m.engagedThisWeek} engaged`} />
     </section>
   );
 }

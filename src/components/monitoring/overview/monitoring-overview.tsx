@@ -143,7 +143,11 @@ export function MonitoringOverview({ tab = "watch" }: { tab?: MonitoringTab }) {
         toolbar={
           <>
             <TabSwitch tab={tab} onTab={onTab} />
-            <LayoutToggle />
+            {/* ═══ NOTHING MOVES ON A TAB SWITCH (Monitoring v3, §2) ═══ The
+                toggle unmounting on Events was the jolt: it shifted the
+                toolbar. It stays in place, `visibility: hidden` and out of
+                the tab order and the accessibility tree. */}
+            <LayoutToggle hidden={tab === "events"} />
           </>
         }
       />
@@ -158,7 +162,10 @@ export function MonitoringOverview({ tab = "watch" }: { tab?: MonitoringTab }) {
         }
       />
 
-      <div id="monitoring-tabpanel" role="tabpanel" aria-labelledby={`monitoring-tab-${tab}`} className="mt-5">
+      {/* ═══ THE CONTENT CROSS-FADES (§2) ═══ 120ms of opacity, keyed on the
+          tab; the header, toolbar and hero do not animate. Off under reduced
+          motion. */}
+      <div key={tab} id="monitoring-tabpanel" role="tabpanel" aria-labelledby={`monitoring-tab-${tab}`} className="tab-fade mt-5">
         {tab === "events" ? (
           <EventsTab events={filtered} filter={filter} setFilter={setFilter} now={now} mentors={mentors} supervisors={supervisors} />
         ) : /* ── THE TIERS, from the same array either way ───────────── */

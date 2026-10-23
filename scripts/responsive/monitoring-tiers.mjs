@@ -173,7 +173,7 @@ const AVATAR = "[data-tier-ring] > span";
      and swap to --el-soft". */
   const elSoftHero = await tok(page, "--el-soft", "shadow");
   check(hero.radius === "20px" && wears(hero.shadow, elSoftHero) && hero.cells.every((c) => c.bg === raised), "one raised surface: 20px, the soft elevation, every cell on surface-raised", `${hero.radius} · ${hero.cells[0].bg}`);
-  check(hero.cells.map((c) => c.label).join("|") === "In crisis|High risk|Open risk flags|Escalations · 30d|Active teens", "five cells, in order", hero.cells.map((c) => c.label).join(" · "));
+  check(hero.cells.map((c) => c.label).join("|") === "In crisis|High risk|Risk flags|Escalations|Active teens", "five cells, in order — one label set on both tabs (Monitoring v3, §2)", hero.cells.map((c) => c.label).join(" · "));
   check(hero.cols === 5 && hero.gap === "1px" && hero.bg === subtle, "five across, divided by 1px border-subtle hairlines", `${hero.cols} · ${hero.gap} · ${hero.bg}`);
   check(hero.cells.every((c) => c.nfs === "32px" && c.nlh === "36px" && /tabular-nums/.test(c.nnum)), "numerals 32/36, tabular");
   check(hero.cells.every((c) => c.lfs === "13px" && c.lc === secondary && c.dfs === "11px" && /mono/i.test(c.dff)), "labels 13px secondary, details 11px mono");
