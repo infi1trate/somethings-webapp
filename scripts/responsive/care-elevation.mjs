@@ -114,7 +114,9 @@ const measure = (page) =>
       bodyBg: bg(body), s1: tok("--surface-s1"),
       heroKind: hero?.dataset.careHero ?? null,
       heroBg: bg(hero), raised,
-      heroFirst: panel?.firstElementChild === hero,
+      /* RETARGETED (Care Hero v7.0): the hero sits inside the CareHero root,
+         under the identity strip — the root is the panel's first child. */
+      heroFirst: panel?.firstElementChild?.matches("[data-care-hero-root]") && panel.firstElementChild.contains(hero) && hero.previousElementSibling?.matches("[data-care-identity]"),
       tabsAfterHero: !!panel?.children[1]?.querySelector("[data-care-tabs]"),
       ringed: ringed.map((el) => el.dataset.nodeCard !== undefined ? `node:${el.dataset.nodeAccent}` : el.tagName),
       ringColor: ringed[0] ? getComputedStyle(ringed[0]).boxShadow : null,
@@ -146,9 +148,10 @@ for (const [label, extra] of [["Tier 4", {}], ["Tier 2", T2]]) {
   const { ctx, page } = await open("/app/chat/t14", { extra });
   const m = await measure(page);
   check(m.heroKind === "steady" && m.heroFirst && m.tabsAfterHero, `${label}: the Teen Status card is the hero, above the tabs`, JSON.stringify({ k: m.heroKind, f: m.heroFirst, t: m.tabsAfterHero }));
-  /* RETARGETED (pack v5.0, Supersession 5): the mentor's card is the Risk
-     tier cell alone — the diagnosis is not in the DOM at all. */
-  check(m.cells.join("|") === "Risk tier" && !(await page.evaluate(() => !!document.querySelector("[data-care-brief]"))), `${label}: the mentor sees the Risk tier cell only — no diagnosis in the DOM`, m.cells.join(" · "));
+  /* RETARGETED (Care Hero v7.0, superseding v5.0 Supersession 5): the
+     mentor's card anchors on the Mentorship, then the Risk tier — and the
+     diagnosis is still not in the DOM at all. */
+  check(m.cells.join("|") === "The mentorship|Risk tier" && !(await page.evaluate(() => !!document.querySelector("[data-care-brief]"))), `${label}: the mentor sees the Mentorship, then Risk tier — no diagnosis in the DOM`, m.cells.join(" · "));
   check(m.heroBg === m.raised && m.bodyBg === m.s1 && m.canvasBg === m.base && m.s1 !== m.raised, `${label}: the thread on the base, the Care body one step deeper (s1), the card raised`, `${m.canvasBg} · ${m.bodyBg} · ${m.heroBg}`);
   check(m.washed === 0, `${label}: no whole-card wash — the tint lives in the lozenge alone`, String(m.washed));
   check(m.ringed.length === 0, `${label}: steady has no current step, so nothing is raised AND ringed`, m.ringed.join());

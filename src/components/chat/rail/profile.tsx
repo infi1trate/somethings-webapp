@@ -30,15 +30,10 @@ import { profileFor } from "@/lib/chat/teen-profile";
 import { PanelCard, PanelEmpty, PanelRow, PanelSection } from "@/components/chat/rail/rail-panel";
 import type { ChatThread } from "@/lib/chat/types";
 
-export function ProfilePanel({
-  thread,
-  /** Relationship length, phrased by the caller — the panel does not compute it,
-   *  because `mentees-demo` already owns that arithmetic. */
-  matchedFor,
-}: {
-  thread: ChatThread;
-  matchedFor: string | null;
-}) {
+/* ═══ THE "MATCHED" ROW LEFT (Care Hero v7.0) ═══ How long the pair has known
+   each other is the Care hero's Mentorship headline now ("8 months
+   together"), in `relLength`'s phrasing — one home for the fact. */
+export function ProfilePanel({ thread }: { thread: ChatThread }) {
   const first = thread.displayName.split(" ")[0];
   const profile = profileFor(thread.id);
 
@@ -64,12 +59,6 @@ export function ProfilePanel({
                 {b.value}
               </PanelRow>
             ))}
-            {matchedFor && (
-              /* THE ONE RELATIONSHIP FACT that belongs here rather than on the row:
-                 how long they have known each other is context for reading
-                 everything else on this panel. */
-              <PanelRow label="Matched">{matchedFor}</PanelRow>
-            )}
           </div>
         </PanelCard>
       </PanelSection>

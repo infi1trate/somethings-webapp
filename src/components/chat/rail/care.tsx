@@ -39,7 +39,8 @@
 import { useEffect, useRef, useState } from "react";
 import { EscalationExchange, EscalationHero } from "@/components/chat/escalation/exchange";
 import type { SupervisorEcho } from "@/components/chat/escalation/waiting-module";
-import { TeenStatusCard } from "@/components/chat/rail/teen-status-card";
+import { CareHero, TierCell } from "@/components/chat/rail/care-hero";
+import { mentorshipVitals, teenIdentity } from "@/lib/record/mentorship-vitals";
 import { EmergencyInfoPanel } from "@/components/chat/escalation/crisis-view";
 import { RaiseFlow } from "@/components/tiering/raise-flow";
 import { TierHistory } from "@/components/tiering/tier-history";
@@ -264,6 +265,8 @@ export function CarePanel({
   echo,
   showDiagnosis = false,
   arrivedForCare = false,
+  onOpenProfile,
+  onOpenSupportTo,
 }: {
   teenId: string;
   name: string;
@@ -303,10 +306,18 @@ export function CarePanel({
   showDiagnosis?: boolean;
   /** Arrived from a notification's deep link (make it magical 3). */
   arrivedForCare?: boolean;
+  /** The identity strip's "View their profile →" (Care Hero v7.0). */
+  onOpenProfile: () => void;
+  /** The Mentorship cell's supervisor link: a bound opener when that Support
+   *  thread exists, else undefined (the name then renders as plain text). */
+  onOpenSupportTo?: (id: string) => (() => void) | undefined;
 }) {
   const state = tiering.stateFor(teenId);
   const lens = observer ? "supervisor" : "mentor";
   const mentorName = tiering.liveMentorName || "the mentor";
+  /* Role-gated at the source: the supervisor's page never computes the
+     mentorship, the mentor's never receives a diagnosis to render. */
+  const vitals = showDiagnosis ? null : mentorshipVitals(teenId);
   const panelState = raising && !observer && !escalation ? "raising" : escalation ? "active" : "steady";
   const history = (limit?: number) => (
     <TierHistory
@@ -371,31 +382,42 @@ export function CarePanel({
       data-care-target={escalation ? String(escalation.requested ?? 1) : undefined}
       className="space-y-4"
     >
-      {escalation ? (
-        <EscalationHero
-          e={escalation}
-          tiering={tiering}
-          teenId={teenId}
-          lens={lens}
-          supervisorName={supervisorName}
-          mentorName={mentorName}
-          presence={presence}
-          onSupport={onReplyInSupport}
-        />
-      ) : (
-        <TeenStatusCard
-          state={state}
-          now={now}
-          name={name}
-          role={lens}
-          showDiagnosis={showDiagnosis}
-          brief={brief}
-          highlight={highlightTier}
-          onEscalate={onStartRaise}
-          onRequestStepDown={onRequestStepDown}
-          onUpdateTier={onUpdateTier}
-        />
-      )}
+      {/* ═══ THE CARE HERO (v7.0) ═══ Zone 1 persists in every state; while
+          an escalation is open its hero takes Zones 2–3's place. */}
+      <CareHero
+        identity={teenIdentity(teenId) ?? { name, age: null, pronouns: null }}
+        showDiagnosis={showDiagnosis}
+        brief={brief}
+        vitals={vitals}
+        onOpenProfile={onOpenProfile}
+        onOpenSupport={vitals?.supervisor ? onOpenSupportTo?.(vitals.supervisor.id) : undefined}
+        escalationHero={
+          escalation ? (
+            <EscalationHero
+              e={escalation}
+              tiering={tiering}
+              teenId={teenId}
+              lens={lens}
+              supervisorName={supervisorName}
+              mentorName={mentorName}
+              presence={presence}
+              onSupport={onReplyInSupport}
+            />
+          ) : undefined
+        }
+        tierCell={
+          <TierCell
+            state={state}
+            now={now}
+            name={name}
+            role={lens}
+            highlight={highlightTier}
+            onEscalate={onStartRaise}
+            onRequestStepDown={onRequestStepDown}
+            onUpdateTier={onUpdateTier}
+          />
+        }
+      />
       <CareTabs tab={tab} onTab={onTab} dot={dot} />
       <div id="care-tabpanel" role="tabpanel" aria-labelledby={`care-tab-${tab}`} data-care-tabpanel={tab}>
         {tab === "overview" ? (

@@ -229,7 +229,8 @@ const card = (page) =>
 {
   const { ctx, page } = await open("/app/chat/t14", { extra: T3 });
   const m = await card(page);
-  check(m.cells.join() === "Risk tier" && !m.brief, "mentor: the Risk tier cell only — the diagnosis is not in the DOM", JSON.stringify(m.cells));
+  /* RETARGETED (Care Hero v7.0): the Mentorship anchors the mentor's card. */
+  check(m.cells.join() === "The mentorship,Risk tier" && !m.brief, "mentor: the Mentorship, then Risk tier — the diagnosis is not in the DOM", JSON.stringify(m.cells));
   check(/^T3/.test(m.lozenge ?? "") && m.info && !m.description && !m.sentence, "the lozenge is the headline; description and dwell rule are behind the ⓘ, not on the card", JSON.stringify(m));
   check(m.track && /^Day \d+ of 14$/.test(m.dwell ?? ""), "the dwell is a slim progress line: “Day N of 14”", String(m.dwell));
   check(m.actions.join() === "escalate", "one outline action on the card: Escalate", m.actions.join());
