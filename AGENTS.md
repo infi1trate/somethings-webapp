@@ -412,6 +412,47 @@ never colour alone) is unchanged.**
 - **Sticky list header** works from a 960 canvas up; below it the table must
   scroll sideways, and a sideways scroller cannot pin to the page.
 
+### Monitoring v3 — parity, stability, calmer cards, cleaner Events (proto/monitoring-v3)
+
+Answered 2026-10-23 ("go" after §4 and §5). **Supersedes Monitoring v2's
+title row, the unmounting toggle, the cadence sub-line, the tinted cards and
+Tier 4 cards, the Events chip rows and the dismissing alert, each in place in
+the code.**
+
+- **Header parity is structural.** Monitoring uses the shared `PageHeader`
+  (32/40 title, 16/24 sans date line) and its new toolbar slot, 40px below
+  the rule — where Care Reviews' toolbar sits (both measured at y=213). Watch
+  · Events IS Care Reviews' Open/Closed, extracted to `ui/pill-segments.tsx`
+  (a tablist here, a radiogroup there). Care Reviews' own markup is unchanged.
+- **A tab switch moves nothing.** The toggle hides in place on Events
+  (`visibility`), the hero keeps ONE label set (the range rides in the
+  detail), cells are a fixed 120. Only the content cross-fades (120ms).
+- **Tier headers are one line** (dot · name · count); the cadence is an ⓘ
+  tooltip (hover AND focus, Esc dismisses, `aria-describedby`), anchored to
+  the line's left and out of layout while closed — centred, an invisible box
+  widened a 320 canvas by 31px.
+- **Cards: tier by contour, not fill.** White cards; Tier 1 the t1 hue at
+  50%, Tier 2 the t2 hue at 45%, Tier 3 border-default, Tier 4 border-subtle.
+  Fill only in the live Tier 1 lane. `--t2` is unchanged — as a contour it
+  does not read muddy, and Bloom has no cooler warm to move to.
+- **Tier 4 is a registry:** the list's 64px rows inside the card view.
+- **Events is a log:** one toolbar row, filters in a popover with a count
+  badge, applied filters as removable chips only when active; a teen's flags
+  in a day collapse into one row (per teen, not only adjacent — measured);
+  windowed by day section with an observer ROOTED ON THE SCROLLER (the
+  viewport is clipped by the shell) and derived visibility.
+- **Token gap, stated:** `--surface-sunken` equals the page canvas, so the
+  Events glyph circles use `--surface-sunken-strong` and row hover uses
+  `--tint-hover`. `--text-disabled` does not exist; zero counts stay
+  `text-muted` (AA), as v2 answered.
+- **The alert's answer is a state:** acknowledged keeps the strip with the
+  clock stopped; joined is a slim bar and the lane says "You in session";
+  held by another supervisor offers Observe · Hand to me.
+- **Scenarios are data** (`lib/monitoring/monitoring.mock.ts`), twenty, in
+  the dev bar's "Monitoring · Watch" / "Monitoring · Events" groups, each a
+  transform of the real derived data. `monitoring-scenarios.mjs` picks all
+  twenty through the bar and asserts each.
+
 ### Care Panel & Escalation — Elevation (pack v4.0, feat/care-elevation)
 
 Answered 2026-10-22 ("go" on the Phase 0 defaults). A craft pass: the

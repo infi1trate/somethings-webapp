@@ -292,6 +292,28 @@ console.log("\n── §5 · Events: a calm log");
   check(rows.filter((x) => x.st).every((x) => x.st === `13px ${T.tert}`) && rows.every((x) => x.chev === "0"), "the state is quiet text (13 tertiary); the chevron waits for hover", JSON.stringify(rows.map((x) => x.st).slice(0, 3)));
   const opens = rows.filter((x) => x.state === "open");
   check(opens.length > 0 && opens.every((x) => x.dot === `6 ${Number(x.tier) <= 2 ? T.t1 : T.sec}`) && rows.filter((x) => x.state !== "open").every((x) => !x.dot), "a 6px dot only while Open — the alert hue for Tiers 1–2 alone", JSON.stringify(opens.map((x) => [x.tier, x.dot])));
+  /* And the other half of the rule: an OPEN Tier 3 escalation's dot is
+     neutral. The fixture's only open one is Tier 1, so raise a Tier 3 on Sam
+     as his mentor, then read it here as the supervisor. */
+  {
+    const m = await b.newContext({ viewport: { width: 1512, height: 1000 } });
+    await m.addInitScript(([k, v]) => { if (!sessionStorage.getItem("seeded")) { localStorage.setItem(k, JSON.stringify(v)); sessionStorage.setItem("seeded", "1"); } }, [KEY, { state: { persona: "mentor", chatScenarioId: "active-mentorship" }, version: VERSION }]);
+    const mp = await m.newPage();
+    await mp.goto(`${BASE}/app/chat/t14`, { waitUntil: "networkidle" });
+    await mp.waitForTimeout(1100);
+    if (!(await mp.locator("[data-care-panel]").count())) await mp.locator('[data-rail-tab="care"]').click();
+    await mp.locator('[data-tier-action="escalate"]').click();
+    await mp.locator('[data-raise-option="3"]').click();
+    await mp.locator("[data-raise-note]").fill("Probe: a Tier 3 raise.");
+    await mp.locator("[data-raise-confirm]").click();
+    await mp.waitForTimeout(500);
+    const st = await mp.evaluate((k) => JSON.parse(localStorage.getItem(k)).state, KEY);
+    await m.close();
+    const sv = await open("/app/monitoring?tab=events", { extra: { chatScenarioId: "active-mentorship", escalations: st.escalations, tierEvents: st.tierEvents } });
+    const t3 = await sv.page.evaluate(() => { const r = [...document.querySelectorAll('[data-event][data-event-state="open"]')].find((x) => x.dataset.eventTier === "3"); const d = r?.querySelector("[data-open-dot]"); return d ? getComputedStyle(d).backgroundColor : null; });
+    check(t3 === T.sec, "an open Tier 3 escalation's dot is neutral — never the alert hue", String(t3));
+    await sv.ctx.close();
+  }
   const t1e = rows.find((x) => x.kind === "escalation" && x.tier === "1");
   check(!t1e || t1e.glyph === T.t1ink, "a Tier 1 escalation's glyph is the t1 ink", JSON.stringify(t1e?.glyph));
   /* The collapsed run. */
