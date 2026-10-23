@@ -353,9 +353,13 @@ exchange's presentation and five v1/v2 rules, each marked in place above.**
   MODEL survives (`batonHolder`); its banner does not.
 - **The crisis note assembles as nodes**, a section at a time, each stamped
   once (`crisisNote.sectionAt`); **outcome and debrief are two nodes**
-  (`chooseOutcome` → `saveDebrief`).
+  (`chooseOutcome` → `saveDebrief`). **SUPERSEDED by v6.1 — a named
+  reversal:** one Crisis note node holds an accordion of the sections,
+  Outcome and Debrief; `sectionAt` still stamps each section.
 - **Supervisor S0:** while the mentor assesses, the current node is the count
-  only, and Confirm waits for the assessment — the pack's sequence. THE COST,
+  only, and Confirm waits for the assessment — the pack's sequence.
+  **SUPERSEDED IN PART by v6.1:** the count is the read-only accordion,
+  filling in live; Confirm still waits. THE COST,
   STATED: v2 let a supervisor confirm early; now a mentor who never submits
   holds the supervisor at S0.
 - **Neutral until confirmed** (blocked constant): the tier picker and Confirm
@@ -500,6 +504,8 @@ mentor's Clinical diagnosis cell, the tier cell's sentences.
 - **Question first:** the card holds a fixed position ("Question n of 6");
   answered questions collapse below it and amend in place; the review ledger
   leads with the live risk chip and never shows full text by default.
+  **SUPERSEDED by v6.1:** all six rows always, one open, bounded movement in
+  place of the fixed position; the risk chip is live from the first answer.
 - **Notices are derived, never stored** (`lib/tiering/notifications.ts`, one
   hook for the bell and Today): only `noticesSeenAt` per persona persists
   (store v56). A Support notice belongs to an OPEN escalation only — a thread
@@ -552,6 +558,40 @@ place above) and the Profile tab's Matched row.**
   record teen; the avatar is a placeholder (no teen photography by design).
 - **Deferred:** the Profile ↔ Care avatar crossfade — Profile has no avatar
   to hand off to, and adding one for the motion alone is decoration.
+
+### Assessment & Crisis Note Accordions (pack v6.1, feat/care-v6.1)
+
+Answered 2026-10-23 ("go, finish v6.1"; the Phase 0 defaults stood). Stacked
+on v7. **Supersedes v5's question-first card and v3's note-as-nodes and S0
+count, each marked in place above.**
+
+- **Why, on both components:** crisis information arrives non-linearly, so
+  guided sequential use and random-access capture get equal grace.
+- **`AssessmentAccordion`** (`escalation/assessment-accordion.tsx`): six
+  fixed-height rows (short label, "—" / Yes / No), exactly one open — on load
+  the first unanswered; a record collapses the row and opens the next
+  unanswered TOP-DOWN after a 180ms breath (none under reduced motion), with
+  focus on its first control. The two-zone card is unchanged; Q6 nests its
+  follow-up. Modes: holder, observer (read-only, live, one soft tick per
+  arrival), read-only after Submit.
+- **`CrisisNoteAccordion`** (`escalation/crisis-note-accordion.tsx`, rows
+  from `lib/tiering/note-rows.ts`): the chart's sections (Emergency for
+  Tier 1 only), then Outcome, then Debrief, in one timeline node titled
+  "Crisis note · n of N". "Save section" records, collapses and opens the
+  next untouched row top-down. Close & follow-up stays its own node.
+- **Dependencies are honoured, not enforced by order.** Outcome's suggestion
+  is `autoOutcome(note)`, live. A saved outcome records its `basis`; when the
+  note later suggests something else, a quiet neutral review dot marks the
+  row — never a silent edit.
+- **Amendments are appended** (`noteAmendments`: row, time, what it said
+  before). Choosing an outcome no longer resets a saved debrief.
+- **Close is gated on the note** in the store's write as well as the node —
+  a blocked constant.
+- **Blocked constants unchanged:** verbatim C-SSRS wording in expanded cards
+  only; all six answerable in any order (any gating is Meg / Dr. Nissan's);
+  the risk computation; the chart's section labels; no Emergency at Tier 2.
+- **No cross-tab sync:** the store has none and the role lives in it, so
+  "live" for the observer means the record changing while the page is open.
 
 ### Monitoring asserts only what it can compute (arch-mon)
 
