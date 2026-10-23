@@ -576,7 +576,10 @@ place above) and the Profile tab's Matched row.**
   diagnosis for supervisor and lead; THE MENTORSHIP for a mentor (tenure as
   the headline, then facts). Zone 3 is v5's tier cell, unchanged. An open
   escalation's hero replaces Zones 2–3; the strip stays, so the page never
-  loses its subject.
+  loses its subject. **SUPERSEDED by v8.0:** the identity strip is removed
+  (Profile is the rail's person-icon tab), and the anchor cells persist above
+  the tabs in EVERY state — the escalation hero moved into the Escalation
+  review tab.
 - **The role gate is at the source:** `care.tsx` never computes the
   mentorship for a supervisor, and a mentor's DOM holds no diagnosis, ICD
   code or care-record link (probe).
@@ -591,12 +594,16 @@ place above) and the Profile tab's Matched row.**
 - **The sanctioned repetition is the strip** (name and pronouns repeat the
   chat header — the strip is the document title of a surface also reached
   from Monitoring and the record). "Last spoke" near the list's last-activity
-  time is the second, named exception.
+  time is the second, named exception. **SUPERSEDED by v8.0:** the strip and
+  its exception are deleted from canon; "Last spoke" remains the one named
+  exception.
 - **`?rail=profile`** opens the Profile tab, derived like `?care=overview`,
   never pinned. The supervisor link opens their Support thread when one
   exists, else the name is plain text.
 - **Fixture rows are TODO-DATA:** `VITALS` carries age and check-ins per
   record teen; the avatar is a placeholder (no teen photography by design).
+  **SUPERSEDED IN PART by v8.0:** age and `teenIdentity` left with the strip;
+  `CHECK_INS_30D` holds the check-ins.
 - **Deferred:** the Profile ↔ Care avatar crossfade — Profile has no avatar
   to hand off to, and adding one for the motion alone is decoration.
 
@@ -614,7 +621,8 @@ count, each marked in place above.**
   unanswered TOP-DOWN after a 180ms breath (none under reduced motion), with
   focus on its first control. The two-zone card is unchanged; Q6 nests its
   follow-up. Modes: holder, observer (read-only, live, one soft tick per
-  arrival), read-only after Submit.
+  arrival), read-only after Submit. **SUPERSEDED by v8.0:** the accordion is
+  deleted for the assessment deck — a zero-open state can no longer render.
 - **`CrisisNoteAccordion`** (`escalation/crisis-note-accordion.tsx`, rows
   from `lib/tiering/note-rows.ts`): the chart's sections (Emergency for
   Tier 1 only), then Outcome, then Debrief, in one timeline node titled
@@ -633,6 +641,44 @@ count, each marked in place above.**
   the risk computation; the chart's section labels; no Emergency at Tier 2.
 - **No cross-tab sync:** the store has none and the role lives in it, so
   "live" for the observer means the record changing while the page is open.
+
+### Assessment Deck & Care Tab Restructure (pack v8.0, feat/care-v8)
+
+Answered 2026-10-23 ("Dont stop anymore to ask me for permissions, just work
+continuously" — the Phase 0 audit is recorded in the report, not a stop).
+**Supersedes v6.1's intake accordion, v7's identity strip, and the Overview
+tab, each marked in place above.**
+
+- **`AssessmentDeck` + `CoverageRail`** (`escalation/assessment-deck.tsx`,
+  rules in `lib/tiering/deck.ts`). The rail is six tappable segments in
+  instrument order — empty · Y · N · skipped (struck, its own mark, never
+  colour alone) — a tablist; the current one wears a 2px ink border (a
+  border, not a box-shadow ring, so the timeline node stays the only element
+  raised AND ringed). The deck ALWAYS has exactly one active card: the next
+  required question, or the review card once complete. Zero-expanded cannot
+  render.
+- **The skip rule is clinical policy, supplied** (a blocked constant): Q1 No
+  ∧ Q2 No → UNANSWERED Q3–Q5 skip and the deck goes to Q6. A recorded Q3–Q5
+  answer is never discarded and still counts; amending Q1 or Q2 to Yes
+  un-skips. Progress counts the required set ("3 of 3 needed answered"); the
+  ledger reads a skipped row "Not asked — no ideation indicated"; the risk is
+  unchanged and reads recorded answers only. The skip is announced once.
+- **Care tabs:** [Escalation review] · Emergency info (THE DEFAULT, a blocked
+  constant) · Safety plan · Resources · History. Overview and its Recent
+  preview are deleted. The temporary Escalation review tab exists while an
+  escalation is raised, open, or closed and not yet dismissed IN THIS LENS
+  (`wrapSeenAt` / `supervisorWrapSeenAt`); it is auto-selected once per open
+  event (the pick is held with its epoch); its dot means this lens's move
+  (`batonHolder`) or an undismissed closed summary. It holds the raise flow,
+  the escalation hero, the timeline, the deck, the note and the close.
+- **Closed is a summary in BOTH lenses** — the supervisor's timeline now
+  draws a closed record (steps that never happened are not drawn) — with one
+  Dismiss; dismissing, or leaving it after viewing, removes the tab, which
+  exits toward History. The close toast is unchanged.
+- **The panel header** is the anchor cells (v7 Zones 2–3) above the tabs in
+  every state; nothing renders above them. The tier cell's own actions step
+  aside while an escalation is raised or open.
+- **Deep links:** `?care=escalation` (the retired `overview` is an alias).
 
 ### Monitoring asserts only what it can compute (arch-mon)
 
