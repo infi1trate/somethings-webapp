@@ -190,6 +190,49 @@ function CareTabs({ tab, onTab, dot }: { tab: CareTab; onTab: (t: CareTab) => vo
   );
 }
 
+// ── THE SAFETY PLAN, EMPTY, FOR A MENTOR (pack v5.0, D2) ─────────────────────
+
+/** TODO-COPY / TODO-CLINICAL — the pack's three questions. */
+const SAFETY_PLAN_STARTERS: readonly string[] = [
+  "Who could you call if tonight got hard?",
+  "What helps even a little when it’s bad?",
+  "Where do you feel safest?",
+];
+
+/** ═══ HELP HAVING THE CONVERSATION ═══ A quiet framing line and three
+ *  questions, each with a quiet Ask in chat (it fills the message box and
+ *  sends nothing). No big CTA, no card shouting. DOCUMENTING the plan stays
+ *  the supervisor's — the crisis note's Safety plan section. */
+function SafetyPlanStarters({ onUseWording }: { onUseWording: (text: string) => void }) {
+  return (
+    <div data-care-safety-plan data-safety-starters className="space-y-3">
+      <p className="text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
+        {/* TODO-COPY — the pack's line. */}
+        No safety plan yet — these can start the conversation.
+      </p>
+      <ul className="space-y-1.5">
+        {SAFETY_PLAN_STARTERS.map((q) => (
+          <li key={q} data-safety-starter className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-[var(--radius-inset)] bg-[var(--surface-raised)] px-3 py-2.5 shadow-[var(--el-soft)]">
+            <span className="min-w-0 flex-1 text-[var(--text-primary)]" style={{ font: "var(--type-body)" }}>
+              &ldquo;{q}&rdquo;
+            </span>
+            <button
+              type="button"
+              data-safety-ask
+              onClick={() => onUseWording(q)}
+              className={cn("inline-flex min-h-8 shrink-0 items-center rounded-sm text-[var(--text-primary)] underline underline-offset-2 hover:no-underline", RING)}
+              style={{ font: "var(--type-field-label)" }}
+            >
+              {/* TODO-COPY */}
+              Ask in chat
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // ── THE PANEL ───────────────────────────────────────────────────────────────
 
 export function CarePanel({
@@ -360,10 +403,14 @@ export function CarePanel({
         ) : tab === "history" ? (
           history()
         ) : tab === "safety-plan" ? (
-          <p data-care-safety-plan className="text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
-            {/* TODO-COPY. A designed empty state, not a dash. */}
-            No safety plan on file for {name}. A supervisor writes one with them after a Tier 1 or 2 escalation, and it shows here.
-          </p>
+          observer ? (
+            <p data-care-safety-plan className="text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
+              {/* TODO-COPY. A designed empty state, not a dash. */}
+              No safety plan on file for {name}. A supervisor writes one with them after a Tier 1 or 2 escalation, and it shows here.
+            </p>
+          ) : (
+            <SafetyPlanStarters onUseWording={onUseWording} />
+          )
         ) : tab === "emergency" ? (
           <EmergencyInfoPanel info={emergency} theirName={name} />
         ) : (

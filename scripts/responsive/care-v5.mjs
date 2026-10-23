@@ -22,6 +22,11 @@
 //   9  C2–C3: the notification matrix through the bell and Today, actor-
 //      correct; the deep link lands on Care Overview and traces the ring
 //  10  C4: Monitoring's live stage line
+//   Phase 4
+//  11  D1: History v3 on both hosts — title row, ONE summary line of ≤3
+//      fragments, timeline rows on expand; no arrow chain on any escalation
+//      surface
+//  12  D2: the mentor's Safety plan starters
 //
 // Exit codes: 0 all passed · 1 a check failed.
 
@@ -264,8 +269,8 @@ console.log("\n── 5 · the future, named once");
 for (const [persona, chat] of [["mentor", "escalation-active"], ["supervisor", "escalation-tier2"]]) {
   const { ctx, page } = await open("/app/chat/t13", { persona, chat });
   await page.locator("[data-up-next-toggle]").click();
-  const u = await page.evaluate(() => ({ path: document.querySelector("[data-up-next-path]")?.textContent.replace(/^Up next:\s*/, "").split(" → "), rows: [...document.querySelectorAll("[data-up-next-steps] [data-node-condition]")].map((c) => c.textContent.trim()) }));
-  check(u.path?.length === u.rows.length && u.path.every((n, i) => u.rows[i] === n || u.rows[i].startsWith(`${n} · `)), `${persona}: each locked row names its step exactly as the path does`, `${u.path?.join(" → ")} | ${u.rows.join(" | ")}`);
+  const u = await page.evaluate(() => ({ path: document.querySelector("[data-up-next-path]")?.textContent.replace(/^Up next:\s*/, "").split(", then "), rows: [...document.querySelectorAll("[data-up-next-steps] [data-node-condition]")].map((c) => c.textContent.trim()) }));
+  check(u.path?.length === u.rows.length && u.path.every((n, i) => u.rows[i] === n || u.rows[i].startsWith(`${n} · `)), `${persona}: each locked row names its step exactly as the path does`, `${u.path?.join(", then ")} | ${u.rows.join(" | ")}`);
   await ctx.close();
 }
 
@@ -461,6 +466,74 @@ let assessedState;
   await page.waitForTimeout(500);
   const sup = await page.evaluate(() => ({ open: !!document.querySelector("#support-panel"), popover: !!document.querySelector("[data-escalation-notices]") }));
   check(sup.open && !sup.popover, "Open Support opens the supervisor's thread in the panel, and closes the bell", JSON.stringify(sup));
+  await ctx.close();
+}
+
+// ── 11 · D1: HISTORY V3, AND NO ARROW CHAINS ───────────────────────────────
+console.log("\n── 11 · History v3; arrow chains retired");
+const CHAIN = /[\p{L}\p{N}]\s*→\s*[\p{L}\p{N}]/u;
+const cards = (page, root) =>
+  page.evaluate((root) => [...document.querySelectorAll(`${root} [data-escalation-story]`)].map((c) => ({
+    title: [...c.querySelectorAll("[data-story-title] > *")].map((x) => x.textContent.trim()),
+    fragments: [...c.querySelectorAll("[data-story-stages] .whitespace-nowrap")].map((x) => x.textContent.trim()),
+    date: /\b[A-Z][a-z]{2} \d{1,2}\b/.test(c.querySelector("[data-story-title]")?.textContent ?? ""),
+  })), root);
+{
+  const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-tier2" });
+  await page.locator('[data-care-tab="history"]').click();
+  await page.waitForTimeout(250);
+  const c = await cards(page, "[data-care-tabpanel]");
+  check(c.length > 0 && c.every((x) => x.title[0] === "Escalation" && x.fragments.length >= 1 && x.fragments.length <= 3 && !x.date), "chat host: every card — the Escalation lozenge + tier, ≤3 fragments, no date of its own", JSON.stringify(c));
+  await page.locator("[data-escalation-story] button[aria-expanded]").first().click();
+  await page.waitForTimeout(200);
+  const ex = await page.evaluate(() => { const r = document.querySelector("[data-story-entries] [data-story-entry]"); const t = r?.querySelector("[data-history-time]"); const sent = r?.querySelector("[data-audit-lozenge] + span"); return { rows: document.querySelectorAll("[data-story-entries] [data-story-entry]").length, timePx: t ? getComputedStyle(t).fontSize : null, lh: sent ? getComputedStyle(sent).lineHeight : null, mark: !!r?.firstElementChild?.matches("span[aria-hidden]") }; });
+  check(ex.rows > 2 && ex.timePx === "11px" && ex.lh === "22px" && ex.mark, "expanded: timeline rows with a spine mark, the time a step down (11px), looser leading (22px)", JSON.stringify(ex));
+  const chains = await page.evaluate((src) => { const re = new RegExp(src, "u"); return [...document.querySelectorAll("[data-care-panel] *")].filter((el) => el.children.length === 0 && re.test(el.textContent)).map((el) => el.textContent.trim().slice(0, 40)); }, CHAIN.source);
+  check(chains.length === 0, "no arrow chain anywhere in the Care panel", chains.join(" | "));
+  await page.screenshot({ path: `${OUT}/11-history-v3.png`, clip: await page.locator('[data-slot="chat-rail"]').boundingBox() });
+  await ctx.close();
+}
+{
+  const { ctx, page } = await open("/admin/person/t21?tab=care", { persona: "supervisor" });
+  const c = await cards(page, "[data-record-tier-history]");
+  check(c.length > 0 && c.every((x) => x.title[0] === "Escalation" && x.fragments.length <= 3), "record host: the same card, ≤3 fragments", JSON.stringify(c));
+  const chains = await page.evaluate((src) => { const re = new RegExp(src, "u"); return [...document.querySelectorAll("[data-record-tier-history] *")].filter((el) => el.children.length === 0 && re.test(el.textContent)).length; }, CHAIN.source);
+  check(chains === 0, "and no arrow chain in the record's history", String(chains));
+  await ctx.close();
+}
+{
+  /* The closed lenses: the hero's movement and the wrap's lozenges, in words. */
+  const { ctx, page } = await open("/app/chat/t13", { chat: "escalation-active" });
+  await assessAndClose(page);
+  await setPersona(page, "mentor");
+  const w = await page.evaluate((src) => { const re = new RegExp(src, "u"); return { meta: [...(document.querySelector("[data-timeline-meta]")?.children ?? [])].map((c) => c.textContent.trim()).join(" "), wrap: document.querySelector("[data-wrap-tier]")?.textContent.replace(/\s+/g, " ").trim() ?? null, chains: [...document.querySelectorAll("[data-care-panel] *")].filter((el) => el.children.length === 0 && re.test(el.textContent)).length }; }, CHAIN.source);
+  check(w.chains === 0 && !/→/.test(w.meta), "closed: no arrow chain anywhere in the panel — the hero, the wrap", JSON.stringify(w));
+  await ctx.close();
+}
+
+// ── 12 · D2: THE MENTOR'S SAFETY PLAN STARTERS ─────────────────────────────
+console.log("\n── 12 · the Safety plan, empty");
+{
+  const { ctx, page } = await open("/app/chat/t14");
+  await page.locator('[data-care-tab="safety-plan"]').click();
+  await page.waitForTimeout(200);
+  const sp = await page.evaluate(() => ({ line: document.querySelector("[data-safety-starters] > p")?.textContent.trim(), qs: [...document.querySelectorAll("[data-safety-starter]")].map((x) => x.querySelector("span")?.textContent.trim()), filled: [...document.querySelectorAll("[data-care-tabpanel] button")].filter((b) => getComputedStyle(b).backgroundColor === getComputedStyle(document.body).color).length }));
+  check(sp.line === "No safety plan yet — these can start the conversation." && sp.qs.length === 3, "mentor: the framing line and three example questions", JSON.stringify(sp));
+  check(sp.qs[0] === "“Who could you call if tonight got hard?”" && sp.filled === 0, "the pack's questions, and no large CTA", JSON.stringify(sp.qs));
+  const before = await page.evaluate((k) => (JSON.parse(localStorage.getItem(k)).state.chatMessages ?? {}).t14?.length ?? 0, KEY);
+  await page.locator("[data-safety-ask]").first().click();
+  await page.waitForTimeout(250);
+  const ins = await page.evaluate((k) => ({ box: document.querySelector('[data-slot="composer"] textarea')?.value, sent: (JSON.parse(localStorage.getItem(k)).state.chatMessages ?? {}).t14?.length ?? 0 }), KEY);
+  check(ins.box === "Who could you call if tonight got hard?" && ins.sent === before, "Ask in chat puts the question in the message box — nothing is sent", JSON.stringify(ins));
+  await page.screenshot({ path: `${OUT}/12-safety-starters.png`, clip: await page.locator('[data-slot="chat-rail"]').boundingBox() });
+  await ctx.close();
+}
+{
+  const { ctx, page } = await open("/app/chat/t14", { persona: "supervisor" });
+  await page.locator('[data-care-tab="safety-plan"]').click();
+  await page.waitForTimeout(200);
+  const sp = await page.evaluate(() => ({ starters: document.querySelectorAll("[data-safety-starter]").length, text: document.querySelector("[data-care-safety-plan]")?.textContent }));
+  check(sp.starters === 0 && /A supervisor writes one/.test(sp.text ?? ""), "supervisor: no conversation starters — the plan is theirs to document", JSON.stringify(sp));
   await ctx.close();
 }
 

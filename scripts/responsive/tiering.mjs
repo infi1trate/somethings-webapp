@@ -571,7 +571,7 @@ console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 e
   const w = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, outcome: document.querySelector("[data-wrap-outcome]")?.textContent, tier: [...(document.querySelector("[data-wrap-tier]")?.querySelectorAll("[data-tier-lozenge]") ?? [])].map((l) => l.dataset.tierLozenge).join("→"), next: document.querySelector("[data-wrap-next]")?.textContent, follow: document.querySelector("[data-wrap-follow-up]")?.textContent, labelOverValue: [...document.querySelectorAll("[data-wrap] dl > div")].every((d) => d.firstElementChild?.tagName === "DT" && d.lastElementChild?.tagName === "DD"), line: document.querySelector("[data-tier-line-text]")?.textContent, banner: !!document.querySelector('[data-slot="status-banner"]') }));
   const xw = await xs(page);
   check(w.stage === "M4" && xw.current.join() === "closed" && xw.upcoming.length === 0 && w.outcome === "Mobile crisis responded" && w.tier === "1→3" && /checks in with Jordan again/.test(w.next ?? "") && /^[A-Z][a-z]+day, [A-Z][a-z]{2} \d{1,2}$/.test(w.follow ?? "") && w.labelOverValue && !w.banner, "closed: a designed summary — outcome, Tier 1 → Tier 3 as lozenges, what happens next, the follow-up date; label over value", JSON.stringify(w));
-  check(/^Closed .+ · Tier 1 → Tier 3 Medium risk$/.test(w.line ?? ""), "and the header states the movement, not a stale Tier 1 confirmation", String(w.line));
+  check(/^Closed .+ · moved to Tier 3 Medium risk$/.test(w.line ?? ""), "and the header states the movement, not a stale Tier 1 confirmation", String(w.line));
   /* MEASURED: the closed summary once named "Your supervisor" — the name was
      read off the OPEN escalation, and there is none once it closes. */
   const named = await page.evaluate(() => ({ next: document.querySelector("[data-wrap-next]")?.textContent ?? "", meta: document.querySelector("[data-timeline-meta]")?.textContent ?? "" }));
@@ -589,7 +589,7 @@ console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 e
   /* RETARGETED (pack v4.0, Workstream E): the arrow chain is retired — a
      lozenge title row and ONE interpuncted stage line. */
   const stages = await page.evaluate(() => document.querySelector("[data-escalation-story] [data-story-stages]")?.textContent ?? "");
-  check(/Escalation · closed/.test(story ?? "") && stages === "Assessed · High risk · Tier 1 confirmed · Mobile crisis responded · Stepped down to Tier 3" && !/→/.test(story ?? ""), "History tells the whole escalation in one interpuncted line — no arrows", stages);
+  check(/ Escalation T1 /.test(story ?? "") && stages === "Closed · Mobile crisis responded · stepped to Tier 3" && !/→/.test(story ?? ""), "History v3 (pack v5.0, D1): one summary line, three fragments, no arrows", stages);
   await page.locator("[data-escalation-story] button[aria-expanded]").first().click();
   await page.waitForTimeout(150);
   const entries = await page.evaluate(() => [...document.querySelectorAll("[data-story-entries] [data-audit-lozenge]")].map((l) => l.textContent));
@@ -722,7 +722,7 @@ for (const [persona, expect] of [["mentor", ["escalate", "request-step-down"]], 
 {
   const { ctx, page } = await open("/admin/person/t21?tab=care", { persona: "supervisor" });
   const h = await page.evaluate(() => ({ section: !!document.querySelector("[data-record-tier-history]"), story: document.querySelector("[data-record-tier-history] [data-escalation-story]")?.innerText.replace(/\s+/g, " ") }));
-  check(h.section && /Assessed · .+ · Tier 1 confirmed · .+ · Stepped down to Tier 2/.test(h.story ?? "") && !/→/.test(h.story ?? ""), "closed-with-history: the record carries Imani's Friday crisis as one story — the same card", h.story?.slice(0, 160));
+  check(h.section && /Closed · .+ · stepped to Tier 2/.test(h.story ?? "") && !/→/.test(h.story ?? ""), "closed-with-history: the record carries Imani's Friday crisis as one story — the same card", h.story?.slice(0, 160));
   await page.screenshot({ path: `${OUT}/05-record-care-history.png` });
   await ctx.close();
 }

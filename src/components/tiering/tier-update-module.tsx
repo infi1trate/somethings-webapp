@@ -278,7 +278,8 @@ export function StepDownRequestDialog({
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <TierLozenge tier={from} long />
-            <span aria-hidden className="text-[var(--text-muted)]">→</span>
+            {/* A word, not an arrow (pack v5.0, D1). */}
+            <span className="text-[var(--text-muted)]">to</span>
             <TierLozenge tier={to} long />
           </div>
           <ReasonField

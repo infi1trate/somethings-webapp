@@ -34,6 +34,7 @@ import type { EscalationState } from "@/lib/chat/types";
 import { describeEvent, type TierActor, type TierEvent, type TierEventKind } from "@/lib/tiering/events";
 import { FOLLOW_UP_STATUS, OUTCOMES, RISK_LABEL, assessmentOf, escalationTarget, riskLevel } from "@/lib/tiering/escalation";
 import { PLATFORM, RAISE_LABEL } from "@/lib/tiering/tiers";
+import { stageLine } from "@/lib/tiering/notifications";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -171,15 +172,16 @@ function EscalationStory({
   const closed = escalation.resolvedAt !== null;
   const stepDown = events.find((e) => e.kind === "stepped-down");
   const followUp = FOLLOW_UP_STATUS.find((f) => f.id === escalation.followUp?.status)?.label;
-  /* ═══ THE STAGES, ONE INTERPUNCTED LINE (Workstream E) ═══ It retires the
-     arrow chain: each stage is a fact, not a step in a sentence. TODO-COPY. */
-  const stages = [
-    ...(a.submittedAt !== null ? [`Assessed${risk ? ` · ${RISK_LABEL[risk]}` : ""}`] : []),
-    ...(escalation.confirmedTier !== undefined ? [`Tier ${escalation.confirmedTier} confirmed`] : []),
-    ...(closed && outcome ? [outcome] : []),
-    ...(stepDown ? [`Stepped down to Tier ${stepDown.tier}`] : []),
-    ...(followUp ? [`Follow-up: ${followUp}`] : []),
-  ];
+  /* ═══ ONE SUMMARY LINE, AT MOST THREE FRAGMENTS (pack v5.0, D1) ═══ The
+     state, then (closed) what happened and where the teen went — "Closed ·
+     911 responded · stepped to Tier 3"; (open) the live stage. The
+     assessment's risk and the follow-up are the expansion's. No arrows.
+     TODO-COPY. */
+  const stages = (
+    closed
+      ? ["Closed", ...(outcome ? [outcome] : []), ...(stepDown ? [`stepped to Tier ${stepDown.tier}`] : [])]
+      : ["Open", ...(stageLine(escalation) ? [stageLine(escalation)!] : [])]
+  ).slice(0, 3);
   const entries: Entry[] = [
     { key: `${escalation.id}-open`, at: escalation.openedAt, label: "Raised", sentence: `${mentorName} raised ${RAISE_LABEL[target]}`, reason: escalation.contextNote || undefined },
     ...events.map((e) => tierEntry(e, nameOf)),
@@ -201,10 +203,14 @@ function EscalationStory({
           type="button"
           aria-expanded={open}
           onClick={() => setOpen((o) => !o)}
-          className={cn("flex w-full items-start gap-2 px-3 py-2.5 text-left", RING)}
+          className={cn("flex w-full items-start gap-2 px-3 py-3 text-left", RING)}
         >
-          <span className="min-w-0 flex-1 space-y-1">
+          <span className="min-w-0 flex-1 space-y-1.5">
+            {/* ═══ THE TITLE ROW (v3) ═══ The Escalation lozenge and the tier.
+                The time is the row's gutter and the day its group's header —
+                one home each, so the card carries no date of its own. */}
             <span data-story-title className="flex flex-wrap items-center gap-2">
+              <AuditLozenge>Escalation</AuditLozenge>
               {tier ? (
                 <TierLozenge tier={tier} />
               ) : (
@@ -213,36 +219,43 @@ function EscalationStory({
                   Platform concern
                 </span>
               )}
-              <span className="text-[var(--text-primary)]" style={BODY}>
-                {/* TODO-COPY */}
-                Escalation · {closed ? "closed" : "open"}
-              </span>
             </span>
-            {stages.length > 0 && (
-              /* Each stage is one unbreakable phrase; the line wraps only
-                 BETWEEN stages ("Follow-" broke from "up" — measured). */
-              <span data-story-stages className="block text-[var(--text-secondary)]" style={LABEL}>
-                {stages.map((st, i) => (
-                  <span key={st}>
-                    {i > 0 && " · "}
-                    <span className="whitespace-nowrap">{st}</span>
-                  </span>
-                ))}
-              </span>
-            )}
+            {/* Each fragment is one unbreakable phrase; the line wraps only
+                BETWEEN them ("Follow-" broke from "up" — measured in v4). */}
+            <span data-story-stages className="block text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
+              {stages.map((st, i) => (
+                <span key={st}>
+                  {i > 0 && " · "}
+                  <span className="whitespace-nowrap">{st}</span>
+                </span>
+              ))}
+            </span>
           </span>
           <ChevronDown aria-hidden className={cn("mt-1 size-4 shrink-0 text-[var(--icon-secondary)] transition-transform motion-reduce:transition-none", open && "rotate-180")} />
-          <span className="sr-only">{open ? "Hide the audit entries" : "Show the audit entries"}</span>
+          <span className="sr-only">{open ? "Hide the timeline" : "Show the timeline"}</span>
         </button>
         {open && (
-          /* Inside the card the audit trail keeps the same anatomy; its
-             gutter carries the date as well, since an escalation can span
-             days. */
-          <ol data-story-entries className="border-t border-[color:var(--border-subtle)] pr-3">
+          /* ═══ PROPER TIMELINE ROWS (v3) ═══ A spine with a mark per entry;
+             the time one type step down and dated (an escalation can span
+             days); looser leading; reasons clamp to two lines. */
+          <ol data-story-entries className="relative mx-3 mb-3 border-t border-[color:var(--border-subtle)] pt-3">
+            <span aria-hidden className="absolute top-4 bottom-2 left-[3.5px] w-px bg-[var(--border-subtle)]" />
             {entries.map((e) => (
-              <Row key={e.key} at={e.at} withDate>
-                <EntryBody e={e} />
-              </Row>
+              <li key={e.key} data-history-row data-story-entry className="relative grid grid-cols-[8px_minmax(0,1fr)] gap-x-3 pb-3 last:pb-0">
+                <span aria-hidden className="relative z-[1] mt-1.5 size-2 rounded-full border border-[color:var(--border-default)] bg-[var(--surface-raised)]" />
+                <div className="min-w-0 space-y-0.5">
+                  <span data-history-time className="block tabular-nums text-[11px] leading-[16px] text-[var(--text-muted)]">
+                    {WHEN.format(e.at)}
+                  </span>
+                  <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <AuditLozenge>{e.label}</AuditLozenge>
+                    <span className="min-w-0 break-words text-[var(--text-primary)]" style={{ font: "var(--type-body)", lineHeight: "22px" }}>
+                      {e.sentence}
+                    </span>
+                  </span>
+                  {e.reason && <Reason text={e.reason} />}
+                </div>
+              </li>
             ))}
           </ol>
         )}

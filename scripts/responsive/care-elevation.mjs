@@ -243,7 +243,8 @@ const timeline = (page) =>
   const { ctx, page } = await open("/app/chat/t13", { chat: "escalation-active" });
   const t = await timeline(page);
   check(t.rows === 1 && t.first && t.strayUpcoming === 0, "the future is ONE row, at the top of the timeline", JSON.stringify({ rows: t.rows, first: t.first, stray: t.strayUpcoming }));
-  check(/^Up next: .+ → Close & follow-up$/.test(t.path ?? "") && t.lock, "it reads “Up next: … → Close & follow-up”, with the lock", String(t.path));
+  /* (pack v5.0, D1) "A, then B": arrow chains are retired. */
+  check(/^Up next: .+, then Close & follow-up$/.test(t.path ?? "") && !/→/.test(t.path ?? "") && t.lock, "it reads “Up next: …, then Close & follow-up”, with the lock — no arrows", String(t.path));
   check(t.expanded === "false" && t.hidden === true, "collapsed by default", JSON.stringify({ e: t.expanded, h: t.hidden }));
   await page.locator("[data-up-next-toggle]").click();
   const t2 = await timeline(page);
@@ -356,7 +357,7 @@ const timeline = (page) =>
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active" });
   const t = await timeline(page);
   check(t.variant === "waiting" && t.breath === "6s", "supervisor S0: assessment in progress is a WAITING node", JSON.stringify({ v: t.variant, b: t.breath }));
-  check(t.rows === 1 && /^Up next: Confirm tier → .*Close & follow-up$/.test(t.path ?? ""), "and the path starts at Confirm tier", String(t.path));
+  check(t.rows === 1 && /^Up next: Confirm tier, then .*Close & follow-up$/.test(t.path ?? ""), "and the path starts at Confirm tier", String(t.path));
   await ctx.close();
 }
 {

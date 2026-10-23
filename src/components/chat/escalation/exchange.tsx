@@ -323,7 +323,9 @@ export function EscalationHero({
      meta line never repeats it — except as the close's movement. */
   const state = closed
     ? /* The movement, not a stale confirmation (measured in v2). */
-      `Closed ${TIME.format(e.resolvedAt!)}${confirmed && nowTier !== null && nowTier !== e.confirmedTier ? ` · Tier ${e.confirmedTier} → Tier ${nowTier} ${TIER_NAME[nowTier]}` : ""}`
+      /* No arrow chain (pack v5.0, D1): the headline lozenge is where it
+         began; the line says where it went. */
+      `Closed ${TIME.format(e.resolvedAt!)}${confirmed && nowTier !== null && nowTier !== e.confirmedTier ? ` · moved to Tier ${nowTier} ${TIER_NAME[nowTier]}` : ""}`
     : target === PLATFORM
       ? "In review"
       : confirmed
@@ -390,7 +392,7 @@ export function EscalationHero({
 // ── UP NEXT — the future as one collapsed path ─────────────────────────────
 
 /** ═══ ONE ROW, COLLAPSED BY DEFAULT (pack v4.0, Supersession 1) ═══
- *  "Up next: Confirm tier → Close & follow-up", with the lock. Expanding lists each step
+ *  "Up next: Confirm tier, then Close & follow-up", with the lock. Expanding lists each step
  *  with its condition. The steps stay in the DOM while collapsed (`hidden`),
  *  so the record of what comes next is still there for assistive tech on
  *  expand and for the probes that read it. */
@@ -417,7 +419,8 @@ function UpNext({ steps, stepName }: { steps: TimelineNode[]; stepName: (n: Time
         >
           {/* TODO-COPY */}
           <span data-up-next-path className="min-w-0 break-words">
-            Up next: {path.map(stepName).join(" → ")}
+            {/* "A, then B" — arrow chains are retired (pack v5.0, D1). */}
+            Up next: {path.map(stepName).join(", then ")}
           </span>
           <ChevronDown aria-hidden className={cn("size-3.5 shrink-0 transition-transform motion-reduce:transition-none", open && "rotate-180")} />
         </button>
@@ -1351,8 +1354,8 @@ export function EscalationExchange({
                     {from !== undefined && from !== to ? (
                       <>
                         <TierLozenge tier={from} long />
-                        <span aria-hidden className="text-[var(--text-muted)]">→</span>
-                        <span className="sr-only">to</span>
+                        {/* A word, not an arrow (pack v5.0, D1). */}
+                        <span className="text-[var(--text-muted)]">to</span>
                         <TierLozenge tier={to} long />
                       </>
                     ) : (
