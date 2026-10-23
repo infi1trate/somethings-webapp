@@ -23,66 +23,109 @@
 
 import { Clock } from "lucide-react";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
-import { answerAlert, responseClock, useAlertState, useResponseSecondsLeft } from "@/lib/monitoring/alert-clock";
+import { answerAlert, responseClock, takeAlert, useAlertState, useResponseSecondsLeft } from "@/lib/monitoring/alert-clock";
 import { cn } from "@/lib/utils";
 
 const RING = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--text-inverse)]";
 const TIME = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+const PRIMARY = cn("h-8 rounded-lg bg-[var(--text-inverse)] px-3 text-[13px] font-semibold text-[var(--state-error)] transition hover:opacity-90", RING);
+const SECONDARY = cn("h-8 rounded-lg border border-[color-mix(in_srgb,var(--text-inverse)_70%,transparent)] px-3 text-[13px] font-medium text-[var(--text-inverse)] transition hover:bg-[color-mix(in_srgb,var(--text-inverse)_15%,transparent)]", RING);
 
+/* ═══ FOUR STATES (Monitoring v3, §6) ═══
+     unanswered    the red strip, the clock running, Join session · Acknowledge
+     acknowledged  the strip STAYS, the clock STOPS, "Acknowledged by you"
+     joined        a SLIM bar — "You're in session with Jordan T." — the lane
+                   says the rest
+     held          another supervisor holds it: "Sarah holds it", and your
+                   actions are Observe · Hand to me
+   Two Tier 1s stack: one strip per teen, the same answer for both (one clock
+   — `alert-clock.ts`). */
 export function Tier1AlertStrip({ teens }: { teens: MonitoringTeen[] }) {
-  const { startedAt, answered } = useAlertState();
+  const { startedAt, answer, heldBy } = useAlertState();
   const left = useResponseSecondsLeft();
-  const teen = teens.find((t) => t.tier === 1);
-  if (answered || !teen || startedAt === null) return null;
+  const live = teens.filter((t) => t.tier === 1);
+  if (!live.length || startedAt === null) return null;
+
+  if (answer === "joined")
+    return (
+      <div className="space-y-2">
+        {live.map((teen) => (
+          <div key={teen.id} role="status" data-alert-strip="joined" className="flex min-h-9 items-center gap-2.5 rounded-lg bg-[var(--state-error)] px-3.5 py-1.5 text-[13px] leading-[18px] text-[var(--text-inverse)]">
+            <span aria-hidden className="size-2 shrink-0 rounded-full bg-[var(--text-inverse)]" />
+            {/* TODO-COPY */}
+            <span>
+              <span className="font-display font-bold">Tier 1</span> · You&rsquo;re in session with {teen.teen}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
 
   return (
-    <div
-      role="alert"
-      data-alert-strip
-      className="flex flex-wrap items-center gap-x-3.5 gap-y-2 rounded-xl bg-[var(--state-error)] px-3.5 py-2.5 text-[var(--text-inverse)] select-none"
-    >
-      <span aria-hidden data-alert-dot className="motion-safe:animate-pulse size-2.5 shrink-0 rounded-full bg-[var(--text-inverse)]" />
-      {/* Real spaces between the parts, so the text reads as the sentence.
-          The 240px floor is what wraps the clock and the two actions onto
-          their own line on a phone, rather than squeezing the sentence to
-          nothing (`attention-card.tsx`'s flex-wrap banner). TODO-COPY. */}
-      <p data-alert-text className="m-0 flex min-w-[min(100%,240px)] flex-1 flex-wrap items-baseline gap-x-1.5 text-[14px] leading-[20px]">
-        <span className="font-display font-bold">Tier 1</span>{" "}
-        <span>· {teen.mentor} flagged {teen.teen}</span>{" "}
-        <span className="text-[13px]">· unconfirmed · note + C-SSRS · {TIME.format(startedAt)}</span>
-      </p>
-      {/* Pushes the red AWAY from the text: white over a white wash measured
-          ~3.6:1 for 12px text. `--text-primary` is the text's opposite in both
-          themes (dark under light's white text, light under dark's), so one
-          wash darkens in light and lightens in dark. */}
-      <span data-alert-timer className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-[color-mix(in_srgb,var(--text-primary)_20%,transparent)] px-2 py-1 font-mono text-[12px] tabular-nums">
-        <Clock aria-hidden className="size-3" strokeWidth={2.5} />
-        {responseClock(left)} left
-      </span>
-      <div className="flex shrink-0 items-center gap-2">
-        <button
-          type="button"
-          data-alert-join
-          onClick={() => {
-            answerAlert();
-            /* TODO(monitoring): navigate into the session (the mitigation
-               layer), out of scope for this merge. */
-          }}
-          className={cn("h-8 rounded-lg bg-[var(--text-inverse)] px-3 text-[13px] font-semibold text-[var(--state-error)] transition hover:opacity-90", RING)}
+    <div className="space-y-2">
+      {live.map((teen) => (
+        <div
+          key={teen.id}
+          role="alert"
+          data-alert-strip={heldBy ? "held" : answer}
+          className="flex flex-wrap items-center gap-x-3.5 gap-y-2 rounded-xl bg-[var(--state-error)] px-3.5 py-2.5 text-[var(--text-inverse)] select-none"
         >
-          {/* TODO-COPY */}
-          Join session
-        </button>
-        <button
-          type="button"
-          data-alert-ack
-          onClick={answerAlert}
-          className={cn("h-8 rounded-lg border border-[color-mix(in_srgb,var(--text-inverse)_70%,transparent)] px-3 text-[13px] font-medium text-[var(--text-inverse)] transition hover:bg-[color-mix(in_srgb,var(--text-inverse)_15%,transparent)]", RING)}
-        >
-          {/* TODO-COPY */}
-          Acknowledge
-        </button>
-      </div>
+          <span aria-hidden data-alert-dot className={cn("size-2.5 shrink-0 rounded-full bg-[var(--text-inverse)]", answer === "none" && "motion-safe:animate-pulse")} />
+          {/* Real spaces between the parts, so the text reads as the sentence.
+              The 240px floor wraps the clock and the actions onto their own
+              line on a phone. TODO-COPY. */}
+          <p data-alert-text className="m-0 flex min-w-[min(100%,240px)] flex-1 flex-wrap items-baseline gap-x-1.5 text-[14px] leading-[20px]">
+            <span className="font-display font-bold">Tier 1</span>{" "}
+            <span>· {teen.mentor} flagged {teen.teen}</span>{" "}
+            <span className="text-[13px]">· unconfirmed · note + C-SSRS · {TIME.format(startedAt)}</span>
+            {heldBy ? (
+              <span data-alert-holder className="text-[13px] font-semibold">
+                · {heldBy} holds it
+              </span>
+            ) : (
+              answer === "acknowledged" && (
+                <span data-alert-holder className="text-[13px] font-semibold">
+                  · Acknowledged by you
+                </span>
+              )
+            )}
+          </p>
+          {/* Pushes the red AWAY from the text (a white wash measured ~3.6:1
+              for 12px text); `--text-primary` is the text's opposite in both
+              themes. Stopped once answered. */}
+          <span data-alert-timer data-stopped={answer !== "none" || undefined} className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-[color-mix(in_srgb,var(--text-primary)_20%,transparent)] px-2 py-1 font-mono text-[12px] tabular-nums">
+            <Clock aria-hidden className="size-3" strokeWidth={2.5} />
+            {responseClock(left)} {answer === "none" ? "left" : "· stopped"}
+          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            {heldBy ? (
+              <>
+                {/* TODO-COPY. Observe: into the conversation, read-only — the
+                    session layer is out of scope (TODO(monitoring)). */}
+                <button type="button" data-alert-observe className={PRIMARY}>
+                  Observe
+                </button>
+                <button type="button" data-alert-take onClick={takeAlert} className={SECONDARY}>
+                  Hand to me
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" data-alert-join onClick={() => answerAlert("joined")} className={PRIMARY}>
+                  {/* TODO-COPY */}
+                  Join session
+                </button>
+                {answer === "none" && (
+                  <button type="button" data-alert-ack onClick={() => answerAlert("acknowledged")} className={SECONDARY}>
+                    {/* TODO-COPY */}
+                    Acknowledge
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -52,6 +52,7 @@ export function PageHeader({
   progress,
   children,
   className,
+  toolbar,
 }: {
   title: string;
   /** NEEDS-COPY-NICOLE. One line, present on every destination. */
@@ -65,8 +66,16 @@ export function PageHeader({
    *  control is the only caller today. */
   children?: React.ReactNode;
   className?: string;
+  /** ═══ THE TOOLBAR SLOT (Monitoring v3, §1) ═══ One 44px row, 40px below
+   *  the band's rule — exactly where Care Reviews' search + Open/Closed row
+   *  sits (measured: y=213 under a 32/40 title at y=88), so a destination
+   *  that puts its toolbar here gets the same proportions by construction.
+   *  Care Reviews places its own row in its list column at the same offset;
+   *  `monitoring-v3.mjs` measures the two against each other. */
+  toolbar?: React.ReactNode;
 }) {
   return (
+    <>
     <div
       data-anno-ref="page-header"
       /* ═══ A BAND, NOT TWO CORNERS (Figma alignment §5.1, §5.2) ═══
@@ -206,5 +215,11 @@ export function PageHeader({
           queue gets no track; a supervisor who was given no work has not
           failed to do it. */}
     </div>
+    {toolbar && (
+      <div data-page-toolbar className="mt-10 flex min-h-11 shrink-0 flex-wrap items-center gap-2">
+        {toolbar}
+      </div>
+    )}
+    </>
   );
 }

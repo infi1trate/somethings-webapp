@@ -812,3 +812,33 @@
     animation: none;
   }
 }
+
+/* ═══ THE TAB CROSS-FADE (Monitoring v3, §2) ═══ The content region's 120ms
+   opacity on a Watch ↔ Events switch — nothing else moves. REDUCED MOTION:
+   none. */
+@keyframes tab-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.tab-fade {
+  animation: tab-fade 120ms ease-out 1 both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-fade {
+    animation: none;
+  }
+}
+
+/* ═══ A SCENARIO'S REDUCED MOTION (Monitoring v3, §6) ═══ The dev bar's
+   "Reduced motion" scenario sets data-motion="reduce" on <html> — and it is
+   honoured exactly as the media query is — no animation, no transition. */
+html[data-motion="reduce"] *,
+html[data-motion="reduce"] *::before,
+html[data-motion="reduce"] *::after {
+  animation: none !important;
+  transition: none !important;
+}

@@ -14,32 +14,61 @@
 import { useSyncExternalStore } from "react";
 import { T1_RESPONSE_SECONDS } from "@/lib/monitoring/tiers";
 
+/* ═══ THE ANSWER IS A STATE, NOT A DISMISSAL (Monitoring v3, §6) ═══ It was
+   one boolean that ended the strip. Three answers now, each with its own
+   rendering: none (the strip, the clock running), acknowledged (the strip
+   STAYS, the clock STOPS, "Acknowledged by you"), joined (a slim bar, the
+   lane says "You in session"). And `heldBy`: another supervisor holds the
+   alert, so this one's actions are Observe / Hand to me. */
+export type AlertAnswer = "none" | "acknowledged" | "joined";
+
 let startedAt: number | null = null;
-let answered = false;
+let answer: AlertAnswer = "none";
+let answeredAt: number | null = null;
+let heldBy: string | null = null;
+let seedKey = "";
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
 /** Called with whether an alert is live: starts the clock on the way in,
- *  clears it (and the answered mark) on the way out. A module write, so a
- *  page may call it from an effect. */
-export function syncTierAlert(live: boolean) {
+ *  clears it on the way out. `seed` is a scenario's starting state; a new
+ *  seed restarts the alert in it. A module write, so a page may call it from
+ *  an effect. */
+export function syncTierAlert(live: boolean, seed?: { answer: AlertAnswer; heldBy?: string }) {
+  const key = seed ? `${seed.answer}:${seed.heldBy ?? ""}` : "";
   if (!live) {
-    if (startedAt !== null || answered) {
+    if (startedAt !== null || answer !== "none" || heldBy !== null) {
       startedAt = null;
-      answered = false;
+      answer = "none";
+      answeredAt = null;
+      heldBy = null;
+      seedKey = "";
       emit();
     }
-  } else if (startedAt === null) {
-    startedAt = Date.now();
-    answered = false;
+  } else if (startedAt === null || key !== seedKey) {
+    const at = Date.now();
+    startedAt = at;
+    answer = seed?.answer ?? "none";
+    /* A seeded acknowledgement stopped the clock a few seconds in. */
+    answeredAt = answer === "none" ? null : at + 18_000;
+    heldBy = seed?.heldBy ?? null;
+    seedKey = key;
     emit();
   }
 }
 
-/** Joined or acknowledged: the strip is done for this alert. */
-export function answerAlert(): void {
-  if (answered) return;
-  answered = true;
+/** Acknowledged (the strip stays, the clock stops) or joined (a slim bar). */
+export function answerAlert(kind: Exclude<AlertAnswer, "none"> = "acknowledged"): void {
+  if (answer === kind) return;
+  answer = kind;
+  answeredAt ??= Date.now();
+  emit();
+}
+
+/** Hand to me: the alert is this supervisor's now. */
+export function takeAlert(): void {
+  if (heldBy === null) return;
+  heldBy = null;
   emit();
 }
 
@@ -69,18 +98,21 @@ const subscribe = (l: () => void) => {
   return () => listeners.delete(l);
 };
 
-export function useAlertState(): { startedAt: number | null; answered: boolean } {
+export function useAlertState(): { startedAt: number | null; answered: boolean; answer: AlertAnswer; answeredAt: number | null; heldBy: string | null } {
   const s = useSyncExternalStore(subscribe, () => startedAt, () => null);
-  const a = useSyncExternalStore(subscribe, () => answered, () => false);
-  return { startedAt: s, answered: a };
+  const a = useSyncExternalStore(subscribe, () => answer, () => "none" as AlertAnswer);
+  const at = useSyncExternalStore(subscribe, () => answeredAt, () => null);
+  const h = useSyncExternalStore(subscribe, () => heldBy, () => null);
+  return { startedAt: s, answered: a !== "none", answer: a, answeredAt: at, heldBy: h };
 }
 
-/** Seconds left in the response window, ticking. */
+/** Seconds left in the response window, ticking — frozen once answered. */
 export function useResponseSecondsLeft(): number {
-  const { startedAt: s } = useAlertState();
+  const { startedAt: s, answeredAt } = useAlertState();
   const now = useSyncExternalStore(subscribeTick, () => tick, () => 0);
   if (s === null) return T1_RESPONSE_SECONDS;
-  return Math.max(0, T1_RESPONSE_SECONDS - Math.floor((Math.max(now, s) - s) / 1000));
+  const at = answeredAt ?? Math.max(now, s);
+  return Math.max(0, T1_RESPONSE_SECONDS - Math.floor((at - s) / 1000));
 }
 
 /** m:ss. */

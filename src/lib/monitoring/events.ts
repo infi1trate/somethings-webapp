@@ -462,3 +462,65 @@ export function timelineHref(e: MonitoringEvent): string | null {
   if (e.kind === "escalation" && e.live) return `/app/chat/${e.recordId}`;
   return `/admin/person/${e.recordId}?tab=care`;
 }
+
+// ── EVENTS v3: REPEATS AND FACETS (Monitoring v3, §5) ───────────────────────
+
+/** ═══ A RUN OF FLAGS ON ONE TEEN ═══ A teen's risk flags within one day
+ *  collapse into one row ("Jordan T. · 3 flags today · not safe tonight"),
+ *  expanding to the individual flags. Three identical Jordan rows were the
+ *  clearest sign the log needed it — and they were NOT adjacent (an
+ *  escalation and another teen's flag sat between them, measured), so a run
+ *  gathers the day's flags per teen and sits at the NEWEST one's place. A
+ *  single flag stays a plain event. `items` must be one day, newest first. */
+export interface FlagRun {
+  kind: "flag-run";
+  id: string;
+  teenId: string;
+  teenName: string;
+  mentorName: string;
+  /** The newest flag's detail — the latest thing said. */
+  detail: string;
+  at: number;
+  tier?: Tier;
+  flags: MonitoringEvent[];
+}
+export type EventItem = MonitoringEvent | FlagRun;
+
+export const isRun = (x: EventItem): x is FlagRun => x.kind === "flag-run";
+
+export function collapseRepeats(items: MonitoringEvent[]): EventItem[] {
+  const byTeen = new Map<string, MonitoringEvent[]>();
+  for (const e of items) if (e.kind === "flag") byTeen.set(e.teenId, [...(byTeen.get(e.teenId) ?? []), e]);
+  const out: EventItem[] = [];
+  for (const e of items) {
+    const flags = e.kind === "flag" ? byTeen.get(e.teenId)! : null;
+    if (!flags || flags.length < 2) {
+      out.push(e);
+      continue;
+    }
+    /* The run sits at its newest flag; the older ones fold into it. */
+    if (flags[0] !== e) continue;
+    /* The run's line is the newest flag's WORDS — its last fragment. The
+       flag detail also restates its window ("4 flags in 24h"), which the
+       run's own count already says. */
+    out.push({ kind: "flag-run", id: `run-${e.id}`, teenId: e.teenId, teenName: e.teenName, mentorName: e.mentorName, detail: e.detail.split(" · ").at(-1) ?? e.detail, at: e.at, tier: e.tier, flags });
+  }
+  return out;
+}
+
+/** ═══ THE APPLIED FILTERS, AS FACETS ═══ What the Filters button counts and
+ *  the removable chips name — every facet that differs from the default.
+ *  `clear` returns the patch that resets just that facet. TODO-COPY. */
+export interface FilterFacet {
+  key: "kinds" | "tiers" | "mentor" | "supervisor";
+  label: string;
+  clear: Partial<EventFilter>;
+}
+export function filterFacets(f: EventFilter): FilterFacet[] {
+  const out: FilterFacet[] = [];
+  if (f.kinds.length < DEFAULT_FILTER.kinds.length) out.push({ key: "kinds", label: f.kinds.length ? f.kinds.map((k) => KIND_LABEL[k]).join(", ") : "No event types", clear: { kinds: DEFAULT_FILTER.kinds } });
+  if (f.tiers.length < DEFAULT_FILTER.tiers.length) out.push({ key: "tiers", label: f.tiers.length ? [...f.tiers].sort().map((t) => `T${t}`).join(", ") : "No tiers", clear: { tiers: DEFAULT_FILTER.tiers } });
+  if (f.mentor.trim()) out.push({ key: "mentor", label: `Mentor: ${f.mentor.trim()}`, clear: { mentor: "" } });
+  if (f.supervisor.trim()) out.push({ key: "supervisor", label: `Supervisor: ${f.supervisor.trim()}`, clear: { supervisor: "" } });
+  return out;
+}

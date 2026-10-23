@@ -5,8 +5,14 @@
 //
 // The page at /app/monitoring, inside the console shell (its top bar, rail,
 // fonts and tokens). Top to bottom: the Tier 1 alert strip (alert only), the
-// title row with the list / cards toggle, the hero metrics, the Tier 1 lane
-// (always, both views), then Tiers 2 → 4.
+// title, the toolbar, the hero metrics, then the tab's content.
+//
+// ═══ HEADER PARITY WITH CARE REVIEWS (Monitoring v3, §1) ═══ The title and
+// its date line are the shared `PageHeader` (32/40 Avantt; 16/24 sans in
+// text-secondary), its toolbar slot holds Watch · Events (the SAME pill
+// control as Care Reviews' Open/Closed, `ui/pill-segments.tsx`) and the view
+// toggle, and the container is Care Reviews' — so the title + toolbar block is
+// identical across the two pages and across both tabs, structurally.
 //
 // THE ONE TIER STORE DRIVES IT (Tiering & Escalation pack). The roster is
 // read through `useTierRoster`, and "alert" is a teen in the Tier 1 lane —
@@ -18,7 +24,7 @@
 // /app/escalations and /app/risk-flags redirect here. Escalations surface as
 // the Tier 1 lane and the escalations column; flags roll up to the teen row.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LayoutGrid, List } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -32,12 +38,19 @@ import { MonitoringCards } from "@/components/monitoring/overview/tier-cards";
 import { Tier1AlertStrip } from "@/components/monitoring/overview/tier1-alert-strip";
 import { EventsTab } from "@/components/monitoring/events/events-tab";
 import { DEFAULT_FILTER, filterEvents, rangeSummary, type EventFilter } from "@/lib/monitoring/events";
+import { PageHeader } from "@/components/ia/page-header";
+import { monitoringMock, type MonitoringMock } from "@/lib/monitoring/monitoring.mock";
+import { useOnboardingStore } from "@/lib/onboarding/store";
+import { PillSegments } from "@/components/ui/pill-segments";
+import { shiftDateLabel } from "@/lib/home/shift-date";
 import { cn } from "@/lib/utils";
 
-/** ═══ LIST / CARDS ═══ Two 36×32 icon buttons in a bordered 10px group;
- *  pressed is raised white with Elevation 1. `aria-pressed` on each, and the
- *  choice is kept in localStorage (`monitoring-view-pref.ts`). */
-function LayoutToggle() {
+/** ═══ LIST / CARDS ═══ The toolbar's right end, in the pill control's own
+ *  language (Monitoring v3, §1): a recessed track, the pressed view raised
+ *  on card white with the tile shadow — 44 tall, matching the row. Two icon
+ *  buttons with `aria-pressed`; the choice is kept in localStorage
+ *  (`lib/monitoring/layout-pref.ts`). */
+function LayoutToggle({ hidden = false }: { hidden?: boolean }) {
   const layout = useMonitoringLayout();
   const btn = (value: MonitoringLayout, Icon: LucideIcon, label: string) => {
     const on = layout === value;
@@ -47,10 +60,11 @@ function LayoutToggle() {
         data-layout-toggle={value}
         aria-pressed={on}
         aria-label={label}
+        tabIndex={hidden ? -1 : undefined}
         onClick={() => setMonitoringLayout(value)}
         className={cn(
-          "flex h-8 w-9 items-center justify-center rounded-[8px] transition-colors",
-          on ? "bg-[var(--surface-raised)] text-[var(--text-primary)] shadow-[var(--elevation-1)]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+          "relative flex h-9 w-11 items-center justify-center rounded-full transition-[color,background-color,box-shadow] after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']",
+          on ? "bg-[var(--surface-card)] text-[var(--text-primary)] shadow-[var(--shadow-tile)]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
         )}
       >
@@ -60,14 +74,12 @@ function LayoutToggle() {
   };
   return (
     /* TODO-COPY */
-    <div role="group" aria-label="Layout" data-layout-group className="flex shrink-0 gap-0.5 rounded-[10px] border border-[color:var(--border-default)] p-0.5">
+    <div role="group" aria-label="Layout" aria-hidden={hidden || undefined} data-layout-group data-layout-hidden={hidden || undefined} className={cn("ml-auto flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-[var(--surface-s2)] p-1", hidden && "invisible")}>
       {btn("list", List, "List")}
       {btn("cards", LayoutGrid, "Cards")}
     </div>
   );
 }
-
-const DATE = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" });
 
 export type MonitoringTab = "watch" | "events";
 const TABS: { id: MonitoringTab; label: string }[] = [
@@ -75,52 +87,34 @@ const TABS: { id: MonitoringTab; label: string }[] = [
   { id: "events", label: "Events" },
 ];
 
-/** ═══ WATCH · EVENTS (Monitoring v2) ═══ A segmented tablist in the title
- *  row, left of the view toggle. The tab is the URL (`?tab=events`), so it
- *  deep-links; arrows move between the two. */
+/** ═══ WATCH · EVENTS ═══ Care Reviews' pill control, as a tablist (Monitoring
+ *  v3, §1). The tab is the URL (`?tab=events`), so it deep-links; the arrows
+ *  move between the two. */
 function TabSwitch({ tab, onTab }: { tab: MonitoringTab; onTab: (t: MonitoringTab) => void }) {
-  const refs = useRef<Partial<Record<MonitoringTab, HTMLButtonElement | null>>>({});
   return (
-    <div role="tablist" aria-label="Monitoring views" data-monitoring-tabs className="flex shrink-0 gap-0.5 rounded-[10px] border border-[color:var(--border-default)] p-0.5">
-      {TABS.map((t, i) => {
-        const on = t.id === tab;
-        return (
-          <button
-            key={t.id}
-            ref={(el) => {
-              refs.current[t.id] = el;
-            }}
-            type="button"
-            role="tab"
-            id={`monitoring-tab-${t.id}`}
-            aria-selected={on}
-            aria-controls="monitoring-tabpanel"
-            tabIndex={on ? 0 : -1}
-            data-monitoring-tab={t.id}
-            onClick={() => onTab(t.id)}
-            onKeyDown={(e) => {
-              if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-              e.preventDefault();
-              const next = TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length].id;
-              onTab(next);
-              refs.current[next]?.focus();
-            }}
-            className={cn(
-              "h-8 rounded-[8px] px-3 text-[13px] leading-[18px] font-medium transition-colors",
-              on ? "bg-[var(--surface-raised)] text-[var(--text-primary)] shadow-[var(--elevation-1)]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
-            )}
-          >
-            {/* TODO-COPY */}
-            {t.label}
-          </button>
-        );
-      })}
-    </div>
+    <PillSegments
+      role="tablist"
+      /* TODO-COPY */
+      ariaLabel="Monitoring views"
+      trackAttrs={{ "data-monitoring-tabs": "" }}
+      panelId="monitoring-tabpanel"
+      idPrefix="monitoring-tab"
+      value={tab}
+      onChange={onTab}
+      segments={TABS.map((t) => ({ id: t.id, label: t.label, attrs: { "data-monitoring-tab": t.id } }))}
+    />
   );
 }
 
+/** ═══ THE DEV BAR'S SCENARIO, AS A KEY (Monitoring v3, §6) ═══ A scenario
+ *  change remounts the page, so its filter, Tier 4 and alert start from the
+ *  scenario's own state rather than the last one's. */
 export function MonitoringOverview({ tab = "watch" }: { tab?: MonitoringTab }) {
+  const scenarioId = useOnboardingStore((s) => s.monitoringScenarioId);
+  return <Overview key={scenarioId ?? "none"} tab={tab} mock={monitoringMock(scenarioId)} />;
+}
+
+function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | undefined }) {
   /* Fixed at mount, the house pattern: `Date.now()` in render is impure. */
   const [now] = useState(() => Date.now());
   const router = useRouter();
@@ -128,7 +122,7 @@ export function MonitoringOverview({ tab = "watch" }: { tab?: MonitoringTab }) {
   const m = useMemo(() => monitoringMetrics(teens), [teens]);
   /* ═══ THE EVENTS FILTER, PAGE-LOCAL ═══ One filter for the stream, the
      summary line, the export and the hero's range cells. */
-  const [filter, setFilterState] = useState<EventFilter>(DEFAULT_FILTER);
+  const [filter, setFilterState] = useState<EventFilter>(() => ({ ...DEFAULT_FILTER, ...mock?.filter?.(now) }));
   const setFilter = (p: Partial<EventFilter>) => setFilterState((f) => ({ ...f, ...p }));
   const filtered = useMemo(() => filterEvents(events, filter, now), [events, filter, now]);
   const sum = useMemo(() => rangeSummary(filtered), [filtered]);
@@ -138,34 +132,52 @@ export function MonitoringOverview({ tab = "watch" }: { tab?: MonitoringTab }) {
   const layout = useMonitoringLayout();
   /* The alert clock is module state; telling it is an external write. */
   useEffect(() => {
-    syncTierAlert(live);
-  }, [live]);
-  /* Mount-gated by the route, so a date in render cannot disagree with a
-     server render. */
-  const today = DATE.format(new Date());
-
+    syncTierAlert(live, mock?.alert);
+  }, [live, mock]);
+  /* ═══ A SCENARIO'S ENVIRONMENT ═══ Reduced motion and the dark theme are
+     set on <html> while it is active and restored after — environment, never
+     UI. `data-motion="reduce"` is honoured by globals.css as the media query
+     is. */
+  useEffect(() => {
+    const html = document.documentElement;
+    const wasDark = html.classList.contains("dark");
+    if (mock?.env?.reducedMotion) html.dataset.motion = "reduce";
+    if (mock?.env?.theme === "dark") html.classList.add("dark");
+    return () => {
+      delete html.dataset.motion;
+      if (mock?.env?.theme === "dark" && !wasDark) html.classList.remove("dark");
+    };
+  }, [mock]);
   return (
-    <div data-monitoring className="mx-auto max-w-[1400px] space-y-5 px-6 py-6 lg:px-8">
-      {live && <Tier1AlertStrip teens={teens} />}
+    /* Care Reviews' container, to the class (`tasks-page.tsx`). */
+    <div data-monitoring className="mx-auto flex w-full max-w-[1800px] flex-col px-6 py-6 lg:px-8">
+      {live && (
+        <div className="mb-5">
+          <Tier1AlertStrip teens={teens} />
+        </div>
+      )}
 
-      {/* ── TITLE ROW ────────────────────────────────────────────────── */}
-      <div className="flex items-end justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="m-0 font-display text-[24px] leading-[32px] font-bold text-[var(--text-primary)]">
-            {/* TODO-COPY */}
-            Monitoring
-          </h1>
-          <p data-monitoring-subline className="m-0 font-mono text-[12px] leading-[16px] text-[var(--text-tertiary)]">
-            {today} · {m.onWatch} on watch · {SUPERVISORS_ON_SHIFT} supervisors on shift
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <TabSwitch tab={tab} onTab={onTab} />
-          {tab === "watch" && <LayoutToggle />}
-        </div>
-      </div>
+      {/* ── THE HEADER AND ITS TOOLBAR — never change between tabs ─────── */}
+      <PageHeader
+        /* TODO-COPY */
+        title="Monitoring"
+        /* The date in the schedule's zone, Care Reviews' own line, then the
+           watch's facts. Mount-gated by the route. */
+        purpose={`${shiftDateLabel(now)} · ${m.onWatch} on watch · ${SUPERVISORS_ON_SHIFT} supervisors on shift`}
+        toolbar={
+          <>
+            <TabSwitch tab={tab} onTab={onTab} />
+            {/* ═══ NOTHING MOVES ON A TAB SWITCH (Monitoring v3, §2) ═══ The
+                toggle unmounting on Events was the jolt: it shifted the
+                toolbar. It stays in place, `visibility: hidden` and out of
+                the tab order and the accessibility tree. */}
+            <LayoutToggle hidden={tab === "events"} />
+          </>
+        }
+      />
 
       <HeroMetrics
+        className="mt-6"
         m={m}
         range={
           tab === "events"
@@ -174,14 +186,17 @@ export function MonitoringOverview({ tab = "watch" }: { tab?: MonitoringTab }) {
         }
       />
 
-      <div id="monitoring-tabpanel" role="tabpanel" aria-labelledby={`monitoring-tab-${tab}`}>
+      {/* ═══ THE CONTENT CROSS-FADES (§2) ═══ 120ms of opacity, keyed on the
+          tab; the header, toolbar and hero do not animate. Off under reduced
+          motion. */}
+      <div key={tab} id="monitoring-tabpanel" role="tabpanel" aria-labelledby={`monitoring-tab-${tab}`} className="tab-fade mt-5">
         {tab === "events" ? (
-          <EventsTab events={filtered} filter={filter} setFilter={setFilter} now={now} mentors={mentors} supervisors={supervisors} />
+          <EventsTab events={filtered} filter={filter} setFilter={setFilter} now={now} mentors={mentors} supervisors={supervisors} exportedOnArrival={!!mock?.exported} />
         ) : /* ── THE TIERS, from the same array either way ───────────── */
         layout === "cards" ? (
-          <MonitoringCards teens={teens} />
+          <MonitoringCards teens={teens} tier4Open={!!mock?.tier4Open} />
         ) : (
-          <MonitoringList teens={teens} />
+          <MonitoringList teens={teens} tier4Open={!!mock?.tier4Open} />
         )}
       </div>
     </div>

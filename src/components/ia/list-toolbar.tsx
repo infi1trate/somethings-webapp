@@ -27,6 +27,7 @@
 // toolbar — including the search term, which narrows just as much as a
 // dropdown does.
 
+import { PillSegments } from "@/components/ui/pill-segments";
 import { useId } from "react";
 import { ListFilter, Search, X } from "lucide-react";
 import {
@@ -245,66 +246,32 @@ export function ListToolbar<T extends Filterable>({
             was, and a supervisor would have to switch back to find out.
             44px MINIMUM on each segment (2.5.8), which is why the row is
             `min-h-11` and not the 32px a segmented control often gets. */}
+        {/* ═══ A TRACK AND A RAISED THUMB — THE SIDEBAR TILE'S PATTERN ═══
+            The control lives in `ui/pill-segments.tsx` now (Monitoring v3, §1),
+            so Monitoring's Watch · Events is this control, not a copy. Here it
+            is still a radiogroup, every segment a tab stop, as it was.
+            ═══ `Open (16)` — THE COUNT IN THE LABEL'S OWN TYPE ═══ In
+            parentheses at the label's size; `tabular-nums` keeps the segment
+            from changing width as the count moves. `Closed (0)` still renders. */}
         {tabs && (
-          <div
+          <PillSegments
             role="radiogroup"
             /* NEEDS-COPY-NICOLE */
-            aria-label="Which reviews to show"
-            data-anno-ref="care-tabs"
-            /* ═══ A TRACK AND A RAISED THUMB — THE SIDEBAR TILE'S PATTERN ═══
-               It was a bordered card-white pill with the selected segment
-               filled in primary ink: an inverted chip, the loudest thing on the
-               toolbar for a control that changes rarely. Product's reference is
-               the sidebar's own active tile: a recessed track on
-               `--surface-s2`, and the selected segment raised on
-               `--surface-card` with `--shadow-tile` — the token that tile
-               already uses, so the two read as one family.
-               THE CONTROL IS STILL 44 TALL, MATCHING THE SEARCH FIELD. `p-1`
-               around `h-9` segments — and each segment's `::after` reaches
-               4px up and down into that padding, so the TARGET is 44 tall
-               while the visible thumb is 36 (see the segment). */
-            className="flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-[var(--surface-s2)] p-1"
-          >
-            {CARE_TABS.map((t) => {
-              const active = tabs.value === t;
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  aria-label={`${CARE_TAB_NAME[t]}, ${tabs.count[t]}`}
-                  data-anno-ref={`care-tab:${t}`}
-                  onClick={() => tabs.onChange(t)}
-                  className={cn(
-                    "relative inline-flex h-9 min-w-24 items-center justify-center gap-1 rounded-full px-5 text-[14px] leading-[20px] transition-[color,background-color,box-shadow]",
-                    /* THE HIT AREA REACHES THE TRACK'S EDGE — 36 visible, 44
-                       pressable — vertically only, so neighbours never overlap. */
-                    "after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']",
-                    /* ═══ NOT COLOUR ALONE (SC 1.4.1) ═══
-                       The selected segment carries a raised fill AND primary
-                       ink against the others' secondary — two visual channels,
-                       plus `aria-checked` for assistive tech. */
-                    active
-                      ? "bg-[var(--surface-card)] text-[var(--text-primary)] shadow-[var(--shadow-tile)]"
-                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-                    RING
-                  )}
-                >
-                  {/* ═══ `Open (16)` — THE COUNT IN THE LABEL'S OWN TYPE ═══
-                      It was a 16px mono figure beside a 13px word, so the
-                      number outweighed its own label. In parentheses at the
-                      label's size it reads as one phrase; `tabular-nums` keeps
-                      the segment from changing width as the count moves.
-                      `Closed (0)` STILL RENDERS — knowing a tab is empty before
-                      clicking it is useful. */}
-                  <span aria-hidden className="tabular-nums">
-                    {CARE_TAB_LABEL[t]} ({tabs.count[t]})
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+            ariaLabel="Which reviews to show"
+            trackAttrs={{ "data-anno-ref": "care-tabs" }}
+            value={tabs.value}
+            onChange={tabs.onChange}
+            segments={CARE_TABS.map((t) => ({
+              id: t,
+              ariaLabel: `${CARE_TAB_NAME[t]}, ${tabs.count[t]}`,
+              attrs: { "data-anno-ref": `care-tab:${t}` },
+              label: (
+                <span aria-hidden className="tabular-nums">
+                  {CARE_TAB_LABEL[t]} ({tabs.count[t]})
+                </span>
+              ),
+            }))}
+          />
         )}
 
         {/* ═══ THE OVERDUE CHIP NO LONGER SITS HERE ═══
