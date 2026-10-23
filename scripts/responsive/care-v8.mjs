@@ -112,6 +112,10 @@ console.log("\n── 1 · retired patterns");
   }));
   check(!r.accordion && !r.overview && !r.strip, "the accordion, Overview (and its Recent preview) and the identity strip are gone", JSON.stringify(r));
   check(r.firstIsHeader, "nothing renders above the anchor cells");
+  /* First, before any deck interaction depends on it: an open escalation
+     auto-selects its tab (a mutation run crashed rather than failed here). */
+  const sel = await page.evaluate(() => document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab);
+  check(sel === "escalation", "an open escalation auto-selects the Escalation review tab", String(sel));
   await ctx.close();
 }
 
