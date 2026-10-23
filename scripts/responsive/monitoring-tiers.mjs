@@ -411,67 +411,20 @@ const ENGINE = `(() => {
   check(on?.v === "cards" && on.bg === raised && wears(on.shadow, elev1) && tg.bs.find((b) => b.v === "list").pressed === "false", "cards pressed by default for a new session: raised, the tile shadow, aria-pressed", JSON.stringify(on));
   check(!!(await page.$("[data-monitoring-cards]")) && !(await page.$("[data-monitoring-list]")), "and the cards are what a new session sees");
 
+  /* ═══ RETARGETED (Monitoring v3, §4) ═══ The v2 card anatomy that lived
+     here — the 2×2 of labelled signals, the 96×24 sparkline beside the
+     numeral, T2's amber fill, the "no lines" rule (a tier contour is one now)
+     — is superseded; `monitoring-v3.mjs` §4 measures the v3 card. What still
+     holds is checked here: the cards replace the list in place, each is an
+     article named by its teen, and Tier 4 is not a card. */
   const c = await page.evaluate(() => {
     const root = document.querySelector("[data-monitoring-cards]");
-    const grid = root.querySelector('[data-tier-group="2"] [data-card-grid]');
-    const gs = getComputedStyle(grid);
-    const cards = [...root.querySelectorAll("[data-monitoring-card]")].map((a) => {
-      const s = getComputedStyle(a);
-      const r = a.getBoundingClientRect();
-      const name = document.getElementById(a.getAttribute("aria-labelledby"));
-      const tag = a.querySelector("[data-tier-tag]");
-      const av = a.querySelector("[data-tier-avatar]");
-      const days = a.querySelector("[data-card-days]");
-      const spark = a.querySelector("[data-sparkline]");
-      const label = a.querySelector("[data-card-days-label]");
-      const signals = [...a.querySelectorAll("[data-card-signal]")];
-      const tit = a.querySelector("[data-card-tit]");
-      const pill = a.querySelector("[data-card-review]");
-      /* NO LINES INSIDE A CARD: any border on a descendant, the tag's own
-         outline excepted. */
-      const lines = [...a.querySelectorAll("*")].filter((el) => !el.closest("[data-tier-tag]") && ["Top", "Bottom", "Left", "Right"].some((k) => parseFloat(getComputedStyle(el)[`border${k}Width`]) > 0)).length;
-      const db = days.getBoundingClientRect();
-      return {
-        id: a.dataset.monitoringCard, tier: +a.dataset.tier, tagName: a.tagName, name: name?.textContent.trim(), nfs: getComputedStyle(name).fontSize, nlh: getComputedStyle(name).lineHeight,
-        radius: s.borderRadius, pad: `${s.paddingTop} ${s.paddingRight}`, h: Math.round(r.height), bg: s.backgroundColor, shadow: s.boxShadow, bt: `${s.borderTopWidth} ${s.borderTopColor}`, bl: `${s.borderLeftWidth} ${s.borderLeftColor}`,
-        tag: tag?.dataset.tierTag, tagRight: tag ? Math.round(r.right - tag.getBoundingClientRect().right) : null, tagTop: tag ? Math.round(tag.getBoundingClientRect().top - r.top) : null,
-        av: av ? Math.round(av.getBoundingClientRect().width) : null, ring: !!a.querySelector("[data-tier-ring]"),
-        days: days?.textContent.trim(), dfs: getComputedStyle(days).fontSize, dlh: getComputedStyle(days).lineHeight, dfam: getComputedStyle(days).fontFamily,
-        label: label?.textContent.trim(), lfs: getComputedStyle(label).fontSize,
-        spark: { w: Math.round(spark.getBoundingClientRect().width), h: Math.round(spark.getBoundingClientRect().height), bottomVsNumeral: Math.round(db.bottom - spark.getBoundingClientRect().bottom), right: spark.getBoundingClientRect().left > db.right },
-        signals: signals.map((g) => { const kids = [...g.children]; return { label: kids[0]?.textContent, lfs: getComputedStyle(kids[0]).fontSize, num: getComputedStyle(g.querySelector("[data-glyph-count] span.font-mono")).fontSize, detail: g.querySelector("[data-signal-detail]")?.textContent.trim(), w: Math.round(g.getBoundingClientRect().width) }; }),
-        tit: tit && { text: tit.innerText.replace(/\s+/g, " ").trim(), track: Math.round(tit.querySelector("[data-tit-track]").getBoundingClientRect().height) },
-        pill: pill && { bg: getComputedStyle(pill).backgroundColor, fs: getComputedStyle(pill).fontSize, border: getComputedStyle(pill).borderTopWidth, text: pill.textContent.trim() },
-        footerBorder: getComputedStyle(a.querySelector("footer")).borderTopWidth, chevron: !!a.querySelector("[data-card-chevron]"), lines,
-      };
-    });
-    return { list: !!document.querySelector("[data-monitoring-list]"), lane: !!root.querySelector('[data-tier-group="1"] [data-t1-live]'), cols: gs.gridTemplateColumns.split(" ").length, gap: gs.columnGap, cards };
+    const cards = [...root.querySelectorAll("[data-monitoring-card]")].map((a) => ({ tier: +a.dataset.tier, tagName: a.tagName, name: document.getElementById(a.getAttribute("aria-labelledby"))?.textContent.trim() }));
+    return { list: !!document.querySelector("[data-monitoring-list]"), lane: !!root.querySelector('[data-tier-group="1"] [data-t1-live]'), cards };
   });
   check(!c.list && c.lane, "the cards replace the list in place; the Tier 1 lane stays", JSON.stringify({ list: c.list, lane: c.lane }));
-  /* MONITORING v2: WAS 3 × 12px, 16px radius, 14/16, 32px ringed avatar,
-     the long lozenge, a 2×2 and a hairline footer. */
-  check(c.cols === 3 && c.gap === "16px", "3-up at 1512, 16px apart", `${c.cols} · ${c.gap}`);
   const cs = c.cards;
-  check(cs.length > 0 && cs.every((x) => x.tagName === "ARTICLE" && x.name), "each card is an article named by its teen", cs.slice(0, 3).map((x) => x.name).join(", "));
-  check(cs.every((x) => x.radius === "20px" && x.pad === "20px 20px" && x.h >= 240), "20px radius, padded 20, at least 240 tall", `${cs[0]?.radius} · ${cs[0]?.pad} · min ${Math.min(...cs.map((x) => x.h))}`);
-  check(cs.every((x) => x.av === 36 && !x.ring && x.nfs === "17px" && x.nlh === "22px"), "header: a 36px neutral avatar (no ring), the name 17/22", JSON.stringify(cs[0] && { av: cs[0].av, nfs: cs[0].nfs }));
-  /* 20px of padding plus the surface's 1px border (transparent on T2/T3). */
-  check(cs.every((x) => x.tag === String(x.tier) && x.tagRight === 21 && x.tagTop <= 25), "the tier tag top-right, inside the 20px padding", cs.map((x) => `${x.tag}@${x.tagRight}`).slice(0, 4).join(" "));
-  const leo = cs.find((x) => x.id === "t21");
-  check(leo?.days === "48" && leo.dfs === "28px" && leo.dlh === "32px" && !/mono/i.test(leo.dfam) && leo.label === "engaged · of 151 on platform" && leo.lfs === "13px", "the primary metric: 48 in the 28/32 heading face, 'engaged · of 151 on platform' beneath — Imani's record tenure", JSON.stringify(leo && { d: leo.days, fs: leo.dfs, l: leo.label }));
-  check(cs.every((x) => x.spark.w === 96 && x.spark.h === 24 && x.spark.right && Math.abs(x.spark.bottomVsNumeral) <= 8), "the 96×24 sparkline on the right, on the numeral's baseline", JSON.stringify(leo?.spark));
-  check(cs.every((x) => x.signals.map((g) => g.label).join() === "Risk flags,Escalations,Surveys" && x.signals.every((g) => g.lfs === "12px" && g.num === "15px") && new Set(x.signals.map((g) => g.w)).size === 1), "three signals in equal columns: label 12 above, the number 15", JSON.stringify(leo?.signals));
-  check(leo?.signals[0].detail === "7d" && /* The weekday is relative to the fixture's clock — it drifted from "Tue"
-     as the calendar moved (Monitoring v3). The claim is the form. */ /^closed (Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/.test(leo.signals[1].detail) && leo.signals[2].detail === "PHQ-9 · Fri", "each signal's detail beneath it: 7d · closed {weekday} · PHQ-9 · Fri", JSON.stringify(leo?.signals.map((g) => g.detail)));
-  check(leo?.tit?.text === "Time in tier Day 3 of 7" && leo.tit.track === 3 && cs.filter((x) => x.tier === 4).every((x) => !x.tit), "time in tier: one line over a 3px track — omitted on Tier 4", JSON.stringify(leo?.tit));
-  const ravi = cs.find((x) => x.id === "t22");
-  const sunkenPill = await tok(page, "--surface-sunken", "bg");
-  check(leo?.pill?.bg === sunkenPill && leo.pill.fs === "12px" && leo.pill.border === "0px" && leo.pill.text === "From T1 · Fri" && ravi && !ravi.pill && cs.every((x) => x.footerBorder === "0px" && x.chevron), "footer: the review as a soft sunken pill (none when no review is due), a chevron, no hairline", JSON.stringify({ pill: leo?.pill, ravi: !!ravi?.pill }));
-  check(cs.every((x) => x.lines === 0), "no lines anywhere inside a card — spacing does the grouping", cs.map((x) => x.lines).join(","));
-  const [t2soft, borderSubtle, elSoft, canvas] = [await tok(page, "--t2-soft", "bg"), await tok(page, "--border-subtle"), await tok(page, "--el-soft", "shadow"), await tok(page, "--surface-canvas", "bg")];
-  const by = (t) => cs.filter((x) => x.tier === t);
-  check(by(2).length > 0 && by(3).length > 0 && by(4).length > 0 && by(2).every((x) => x.bg === t2soft) && by(3).every((x) => x.bg === raised && wears(x.shadow, elSoft)) && by(4).every((x) => x.bg === canvas && x.bt === `1px ${borderSubtle}` && x.shadow === "none"), "surfaces: T2 t2-soft · T3 raised, set apart by elevation, not colour · T4 canvas with a hairline");
-  check(cs.every((x) => x.bl === x.bt), "no coloured left border on any card");
+  check(cs.length > 0 && cs.every((x) => x.tagName === "ARTICLE" && x.name) && cs.every((x) => x.tier !== 4), "each card is an article named by its teen; Tier 4 is not a card", cs.slice(0, 3).map((x) => x.name).join(", "));
   const alert = await page.evaluate((AVATAR) => {
     const probe = (v) => { const e = document.createElement("span"); e.style.color = `var(${v})`; document.body.appendChild(e); const c = getComputedStyle(e).color; e.remove(); return c; };
     const red = ["--t1", "--t2", "--t1-ink", "--t2-ink"].map(probe);
@@ -602,7 +555,8 @@ for (const layout of ["list", "cards"]) {
     await page.locator('[data-layout-toggle="cards"]').click();
     await page.waitForTimeout(300);
   }
-  const item = layout === "list" ? "[data-monitoring-row]" : "[data-monitoring-card]";
+  /* (Monitoring v3, §4) Tier 4 is the registry's rows in BOTH views. */
+  const item = "[data-monitoring-row]";
   const rendered = () => page.evaluate((item) => document.querySelectorAll(`[data-tier-group="4"] ${item}`).length, item);
   const c = await page.evaluate(() => {
     const g = document.querySelector('[data-tier-group="4"]');
@@ -611,13 +565,12 @@ for (const layout of ["list", "cards"]) {
     const hdr = g.querySelector("h3").closest("div").parentElement.getBoundingClientRect();
     return { text: b.textContent.trim(), exp: b.getAttribute("aria-expanded"), ff: getComputedStyle(b).fontFamily, bg: getComputedStyle(b).backgroundColor, h: Math.round(r.height), w: Math.round(r.width), rowW: Math.round((g.querySelector("[data-monitoring-row]") ?? g).getBoundingClientRect().width), rightGap: Math.round(hdr.right - r.right), count: g.querySelector("h3 [data-tier-count]")?.textContent, controls: !!document.getElementById(b.getAttribute("aria-controls")) };
   });
-  const preview = layout === "list" ? 2 : 3;
-  check((await rendered()) === preview, `collapsed: a ${preview}-${layout === "list" ? "row" : "card"} preview`, `${await rendered()}`);
+  const preview = 2;
+  check((await rendered()) === preview, `collapsed: a ${preview}-row preview`, `${await rendered()}`);
   /* ═══ MONITORING v2 (Part B) ═══ WAS "a mono ghost button, right-aligned" in the header. In the
      list it is a quiet full-width button inside the container, after the
      preview rows; the cards keep it in the header (until the card pass). */
-  if (layout === "list") check(c.text === "Show all 100" && c.exp === "false" && c.controls && !/mono/i.test(c.ff) && c.bg === "rgba(0, 0, 0, 0)" && c.h >= 44 && Math.abs(c.w - c.rowW) <= 2, "Show all 100: quiet, full width inside the container, ≥ 44 tall, controlling the group", JSON.stringify(c));
-  else check(c.text === "Show all" && c.exp === "false" && c.controls && c.bg === "rgba(0, 0, 0, 0)" && c.h >= 24 && c.rightGap <= 4, "Show all: a quiet button in the header, controlling the group", JSON.stringify(c));
+  check(c.text === "Show all 100" && c.exp === "false" && c.controls && !/mono/i.test(c.ff) && c.bg === "rgba(0, 0, 0, 0)" && c.h >= 44 && Math.abs(c.w - c.rowW) <= 2, `${layout}: Show all 100 — quiet, full width inside the container, ≥ 44 tall, controlling the group`, JSON.stringify(c));
   check(c.count === "100", "the header still counts all of Tier 4", c.count);
 
   /* Clicked in-page: the dev bar is fixed at the bottom of the viewport. */

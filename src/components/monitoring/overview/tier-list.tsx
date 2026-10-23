@@ -216,6 +216,46 @@ function Tier4Rows({ teens, open }: { teens: MonitoringTeen[]; open: boolean }) 
   );
 }
 
+/** ═══ TIER 4 AS A REGISTRY, IN THE CARD VIEW (Monitoring v3, §4) ═══ The
+ *  list's own 64px rows — two, then "Show all 100", windowed when open —
+ *  in a small table of their own, with the column header, so a number in a
+ *  registry row still says what it counts. The group header is the card
+ *  view's, above it. */
+export function Tier4Registry({ teens }: { teens: MonitoringTeen[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      role="region"
+      aria-label="Tier 4 teens"
+      tabIndex={0}
+      data-tier4-registry
+      className="mon-focus relative overflow-x-auto rounded-[24px] bg-[var(--surface-raised)] px-4 pb-4 shadow-[var(--el-soft)] @min-[960px]/canvas:overflow-visible"
+    >
+      <div role="table" aria-labelledby="tier-4-heading" className={cn("grid gap-x-4", COLUMNS)}>
+        <div role="rowgroup" className={ROW}>
+          <div role="row" className={cn(ROW, "mb-2 border-b border-[color:var(--border-subtle)] px-4 pt-4 pb-3")}>
+            {HEADERS.map((h) => (
+              <div key={h} role="columnheader" className="text-[12px] leading-[16px] font-medium text-[var(--text-tertiary)]">
+                {h}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div id="tier-4-registry-rows" role="rowgroup" className={cn(ROW, "gap-y-2")}>
+          <Tier4Rows teens={teens} open={open} />
+        </div>
+        <div role="rowgroup" className={ROW}>
+          <div role="row" className={ROW}>
+            <div role="cell" className="col-span-full pt-2">
+              <ShowAll open={open} onToggle={() => setOpen((o) => !o)} controls="tier-4-registry-rows" total={teens.length} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function MonitoringList({ teens }: { teens: MonitoringTeen[] }) {
   const of = (tier: Tier) => teens.filter((t) => t.tier === tier);
   const t4 = of(4);

@@ -50,9 +50,9 @@ const initial = (name: string) => (name.trim()[0] || "?").toUpperCase();
 /** ═══ THE AVATAR: NEUTRAL, NO RING ═══ 36px, `surface-sunken` with a
  *  `text-secondary` initial. `live` adds the 6px green presence dot — the one
  *  ring anywhere. Decorative: the name is always beside it. */
-export function TierAvatar({ name, live = false }: { name: string; live?: boolean }) {
+export function TierAvatar({ name, live = false, size = 36 }: { name: string; live?: boolean; size?: 36 | 40 }) {
   return (
-    <span aria-hidden data-tier-avatar data-live={live || undefined} className="relative inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-sunken)] text-[13px] leading-none font-medium text-[var(--text-secondary)]">
+    <span aria-hidden data-tier-avatar data-live={live || undefined} className={cn("relative inline-flex shrink-0", size === 40 ? "size-10" : "size-9", "items-center justify-center rounded-full bg-[var(--surface-sunken)] text-[13px] leading-none font-medium text-[var(--text-secondary)]")}>
       {initial(name)}
       {live && <span data-presence-dot className="absolute right-0 bottom-0 size-1.5 rounded-full bg-[var(--status-online)] ring-2 ring-[var(--surface-raised)]" />}
     </span>
@@ -104,7 +104,9 @@ export function TierGroupHeader({
 }) {
   return (
     <div data-tier-header={tier} className="flex items-center justify-between gap-3 pt-8 pb-4">
-      <div className="flex min-w-0 items-center gap-2">
+      {/* `relative`: the cadence tooltip anchors to the line's left edge, so
+          it fits a 320 canvas (centred on the ⓘ, it overflowed — measured). */}
+      <div className="relative flex min-w-0 items-center gap-2">
         <h3 id={id} className="m-0 flex min-w-0 items-center gap-2 font-normal">
           <span
             aria-hidden
@@ -135,7 +137,7 @@ function CadenceInfo({ tier }: { tier: Tier }) {
   const tipId = useId();
   const [open, setOpen] = useState(false);
   return (
-    <span className="relative inline-flex" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+    <span className="inline-flex" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
       <button
         type="button"
         data-tier-cadence-info={tier}
@@ -156,8 +158,10 @@ function CadenceInfo({ tier }: { tier: Tier }) {
         data-tier-cadence
         data-open={open || undefined}
         className={cn(
-          "pointer-events-none absolute top-full left-1/2 z-20 mt-2 w-max max-w-64 -translate-x-1/2 rounded-[10px] bg-[var(--surface-raised)] px-3 py-2 text-[13px] leading-[18px] text-[var(--text-primary)] shadow-[var(--el-soft)] ring-1 ring-[color:var(--border-subtle)]",
-          open ? "visible opacity-100" : "invisible opacity-0"
+          "pointer-events-none absolute top-full left-0 z-20 mt-1 w-max max-w-[min(16rem,calc(100vw-2rem))] rounded-[10px] bg-[var(--surface-raised)] px-3 py-2 text-[13px] leading-[18px] text-[var(--text-primary)] shadow-[var(--el-soft)] ring-1 ring-[color:var(--border-subtle)]",
+          /* Closed, out of layout entirely (an invisible box still widens the
+             page's scroll area); still in the DOM, so aria-describedby reads it. */
+          open ? "block" : "hidden"
         )}
       >
         {TIER_CADENCE[tier]}

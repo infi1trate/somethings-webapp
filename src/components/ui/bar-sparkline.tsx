@@ -12,7 +12,24 @@
 /** ═══ SIZES (Monitoring v2) ═══ The row's 18px: 4px bars, 2px apart. The
  *  card's 96×24: seven bars sharing the width. Rounded ends, `border-strong`
  *  (it was `border-default`, square). */
-export function BarSparkline({ values, height = 18, width }: { values: number[]; height?: 16 | 18 | 24; width?: number }) {
+export function BarSparkline({ values, height = 18, width, variant }: { values: number[]; height?: 16 | 18 | 20 | 24; width?: number; variant?: "card-v3" }) {
+  /* ═══ THE CARD'S v3 FORM (Monitoring v3, §4) ═══ 120×20 under the
+     engagement numeral: bars share the width 3px apart, a 3px round, in
+     text-tertiary — the LAST bar (today) in text-primary, so the week reads
+     towards now. */
+  if (variant === "card-v3")
+    return (
+      <span aria-hidden data-sparkline="card-v3" className="flex shrink-0 items-end gap-[3px]" style={{ height: 20, width: 120 }}>
+        {values.map((v, i) => (
+          <span
+            key={i}
+            data-bar-last={i === values.length - 1 || undefined}
+            className={i === values.length - 1 ? "block flex-1 rounded-[3px] bg-[var(--text-primary)]" : "block flex-1 rounded-[3px] bg-[var(--text-tertiary)]"}
+            style={{ height: `${Math.max(15, v)}%` }}
+          />
+        ))}
+      </span>
+    );
   return (
     /* The card's form: 8px bars spread across the width, a 3px round — a
        full pill turned a low bar into a dot (measured at 24px tall). */

@@ -10,6 +10,11 @@
 //       cadence behind an ⓘ (tooltip on hover AND focus, Esc dismisses,
 //       aria-describedby); 32 above, 16 below; the dot tinted for 1–2 only;
 //       the same dashed "Nothing in crisis" lane in both views
+//   §4  cards: white with a tier contour, NO tint fill anywhere but the live
+//       Tier 1 lane; the anatomy measured (header · engagement block with the
+//       sparkline under the numeral · one icon-led signals row · the 2px
+//       time line · the footer pill); 3-up ≥1280, 2-up below; Tier 4 as
+//       registry rows; AA on every text pair, both themes
 //
 // Exit codes: 0 all passed · 1 a check failed.
 
@@ -140,27 +145,100 @@ for (const layout of ["cards", "list"]) {
       name: `${cs(name).fontSize}/${cs(name).lineHeight} ${cs(name).fontFamily.split(",")[0]}`, count: `${cs(count).fontSize} ${cs(count).color} ${cs(count).fontVariantNumeric}`,
       extra: [...h3.children].filter((c) => !c.matches("[data-tier-dot],[data-tier-name],[data-tier-count]")).length,
       info: info ? { w: Math.round(info.getBoundingClientRect().width), color: cs(info).color, describes: info.getAttribute("aria-describedby") === tip?.id } : null,
-      tipVis: tip ? cs(tip).visibility : null, pt: cs(h).paddingTop, pb: cs(h).paddingBottom, dot: cs(h.querySelector("[data-tier-dot]")).backgroundColor,
+      tipVis: tip ? cs(tip).display : null, pt: cs(h).paddingTop, pb: cs(h).paddingBottom, dot: cs(h.querySelector("[data-tier-dot]")).backgroundColor,
     };
   }));
   check(hs.length === 4 && hs.every((h) => h.h3H === 24 && h.name === "17px/24px avantt" && h.extra === 0), `${layout}: four headers, each ONE line — dot · name at 17/24 · count — nothing else`, JSON.stringify(hs.map((h) => `${h.tier}:${h.h3H}:${h.name}:${h.extra}`)));
   check(hs.every((h) => h.count.startsWith(`15px ${toks.tert}`) && /tabular-nums/.test(h.count)), `${layout}: the count at 15, text-tertiary, tabular`, hs[0].count);
-  check(hs.every((h) => h.info?.w === 20 && h.info.color === toks.tert && h.info.describes && h.tipVis === "hidden"), `${layout}: the cadence behind a 20px tertiary ⓘ, described by its hidden tooltip`, JSON.stringify(hs[0].info));
+  check(hs.every((h) => h.info?.w === 20 && h.info.color === toks.tert && h.info.describes && h.tipVis === "none"), `${layout}: the cadence behind a 20px tertiary ⓘ, described by its hidden tooltip`, JSON.stringify(hs[0].info));
   check(hs.every((h) => h.pt === "32px" && h.pb === "16px"), `${layout}: 32 above each group, 16 to its first row`, `${hs[0].pt}/${hs[0].pb}`);
   check(hs.find((h) => h.tier === "1")?.dot === toks.t1 && hs.find((h) => h.tier === "2")?.dot === toks.t2 && ["3", "4"].every((t) => hs.find((h) => h.tier === t)?.dot === toks.strong), `${layout}: the dot is tinted for Tiers 1–2 only`);
   /* The tooltip: focus shows it, Esc hides it, hover shows it. */
   const info = page.locator('[data-tier-cadence-info="2"]');
   await info.focus();
-  const onFocus = await page.evaluate(() => { const t = document.querySelector('[data-tier-header="2"] [data-tier-cadence]'); return { vis: getComputedStyle(t).visibility, text: t.textContent }; });
+  const onFocus = await page.evaluate(() => { const t = document.querySelector('[data-tier-header="2"] [data-tier-cadence]'); return { vis: getComputedStyle(t).display, text: t.textContent }; });
   await page.keyboard.press("Escape");
-  const afterEsc = await page.evaluate(() => getComputedStyle(document.querySelector('[data-tier-header="2"] [data-tier-cadence]')).visibility);
+  const afterEsc = await page.evaluate(() => getComputedStyle(document.querySelector('[data-tier-header="2"] [data-tier-cadence]')).display);
   await page.locator("body").focus();
   await info.hover();
-  const onHover = await page.evaluate(() => getComputedStyle(document.querySelector('[data-tier-header="2"] [data-tier-cadence]')).visibility);
-  check(onFocus.vis === "visible" && onFocus.text.length > 10 && afterEsc === "hidden" && onHover === "visible", `${layout}: the tooltip shows on focus and on hover, and Esc dismisses it`, JSON.stringify({ onFocus, afterEsc, onHover }));
+  const onHover = await page.evaluate(() => getComputedStyle(document.querySelector('[data-tier-header="2"] [data-tier-cadence]')).display);
+  check(onFocus.vis === "block" && onFocus.text.length > 10 && afterEsc === "none" && onHover === "block", `${layout}: the tooltip shows on focus and on hover, and Esc dismisses it`, JSON.stringify({ onFocus, afterEsc, onHover }));
   const empty = await page.evaluate(() => { const e = document.querySelector("[data-t1-empty]"); const s = e && getComputedStyle(e); return e ? { text: e.textContent.trim(), style: s.borderTopStyle, w: s.borderTopWidth, color: s.borderTopColor, r: s.borderTopLeftRadius, bg: s.backgroundColor, fs: s.fontSize, c: s.color, center: s.justifyContent } : null; });
   check(empty?.text === "Nothing in crisis" && empty.style === "dashed" && empty.w === "1px" && empty.color === toks.bd && empty.r === "20px" && empty.bg === "rgba(0, 0, 0, 0)" && empty.fs === "15px" && empty.c === toks.sec && empty.center === "center", `${layout}: Tier 1 empty — a dashed 1px contour, 20px, centred, 15 text-secondary, no fill`, JSON.stringify(empty));
   await page.screenshot({ path: `${OUT}/s3-headers-${layout}.png`, clip: { x: 248, y: 400, width: 1248, height: 520 } });
+  await ctx0.close();
+}
+
+// ── §4 · THE CARDS ──────────────────────────────────────────────────────────
+console.log("\n── §4 · the cards, streamlined");
+const lum = (rgb) => { const m = rgb.match(/[\d.]+/g).slice(0, 3).map((v) => { v = Number(v) / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]; };
+const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+for (const theme of ["light", "dark"]) {
+  const ctx0 = await b.newContext({ viewport: { width: 1512, height: 1000 } });
+  await ctx0.addInitScript(([k, v, t]) => { if (!sessionStorage.getItem("seeded")) { localStorage.setItem(k, JSON.stringify(v)); localStorage.setItem("somethings.theme", t); localStorage.setItem("somethings.monitoring.layout", "cards"); sessionStorage.setItem("seeded", "1"); } }, [KEY, { state: { persona: "supervisor", monitoringScenarioId: "tiers-monitor" }, version: VERSION }, theme]);
+  const page = await ctx0.newPage();
+  await page.goto(`${BASE}/app/monitoring`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1100);
+  const T = { raised: await tok(page, "--surface-raised"), sunken: await tok(page, "--surface-sunken"), t1soft: await tok(page, "--t1-soft"), t2soft: await tok(page, "--t2-soft"), bd: await tok(page, "--border-default", "color"), tert: await tok(page, "--text-tertiary", "color"), prim: await tok(page, "--text-primary", "color"), sec: await tok(page, "--text-secondary", "color"), muted: await tok(page, "--text-muted", "color"), t2mix: await page.evaluate(() => { const e = document.createElement("span"); e.style.color = "color-mix(in srgb, var(--t2) 45%, transparent)"; document.body.appendChild(e); const c = getComputedStyle(e).color; e.remove(); return c; }) };
+  const fills = await page.evaluate(([a, b2]) => [...document.querySelectorAll("[data-monitoring-cards] *")].filter((el) => { const bg = getComputedStyle(el).backgroundColor; return (bg === a || bg === b2) && !el.closest("[data-t1-live]"); }).length, [T.t1soft, T.t2soft]);
+  check(fills === 0, `${theme}: no tint fill anywhere in the cards view but the live Tier 1 lane`, String(fills));
+  const cards = await page.evaluate(() => [...document.querySelectorAll("[data-monitoring-card]")].map((c) => {
+    const cs = (e) => (e ? getComputedStyle(e) : null);
+    const r = (e) => e?.getBoundingClientRect();
+    const av = c.querySelector("[data-tier-avatar]"), name = c.querySelector("h4"), mentor = c.querySelector("[data-card-mentor]"), tag = c.querySelector("[data-tier-tag]");
+    const lab = c.querySelector("[data-card-metric-label]"), num = c.querySelector("[data-card-days]"), of = c.querySelector("[data-card-days-label]"), sp = c.querySelector("[data-sparkline]");
+    const bars = [...(sp?.children ?? [])];
+    const sig = [...c.querySelectorAll("[data-card-signal]")];
+    const tit = c.querySelector("[data-card-tit]"), track = c.querySelector("[data-tit-track]"), cap = c.querySelector("[data-tit-caption]");
+    const pill = c.querySelector("[data-card-review]");
+    return {
+      tier: c.dataset.tier, bg: cs(c).backgroundColor, bw: cs(c).borderTopWidth, bc: cs(c).borderTopColor, radius: cs(c).borderTopLeftRadius, pad: cs(c).paddingTop, shadow: cs(c).boxShadow,
+      av: Math.round(r(av).width), name: `${cs(name).fontSize}/${cs(name).lineHeight} ${cs(name).fontFamily.split(",")[0]}`, mentor: `${cs(mentor).fontSize} ${cs(mentor).color}`, tag: `${cs(tag).fontSize}/${cs(tag).lineHeight} ${cs(tag).backgroundColor}`,
+      lab: lab?.textContent.trim(), labStyle: `${cs(lab).fontSize}/${cs(lab).lineHeight} ${cs(lab).color} ${cs(lab).textTransform}`,
+      num: `${cs(num).fontSize}/${cs(num).lineHeight}`, of: of?.textContent.trim(), ofStyle: `${cs(of).fontSize} ${cs(of).color}`, baseline: Math.abs(r(num).bottom - r(of).bottom) <= 6,
+      sp: sp ? { w: Math.round(r(sp).width), h: Math.round(r(sp).height), under: r(sp).top >= r(num).bottom - 1, gap: cs(sp).columnGap, radius: cs(bars[0]).borderTopLeftRadius, last: cs(bars.at(-1)).backgroundColor, rest: [...new Set(bars.slice(0, -1).map((x) => cs(x).backgroundColor))] } : null,
+      sig: sig.map((g) => ({ name: g.dataset.cardSignal, words: g.getAttribute("aria-label"), title: g.getAttribute("title"), top: Math.round(r(g).top), icon: Math.round(r(g.querySelector("svg")).width), iconC: cs(g.querySelector("svg")).color, num: `${cs(g.querySelector("[data-signal-count]")).fontSize} ${cs(g.querySelector("[data-signal-count]")).color} ${cs(g.querySelector("[data-signal-count]")).fontVariantNumeric}`, detail: g.querySelector("[data-signal-detail]") ? `${cs(g.querySelector("[data-signal-detail]")).fontSize} ${cs(g.querySelector("[data-signal-detail]")).color}` : null, zero: g.querySelector("[data-signal-count]").textContent === "0" })),
+      sigGap: cs(c.querySelector("[data-card-stats]")).columnGap, labels: /Risk flags|Surveys|Time in tier/.test(c.innerText),
+      tit: tit ? { h: Math.round(r(track).height), bg: cs(track).backgroundColor, cap: `${cs(cap).fontSize} ${cs(cap).color}`, right: Math.abs(r(cap).right - r(tit).right) <= 1, text: cap.textContent.trim() } : null,
+      pill: pill ? { bg: cs(pill).backgroundColor, f: `${cs(pill).fontSize}/${cs(pill).lineHeight}`, border: cs(pill).borderTopWidth } : null,
+    };
+  }));
+  check(cards.length > 0 && cards.every((c) => c.tier !== "4"), `${theme}: Tiers 2–3 are cards; Tier 4 is not`, cards.map((c) => c.tier).join());
+  check(cards.every((c) => c.bg === T.raised && c.bw === "1px" && c.radius === "20px" && c.pad === "20px" && /0px 1px 2px/.test(c.shadow)), `${theme}: every card white, a 1px contour, 20px radius, 20 in, the soft elevation`, JSON.stringify(cards[0] && { bg: cards[0].bg, bw: cards[0].bw }));
+  const t2 = cards.find((c) => c.tier === "2"), t3 = cards.find((c) => c.tier === "3");
+  check(t2?.bc === T.t2mix && t3?.bc === T.bd, `${theme}: tier as contour — Tier 2 the t2 hue at 45%, Tier 3 border-default`, `${t2?.bc} · ${t3?.bc}`);
+  check(cards.every((c) => c.av === 40 && c.name === "17px/22px avantt" && c.mentor === `13px ${T.sec}` && /^11px\/16px/.test(c.tag)), `${theme}: header — a 40px avatar, the name 17/22, the mentor 13 secondary, the 11/16 tag`, JSON.stringify(cards[0] && { av: cards[0].av, n: cards[0].name, t: cards[0].tag }));
+  check(cards.every((c) => c.lab === "Engagement · 7 days" && c.labStyle === `11px/16px ${T.tert} uppercase` && c.num === "32px/36px" && /^of \d+ days$/.test(c.of) && c.ofStyle === `15px ${T.sec}` && c.baseline), `${theme}: ENGAGEMENT · 7 DAYS, the numeral 32/36, “of N days” 15 on its baseline`, JSON.stringify(cards[0] && { l: cards[0].labStyle, of: cards[0].of }));
+  check(cards.every((c) => c.sp?.w === 120 && c.sp.h === 20 && c.sp.under && c.sp.gap === "3px" && c.sp.radius === "3px" && c.sp.last === T.prim && c.sp.rest.length === 1 && c.sp.rest[0] === T.tert), `${theme}: the 120×20 sparkline under the numeral — 3px bars apart, tertiary, the last in primary`, JSON.stringify(cards[0]?.sp));
+  check(cards.every((c) => c.sig.length === 3 && new Set(c.sig.map((g) => g.top)).size === 1 && c.sigGap === "20px" && !c.labels), `${theme}: the signals are ONE line of three, 20 apart, no labels`, JSON.stringify(cards[0]?.sig.map((g) => g.top)));
+  check(cards.every((c) => c.sig.every((g) => g.icon === 16 && g.iconC === T.tert && g.words && g.words === g.title && /^(Risk flags|Escalations|Surveys): \d+/.test(g.words) && (g.zero ? g.detail === null && g.num.startsWith(`15px ${T.muted}`) : g.num.startsWith(`15px ${T.prim}`)) && /tabular-nums/.test(g.num) && (g.detail === null || g.detail === `13px ${T.sec}`))), `${theme}: each signal — 16px tertiary icon, 15 tabular number (a zero muted, no detail), 13 secondary detail, named in words and on hover`, JSON.stringify(cards[0]?.sig[0]));
+  check(cards.filter((c) => c.tit).every((c) => c.tit.h === 2 && c.tit.bg === T.sunken && c.tit.cap === `13px ${T.sec}` && c.tit.right && /^Day \d+ of \d+$/.test(c.tit.text)), `${theme}: time in tier — a 2px sunken track, “Day N of M” right-aligned, no label`, JSON.stringify(cards.find((c) => c.tit)?.tit));
+  check(cards.filter((c) => c.pill).every((c) => c.pill.bg === T.sunken && c.pill.f === "12px/16px" && c.pill.border === "0px"), `${theme}: the footer's reason pill — sunken, 12/16, no border`, JSON.stringify(cards.find((c) => c.pill)?.pill));
+  /* AA, every text pair on the card. */
+  const pairs = [["secondary", T.sec], ["tertiary label", T.tert], ["muted zero", T.muted], ["primary", T.prim]].map(([n, c]) => [n, ratio(c, T.raised)]);
+  check(pairs.every(([, r]) => r >= 4.5), `${theme}: AA on the card — ${pairs.map(([n, r]) => `${n} ${r.toFixed(2)}`).join(" · ")}`);
+  const cols = await page.evaluate(() => getComputedStyle(document.querySelector('[data-tier-group="3"] [data-card-grid]')).gridTemplateColumns.split(" ").length);
+  check(cols === 3, `${theme} @1512: 3-up`, String(cols));
+  const t4 = await page.evaluate(() => { const g = document.querySelector('[data-tier-group="4"]'); const rows = [...g.querySelectorAll("[data-monitoring-row]")]; return { cards: g.querySelectorAll("[data-monitoring-card]").length, rows: rows.length, h: rows.map((r) => Math.round(r.getBoundingClientRect().height)), show: g.querySelector("[data-tier4-toggle]")?.textContent.trim(), header: !!g.querySelector('[role="columnheader"]') }; });
+  check(t4.cards === 0 && t4.rows === 2 && t4.h.every((h) => h === 64) && t4.show === "Show all 100" && t4.header, `${theme}: Tier 4 — two 64px registry rows with their column header, then “Show all 100”`, JSON.stringify(t4));
+  if (theme === "light") {
+    await page.locator('[data-tier-group="4"] [data-tier4-toggle]').click();
+    await page.waitForTimeout(400);
+    const open4 = await page.evaluate(() => ({ rendered: document.querySelectorAll('[data-tier-group="4"] [data-monitoring-row]').length, win: document.querySelector('[data-tier-group="4"] [data-tier4-window]')?.dataset.tier4Window }));
+    check(open4.rendered > 2 && open4.rendered < 100 && !!open4.win, "Show all opens the registry windowed — a slice rendered, not all 100", JSON.stringify(open4));
+  }
+  await page.evaluate(() => document.querySelector('[data-tier-group="2"]').scrollIntoView({ block: "start" }));
+  await page.screenshot({ path: `${OUT}/s4-cards-${theme}.png` });
+  await ctx0.close();
+}
+{
+  const ctx0 = await b.newContext({ viewport: { width: 1200, height: 1000 } });
+  await ctx0.addInitScript(([k, v]) => { localStorage.setItem(k, JSON.stringify(v)); localStorage.setItem("somethings.monitoring.layout", "cards"); }, [KEY, { state: { persona: "supervisor", monitoringScenarioId: "tiers-monitor" }, version: VERSION }]);
+  const page = await ctx0.newPage();
+  await page.goto(`${BASE}/app/monitoring`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1000);
+  const cols = await page.evaluate(() => getComputedStyle(document.querySelector('[data-tier-group="3"] [data-card-grid]')).gridTemplateColumns.split(" ").length);
+  check(cols === 2, "@1200: 2-up below 1280", String(cols));
   await ctx0.close();
 }
 
