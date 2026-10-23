@@ -283,7 +283,9 @@ const timeline = (page) =>
   /* ── ANSWERED ROWS: short label, verbatim on expand ── */
   const rows = await page.evaluate(() => [...document.querySelectorAll("[data-answered]")].map((r) => ({ id: r.dataset.answered, label: r.querySelector("[data-answer-label]")?.textContent.trim() })));
   check(rows.length >= 1 && rows.every((r) => r.label && !/^Have you/.test(r.label) && !/…/.test(r.label)), "answered rows carry the short label, not a cut question", rows.map((r) => r.label).join(" · "));
-  await page.locator(`[data-answered="${rows[0]?.id}"] button`).click();
+  /* (pack v5.0) The answered rows live in the collapsed group below the card. */
+  await page.locator("[data-answered-toggle]").click();
+  await page.locator(`[data-answered="${rows[0]?.id}"] button`).first().click();
   const verb = await page.evaluate((id) => document.querySelector(`[data-answered="${id}"] [data-answer-verbatim]`)?.textContent.trim(), rows[0]?.id);
   check(verb === "“Have you wished you were dead or wished you could go to sleep and not wake up?”", "expanded, the question VERBATIM", String(verb));
   check(t.cut.length === 0, "nothing in the timeline is ellipsised", t.cut.join(" | "));

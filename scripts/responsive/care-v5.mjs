@@ -11,6 +11,11 @@
 //      button last; no holder
 //   4  Supersessions 5–6: the Teen Status card per role; the tier cell's diet
 //   5  A3: one label set for the future
+//   Phase 2
+//   6  Supersession 3: question first, in a fixed place (y-offset measured at
+//      0, 3 and 6 answers); the answered group collapsed; amend in place
+//   7  Supersession 4: the review ledger — the live risk chip, short-label
+//      rows, no full question text by default, amend recomputes the risk
 //
 // Exit codes: 0 all passed · 1 a check failed.
 
@@ -255,6 +260,85 @@ for (const [persona, chat] of [["mentor", "escalation-active"], ["supervisor", "
   await page.locator("[data-up-next-toggle]").click();
   const u = await page.evaluate(() => ({ path: document.querySelector("[data-up-next-path]")?.textContent.replace(/^Up next:\s*/, "").split(" → "), rows: [...document.querySelectorAll("[data-up-next-steps] [data-node-condition]")].map((c) => c.textContent.trim()) }));
   check(u.path?.length === u.rows.length && u.path.every((n, i) => u.rows[i] === n || u.rows[i].startsWith(`${n} · `)), `${persona}: each locked row names its step exactly as the path does`, `${u.path?.join(" → ")} | ${u.rows.join(" | ")}`);
+  await ctx.close();
+}
+
+// ── 6–7 · PHASE 2: ASSESSMENT ERGONOMICS ───────────────────────────────────
+console.log("\n── 6 · question first, in a fixed place");
+{
+  /* A fresh Tier 1 raise on Sam: the assessment at zero answers. */
+  const { ctx, page } = await open("/app/chat/t14");
+  await page.locator('[data-tier-action="escalate"]').click();
+  await page.locator('[data-raise-option="1"]').click();
+  await page.locator("[data-raise-note]").fill("Probe: a Tier 1 raise.");
+  await page.locator("[data-raise-confirm]").click();
+  await page.waitForTimeout(600);
+  const at = () =>
+    page.evaluate(() => {
+      const node = document.querySelector('[data-node="assessment"] [data-node-card]');
+      const card = node?.querySelector("[data-assessment-active]");
+      const yes = card?.querySelector("[data-yes-no$=':yes']");
+      return {
+        header: card?.querySelector("[data-question-header]")?.textContent.trim(),
+        cardY: card ? Math.round(card.getBoundingClientRect().top - node.getBoundingClientRect().top) : null,
+        yesY: yes ? Math.round(yes.getBoundingClientRect().top - node.getBoundingClientRect().top) : null,
+        group: !!node?.querySelector("[data-answered-group]"),
+        count: node?.querySelector("[data-answered-toggle]")?.textContent.trim() ?? null,
+        expanded: node?.querySelector("[data-answered-toggle]")?.getAttribute("aria-expanded") ?? null,
+        listHidden: node?.querySelector("[data-answered-group] [data-assessment-answered]")?.hidden ?? null,
+        groupBelow: (() => { const g = node?.querySelector("[data-answered-group]"); return g && card ? g.getBoundingClientRect().top >= card.getBoundingClientRect().bottom : null; })(),
+      };
+    });
+  const no = async (k) => { for (let i = 0; i < k; i++) { await page.locator('[data-assessment-active] [data-yes-no$=":no"]').click(); await page.waitForTimeout(150); } };
+  const a0 = await at();
+  check(a0.header === "Question 1 of 6" && !a0.group, "0 answered: “Question 1 of 6”, no answered group yet", JSON.stringify(a0));
+  await no(3);
+  const a3 = await at();
+  check(a3.header === "Question 4 of 6" && a3.count === "3 answered" && a3.expanded === "false" && a3.listHidden === true && a3.groupBelow, "3 answered: one collapsed summary row, BELOW the card", JSON.stringify(a3));
+  await no(2);
+  await page.locator('[data-yes-no="q6:yes"]').click();
+  await page.waitForTimeout(200);
+  const a6 = await at();
+  check(a6.header === "Question 6 · follow-up" && a6.count === "6 answered", "6 answered (Q6 yes opens its follow-up): still the card", JSON.stringify(a6));
+  check(a0.cardY === a3.cardY && a3.cardY === a6.cardY, "the question card's position is identical at 0, 3 and 6 answers", `${a0.cardY} · ${a3.cardY} · ${a6.cardY}px from the node's top`);
+  check(Math.abs(a0.yesY - a3.yesY) <= 1, "and Yes / No do not move as answers accrue (same question shape)", `${a0.yesY} · ${a3.yesY}`);
+  /* AMEND inside the expanded group. */
+  await page.locator("[data-answered-toggle]").click();
+  await page.locator('[data-answered="q1"] > button').click();
+  const verb = await page.evaluate(() => document.querySelector('[data-answered="q1"] [data-answer-verbatim]')?.textContent);
+  await page.locator('[data-amend="q1:yes"]').click();
+  await page.waitForTimeout(200);
+  const am = await page.evaluate((k) => ({ rec: JSON.parse(localStorage.getItem(k)).state.escalations.t14?.safetyCheck?.answers?.q1?.value, shown: document.querySelector('[data-answered="q1"] [data-answer-value]')?.textContent, pressed: document.querySelector('[data-amend="q1:yes"]')?.getAttribute("aria-pressed") }), KEY);
+  check(/^“Have you wished/.test(verb ?? "") && am.rec === "yes" && am.shown === "Yes" && am.pressed === "true", "amend in the expanded group: verbatim shown, the answer changed on the record", JSON.stringify({ verb: verb?.slice(0, 20), ...am }));
+  await page.screenshot({ path: `${OUT}/05-question-first.png`, clip: await page.locator('[data-slot="chat-rail"]').boundingBox() });
+
+  console.log("\n── 7 · the review ledger");
+  await page.locator('[data-yes-no="q6b:no"]').click();
+  await page.waitForTimeout(300);
+  const led = () =>
+    page.evaluate(() => {
+      const l = document.querySelector("[data-review-ledger]");
+      return {
+        risk: l?.querySelector("[data-review-risk]")?.textContent.replace(/\s+/g, " ").trim(),
+        rows: [...(l?.querySelectorAll("[data-answered]") ?? [])].map((r) => `${r.dataset.answered}:${r.querySelector("[data-answer-value]")?.textContent}`),
+        full: /Have you/.test(l?.innerText ?? ""),
+        note: !!l?.querySelector('[data-exchange-field="mentor-summary"]'),
+        submit: !!l?.querySelector('[data-exchange-primary="submit-assessment"]'),
+        card: !!document.querySelector("[data-assessment-active]"),
+      };
+    });
+  const r0 = await led();
+  check(r0.risk === "Assessment suggests: High risk" && !r0.card, "every question answered: the ledger, with the computed risk at the top", JSON.stringify(r0));
+  check(r0.rows.length === 7 && r0.rows.includes("q6b:No") && !r0.full && r0.note && r0.submit, "six short-label rows + the follow-up row, the note, Submit — no full question text by default", JSON.stringify(r0.rows));
+  await page.locator('[data-answered="q6"] > button').click();
+  await page.locator('[data-amend="q6:no"]').click();
+  await page.waitForTimeout(250);
+  await page.locator('[data-answered="q1"] > button').click();
+  await page.locator('[data-amend="q1:no"]').click();
+  await page.waitForTimeout(250);
+  const r1 = await led();
+  check(r1.risk === "Assessment suggests: Low risk" && r1.rows.length === 6 && !r1.rows.some((x) => x.startsWith("q6b")), "amending in review recomputes the risk live, and drops Q6's follow-up", JSON.stringify(r1));
+  await page.screenshot({ path: `${OUT}/06-review-ledger.png`, clip: await page.locator('[data-slot="chat-rail"]').boundingBox() });
   await ctx.close();
 }
 

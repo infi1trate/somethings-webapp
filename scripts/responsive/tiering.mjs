@@ -372,7 +372,8 @@ let assessed;
     text: document.querySelector("[data-assessment-active]")?.innerText,
     answered: [...document.querySelectorAll("[data-answered]")].map((q) => q.dataset.answered),
     progress: document.querySelector("[data-assessment-progress]")?.textContent,
-    folded: !!document.querySelector("[data-assessment-active] [data-assessment-progress]"),
+    header: document.querySelector("[data-question-header]")?.textContent.trim(),
+    count: document.querySelector("[data-answered-toggle]")?.textContent.trim(),
     placeholder: /placeholder/i.test(document.querySelector("[data-assessment]")?.innerText ?? ""),
   }));
   const x0 = await xs(page);
@@ -382,11 +383,14 @@ let assessed;
      path that reads FORWARDS — the next step, then the exit. */
   check(x0?.upcoming.join() === "waiting,closed" && /^Close & follow-up · after the note is complete$/.test(await page.evaluate(() => document.querySelector('[data-node="closed"] [data-node-condition]')?.textContent ?? "")), "the exit is always on the Up next path, with its condition", x0?.upcoming.join());
   check(x0?.live === "Now: Go through the assessment with Jordan", "the current node is announced in the header's live region", String(x0?.live));
-  check(s0.active.join() === "q3" && s0.answered.join() === "q1,q2", "exactly one active question (Q3); Q1–Q2 collapsed above; Q4–Q6 not rendered", JSON.stringify({ a: s0.active, d: s0.answered }));
+  check(s0.active.join() === "q3" && s0.answered.join() === "q1,q2", "exactly one active question (Q3); Q1–Q2 collapsed below it; Q4–Q6 not rendered", JSON.stringify({ a: s0.active, d: s0.answered }));
   /* Quotes normalised: the panel sets the question in typographic quotes. */
   const q3 = (s0.text ?? "").replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
   check(q3.includes('"Have you thought about how you might do that?"') && q3.includes("I thought about pills, but I'd never actually do it."), "Q3 in the pack's wording, with its example", q3.slice(0, 80));
-  check(/^2 of 6 answered · your supervisor sees each answer/.test(s0.progress ?? "") && s0.folded && !s0.placeholder, "the progress line counts six, folded into the question card", s0.progress);
+  /* RETARGETED (pack v5.0, Supersession 3): question first — "Question 3 of
+     6" heads the card; the count is the collapsed group's "2 answered"; the
+     reassurance is said once. */
+  check(s0.header === "Question 3 of 6" && s0.count === "2 answered" && s0.progress === "Your supervisor sees each answer as you give it." && !s0.placeholder, "Question 3 of 6 heads the card; 2 answered below; the reassurance once", JSON.stringify(s0));
   /* Put in message box: the question's own words, into the composer, unsent. */
   await page.locator('[data-assessment-wording="q3"]').click();
   await page.waitForTimeout(250);
