@@ -15,6 +15,10 @@
 //       sparkline under the numeral · one icon-led signals row · the 2px
 //       time line · the footer pill); 3-up ≥1280, 2-up below; Tier 4 as
 //       registry rows; AA on every text pair, both themes
+//   §5  Events: one toolbar row (range · Filters with a count badge and a
+//       popover · Export); applied filters as removable chips only when
+//       active; day headers sticky with their count; the 56px row's anatomy;
+//       a teen's flags in a day collapse into one row; windowed by day
 //
 // Exit codes: 0 all passed · 1 a check failed.
 
@@ -240,6 +244,83 @@ for (const theme of ["light", "dark"]) {
   const cols = await page.evaluate(() => getComputedStyle(document.querySelector('[data-tier-group="3"] [data-card-grid]')).gridTemplateColumns.split(" ").length);
   check(cols === 2, "@1200: 2-up below 1280", String(cols));
   await ctx0.close();
+}
+
+// ── §5 · EVENTS ─────────────────────────────────────────────────────────────
+console.log("\n── §5 · Events: a calm log");
+{
+  const { ctx, page } = await open("/app/monitoring?tab=events", { extra: { chatScenarioId: "escalation-active" } });
+  await page.evaluate(() => document.querySelector("[data-events]").scrollIntoView({ block: "start" }));
+  await page.waitForTimeout(300);
+  const T = { tert: await tok(page, "--text-tertiary", "color"), sec: await tok(page, "--text-secondary", "color"), prim: await tok(page, "--text-primary", "color"), strong: await tok(page, "--surface-sunken-strong"), t1: await tok(page, "--t1"), t1ink: await tok(page, "--t1-ink", "color") };
+  const tb = await page.evaluate(() => {
+    const r = (e) => e?.getBoundingClientRect();
+    const g = document.querySelector("[data-range-group]"), f = document.querySelector("[data-filters-button]"), x = document.querySelector("[data-export-csv]");
+    return { tops: [g, f, x].map((e) => Math.round(r(e).top)), hs: [g, f, x].map((e) => Math.round(r(e).height)), chipsOut: document.querySelectorAll("[data-filter-chip], [data-filter-picker]").length, applied: !!document.querySelector("[data-applied-filters]"), badge: !!document.querySelector("[data-filters-badge]"), exportRight: Math.abs(r(x).right - r(document.querySelector("[data-events-filter]")).right) <= 1 };
+  });
+  check(new Set(tb.tops).size === 1 && tb.hs.every((h) => h === 44) && tb.exportRight, "one toolbar row: range · Filters · Export CSV at the right, all 44 tall", JSON.stringify(tb));
+  check(tb.chipsOut === 0 && !tb.applied && !tb.badge, "no loose chip rows: types, tiers and pickers live in the popover; nothing applied, no second row, no badge", JSON.stringify(tb));
+  await page.locator("[data-filters-button]").click();
+  await page.waitForTimeout(200);
+  const pop = await page.evaluate(() => { const p = document.querySelector("[data-filters-popover]"); const ids = [...(p?.querySelectorAll("[data-filter-chip]") ?? [])].map((c) => c.dataset.filterChip); return { kinds: ids.filter((i) => !/^t\d$/.test(i)).length, tiers: ids.filter((i) => /^t\d$/.test(i)).length, pickers: [...(p?.querySelectorAll("[data-filter-picker]") ?? [])].map((x) => x.dataset.filterPicker).join() }; });
+  check(pop.kinds === 4 && pop.tiers === 4 && pop.pickers === "mentor,supervisor", "the popover holds event types, tiers, mentor and supervisor", JSON.stringify(pop));
+  await page.locator('[data-filter-chip="note"]').click();
+  await page.locator('[data-filter-chip="t4"]').click();
+  await page.locator('[data-filter-picker="mentor"]').fill("noah");
+  await page.waitForTimeout(250);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(200);
+  const ap = await page.evaluate(() => ({ chips: [...document.querySelectorAll("[data-applied-chip]")].map((c) => `${c.dataset.appliedChip}=${c.textContent.trim()}`), badge: document.querySelector("[data-filters-badge]")?.textContent, label: document.querySelector("[data-filters-button]")?.getAttribute("aria-label") }));
+  check(ap.chips.length === 3 && ap.badge === "3" && ap.label === "Filters, 3 applied", "applied: a second row of removable chips, and the badge counts them", JSON.stringify(ap));
+  await page.locator('[data-applied-chip="mentor"]').click();
+  await page.waitForTimeout(200);
+  const ap2 = await page.evaluate(() => document.querySelectorAll("[data-applied-chip]").length);
+  await page.locator("[data-clear-filters]").click();
+  await page.waitForTimeout(200);
+  const ap3 = await page.evaluate(() => ({ row: !!document.querySelector("[data-applied-filters]"), badge: !!document.querySelector("[data-filters-badge]") }));
+  check(ap2 === 2 && !ap3.row && !ap3.badge, "removing a chip clears that filter; Clear all clears the row", JSON.stringify({ ap2, ...ap3 }));
+  const sum = await page.evaluate(() => { const e = document.querySelector("[data-events-summary]"); const s = getComputedStyle(e); return { f: `${s.fontSize} ${s.color}`, tab: [...e.querySelectorAll("span")].every((x) => getComputedStyle(x).fontVariantNumeric.includes("tabular-nums")) }; });
+  check(sum.f === `13px ${T.sec}` && sum.tab, "the summary: one sentence, 13 secondary, numerals tabular", JSON.stringify(sum));
+  const day = await page.evaluate(() => { const h = document.querySelector("[data-day-header]"); const s = getComputedStyle(h); const c = h.querySelector("[data-day-count]"); return { f: `${s.fontSize}/${s.lineHeight} ${s.fontFamily.split(",")[0]}`, pos: s.position, pt: s.paddingTop, pb: s.paddingBottom, text: h.textContent.trim(), cc: getComputedStyle(c).color }; });
+  check(day.f === "13px/18px avantt" && day.pos === "sticky" && day.pt === "24px" && day.pb === "8px" && /^Today · \d+$/.test(day.text) && day.cc === T.tert, "day headers: sticky, 13/18 (Avantt), the count tertiary after a middle dot, 24 above and 8 below", JSON.stringify(day));
+  const rows = await page.evaluate(() => [...document.querySelectorAll("[data-event]:not([data-event-run]) ")].slice(0, 12).map((li) => {
+    const cs = (e) => getComputedStyle(e);
+    const grid = li.firstElementChild, t = li.querySelector("[data-event-time]"), circ = li.querySelector('span[aria-hidden].size-7'), glyph = circ?.querySelector("svg"), teen = li.querySelector("[data-event-teen]"), mentor = teen?.nextElementSibling, det = li.querySelector("[data-event-detail]"), st = li.querySelector("[data-event-chip]"), dot = li.querySelector("[data-open-dot]"), chev = li.querySelector("[data-event-expand]");
+    return { kind: li.dataset.eventKind, tier: li.dataset.eventTier, state: li.dataset.eventState, h: Math.round(grid.getBoundingClientRect().height), r: cs(li).borderTopLeftRadius, time: `${cs(t).fontSize} ${cs(t).color} ${Math.round(t.getBoundingClientRect().width)}`, circ: circ && `${Math.round(circ.getBoundingClientRect().width)} ${cs(circ).backgroundColor}`, glyph: glyph && cs(glyph).color, teen: `${cs(teen).fontSize} ${cs(teen).fontFamily.split(",")[0]}`, mentor: mentor && `${cs(mentor).fontSize} ${cs(mentor).color}`, det: `${cs(det).fontSize} ${cs(det).color}`, st: st && `${cs(st).fontSize} ${cs(st).color}`, dot: dot && `${Math.round(dot.getBoundingClientRect().width)} ${cs(dot).backgroundColor}`, chev: cs(chev).opacity };
+  }));
+  check(rows.length > 0 && rows.every((x) => x.h >= 56 && x.r === "12px" && x.time.startsWith(`13px ${T.tert} 64`) && x.circ === `28 ${T.strong}` && x.teen === "15px avantt" && x.mentor === `13px ${T.sec}` && x.det === `14px ${T.sec}`), "rows: ≥56 tall, 12px radius; time 13 tertiary in a 64 column; a 28px soft circle; teen 15; mentor 13; detail 14 secondary", JSON.stringify(rows[0]));
+  check(rows.filter((x) => x.st).every((x) => x.st === `13px ${T.tert}`) && rows.every((x) => x.chev === "0"), "the state is quiet text (13 tertiary); the chevron waits for hover", JSON.stringify(rows.map((x) => x.st).slice(0, 3)));
+  const opens = rows.filter((x) => x.state === "open");
+  check(opens.length > 0 && opens.every((x) => x.dot === `6 ${Number(x.tier) <= 2 ? T.t1 : T.sec}`) && rows.filter((x) => x.state !== "open").every((x) => !x.dot), "a 6px dot only while Open — the alert hue for Tiers 1–2 alone", JSON.stringify(opens.map((x) => [x.tier, x.dot])));
+  const t1e = rows.find((x) => x.kind === "escalation" && x.tier === "1");
+  check(!t1e || t1e.glyph === T.t1ink, "a Tier 1 escalation's glyph is the t1 ink", JSON.stringify(t1e?.glyph));
+  /* The collapsed run. */
+  const run = await page.evaluate(() => { const r = document.querySelector("[data-event-run]"); return r ? { n: Number(r.dataset.eventRun), detail: r.querySelector("[data-event-detail]")?.textContent.trim(), teen: r.querySelector("[data-event-teen]")?.textContent } : null; });
+  check(!!run && run.n >= 2 && new RegExp(`^${run.n} flags( today)? · [^·]+$`).test(run.detail), "a teen's flags in a day collapse into one row: “N flags today · <the newest flag's words>”", JSON.stringify(run));
+  await page.locator("[data-event-run]").first().hover();
+  await page.waitForTimeout(300); // the chevron's opacity transition
+  const hov = await page.evaluate(() => getComputedStyle(document.querySelector("[data-event-run] [data-event-expand]")).opacity);
+  await page.locator("[data-event-run] [data-event-expand]").first().click();
+  await page.waitForTimeout(200);
+  const nested = await page.evaluate(() => document.querySelectorAll("[data-event-run] [data-run-flags] [data-event]").length);
+  check(hov === "1" && nested === run?.n, "hovered, its chevron shows; expanded, the individual flags", `${hov} · ${nested} of ${run?.n}`);
+  /* The record, expanded: inset 16. */
+  const plain = page.locator("[data-event]:not([data-event-run]):not([data-run-flags] *)").first();
+  await plain.hover();
+  await plain.locator("[data-event-expand]").click();
+  await page.waitForTimeout(200);
+  const rec = await page.evaluate(() => { const r = document.querySelector("[data-event-record]"); const li = r.closest("[data-event]"); return { inset: Math.round(r.getBoundingClientRect().left - li.getBoundingClientRect().left), pad: getComputedStyle(r).paddingLeft, link: r.querySelector("[data-event-timeline]")?.textContent.trim() ?? null }; });
+  check(rec.inset === 16 && rec.pad === "16px", "the expanded record, inset 16, with Open timeline › where there is one", JSON.stringify(rec));
+  await page.screenshot({ path: `${OUT}/s5-events.png` });
+  /* Windowed by day, at 90d. */
+  await page.locator('[data-range="90d"]').click();
+  await page.waitForTimeout(500);
+  const w = await page.evaluate(() => ({ days: document.querySelectorAll("[data-event-day]").length, rendered: document.querySelectorAll("[data-day-rendered]").length, rows: document.querySelectorAll("[data-event]").length }));
+  await page.evaluate(() => { const sc = [...document.querySelectorAll("*")].find((e) => /auto|scroll/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 400); sc.scrollTop = sc.scrollHeight; });
+  await page.waitForTimeout(700);
+  const end = await page.evaluate(() => { const days = [...document.querySelectorAll("[data-event-day]")]; return { lastRendered: !!days.at(-1)?.dataset.dayRendered, rendered: document.querySelectorAll("[data-day-rendered]").length, firstRendered: !!days[0]?.dataset.dayRendered }; });
+  check(w.days > 20 && w.rendered < w.days && end.lastRendered && end.rendered < w.days, "90d is windowed by day: only the days near the scroll render — the end renders when reached", JSON.stringify({ ...w, ...end }));
+  await ctx.close();
 }
 
 await b.close();

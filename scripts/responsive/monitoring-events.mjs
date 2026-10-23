@@ -37,6 +37,8 @@ async function open(path, { theme, width = 1440, height = 1000 } = {}) {
   );
   if (theme) await ctx.addInitScript((t) => localStorage.setItem("somethings.theme", t), theme);
   const page = await ctx.newPage();
+  /* Fail fast and say where, rather than wait out 30s per locator. */
+  page.setDefaultTimeout(8000);
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e).slice(0, 160)));
   await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
@@ -46,27 +48,47 @@ async function open(path, { theme, width = 1440, height = 1000 } = {}) {
 }
 const state = (page) =>
   page.evaluate(() => {
-    const rows = [...document.querySelectorAll("[data-event]")];
+    const rows = [...document.querySelectorAll("[data-event]:not([data-event-run])")];
+    /* (Monitoring v3, §5) Days window and flags collapse, so the range is
+       counted from each day section's own per-kind tally, rendered or not. */
+    const tally = {};
+    for (const d of document.querySelectorAll("[data-event-day]")) for (const kv of (d.dataset.dayKinds ?? "").split(",")) { const [k, n] = kv.split(":"); if (k) tally[k] = (tally[k] ?? 0) + Number(n); }
     /* (Monitoring v3, §2) One label set on both tabs; the range moved into
        the detail's first fragment — keyed back together as "Escalations · 30d". */
     const hero = Object.fromEntries([...document.querySelectorAll("[data-hero-cell]")].map((c) => [`${c.dataset.heroCell} · ${(c.querySelector("[data-hero-detail]")?.textContent ?? "").split(" · ")[0]}`, Number(c.querySelector("span.font-display")?.textContent)]));
     return {
       tab: document.querySelector('[data-monitoring-tab][aria-selected="true"]')?.dataset.monitoringTab,
       url: location.pathname + location.search,
-      rows: rows.length,
-      kinds: [...new Set(rows.map((r) => r.dataset.eventKind))],
-      esc: rows.filter((r) => r.dataset.eventKind === "escalation").length,
-      flags: rows.filter((r) => r.dataset.eventKind === "flag").length,
-      tierChanges: rows.filter((r) => r.dataset.eventKind === "tier_change").length,
+      rows: Object.values(tally).reduce((a, b) => a + b, 0),
+      kinds: Object.keys(tally).filter((k) => tally[k] > 0),
+      esc: tally.escalation ?? 0,
+      flags: tally.flag ?? 0,
+      tierChanges: tally.tier_change ?? 0,
       summary: document.querySelector("[data-events-summary]")?.textContent ?? "",
       hero,
-      days: [...document.querySelectorAll("[data-day-header]")].map((h) => h.textContent),
+      days: [...document.querySelectorAll("[data-event-day]")].map((d) => d.dataset.eventDay),
       times: rows.map((r) => r.querySelector("time")?.getAttribute("datetime")),
       empty: document.querySelector("[data-events-empty]")?.textContent ?? null,
       end: document.querySelector("[data-events-end]")?.textContent ?? null,
     };
   });
 const num = (summary, re) => Number((summary.match(re) ?? [])[1]);
+/* (Monitoring v3, §5) The type and tier chips and the pickers live in the
+   Filters popover now: open it first (it stays open while used). */
+const openFilters = async (page) => {
+  if (!(await page.locator("[data-filters-popover]").count())) {
+    await page.locator("[data-filters-button]").click();
+    await page.waitForTimeout(150);
+  }
+};
+const chip = async (page, k) => {
+  await openFilters(page);
+  await page.locator(`[data-filter-chip="${k}"]`).click();
+};
+const picker = async (page, k) => {
+  await openFilters(page);
+  return page.locator(`[data-filter-picker="${k}"]`);
+};
 
 // ── 1 · THE TAB ───────────────────────────────────────────────────────────
 console.log("\n── 1 · Watch · Events, deep-linked");
@@ -100,8 +122,9 @@ console.log("\n── 2 · filters compose, and the summary and hero follow them
   const d30 = await state(page);
   check(/^30d · /.test(d30.summary) && num(d30.summary, /· (\d+) escalations?/) === d30.esc && num(d30.summary, /· (\d+) flags?,/) === d30.flags && num(d30.summary, /· (\d+) tier changes?/) === d30.tierChanges, "the summary line counts exactly the rows below it", d30.summary);
   check(d30.hero["Escalations · 30d"] === d30.esc && d30.hero["Risk flags · 30d"] === d30.flags, "the hero's flag and escalation cells count the same range", JSON.stringify(d30.hero));
-  const mono = await page.evaluate(() => [...document.querySelectorAll("[data-events-summary] span")].every((s) => /mono/.test(getComputedStyle(s).fontFamily)) && !/mono/.test(getComputedStyle(document.querySelector("[data-events-summary]")).fontFamily));
-  check(mono, "numerals in mono, labels in the sans");
+  /* RETARGETED (Monitoring v3, §5): one sentence in the sans, numerals tabular. */
+  const tab = await page.evaluate(() => [...document.querySelectorAll("[data-events-summary] span")].every((s) => getComputedStyle(s).fontVariantNumeric.includes("tabular-nums") && !/mono/.test(getComputedStyle(s).fontFamily)));
+  check(tab, "numerals tabular, in the sentence's own face");
   /* Range, by keyboard: one tab stop, arrows select. */
   await page.locator('[data-range="30d"]').focus();
   await page.keyboard.press("ArrowLeft");
@@ -114,31 +137,31 @@ console.log("\n── 2 · filters compose, and the summary and hero follow them
   check(d90.rows > d30.rows, "90d holds more than 30d — the generated history makes the range mean something", `${d30.rows} → ${d90.rows}`);
   await page.locator('[data-range="30d"]').click();
   /* Type chips: escalations only. */
-  for (const k of ["flag", "tier_change", "note"]) await page.locator(`[data-filter-chip="${k}"]`).click();
+  for (const k of ["flag", "tier_change", "note"]) await chip(page, k);
   await page.waitForTimeout(250);
   const esc = await state(page);
   check(esc.kinds.join() === "escalation" && esc.rows === d30.esc, "type chips narrow to Escalations alone", JSON.stringify(esc.kinds));
   /* …and Tier 1 only. */
-  for (const t of ["t2", "t3", "t4"]) await page.locator(`[data-filter-chip="${t}"]`).click();
+  for (const t of ["t2", "t3", "t4"]) await chip(page, t);
   await page.waitForTimeout(250);
   const t1 = await state(page);
   const t1Tiers = await page.evaluate(() => [...document.querySelectorAll("[data-event]")].map((d) => d.dataset.eventTier));
   check(t1.rows > 0 && t1.rows < esc.rows && t1Tiers.every((t) => t === "1"), "tier chips compose with type: T1 escalations only", `${esc.rows} → ${t1.rows} · tiers ${[...new Set(t1Tiers)]}`);
   const chips = await page.evaluate(() => [...document.querySelectorAll("[data-filter-chip]")].map((c) => `${c.dataset.filterChip}:${c.getAttribute("aria-checked")}`).join(" "));
   check(/escalation:true flag:false/.test(chips) && /t1:true t2:false/.test(chips), "the chips are checkboxes that say their state", chips);
-  for (const t of ["t2", "t3", "t4"]) await page.locator(`[data-filter-chip="${t}"]`).click();
-  for (const k of ["flag", "tier_change", "note"]) await page.locator(`[data-filter-chip="${k}"]`).click();
+  for (const t of ["t2", "t3", "t4"]) await chip(page, t);
+  for (const k of ["flag", "tier_change", "note"]) await chip(page, k);
   /* Mentor search, as you type. */
-  await page.locator('[data-filter-picker="mentor"]').fill("noah");
+  await (await picker(page, "mentor")).fill("noah");
   await page.waitForTimeout(250);
   const noah = await page.evaluate(() => [...document.querySelectorAll("[data-event]")].map((r) => r.querySelector("[data-event-teen] + span")?.textContent));
   check(noah.length > 0 && noah.every((m) => /^Noah/.test(m ?? "")), "the mentor picker filters as you type", `${noah.length} rows`);
-  await page.locator('[data-filter-picker="mentor"]').fill("");
-  await page.locator('[data-filter-picker="supervisor"]').fill("stephen");
+  await (await picker(page, "mentor")).fill("");
+  await (await picker(page, "supervisor")).fill("stephen");
   await page.waitForTimeout(250);
   const sup = await state(page);
   check(sup.rows > 0 && sup.rows < d30.rows, "and the supervisor picker too", `${sup.rows} rows`);
-  await page.locator('[data-filter-picker="supervisor"]').fill("");
+  await (await picker(page, "supervisor")).fill("");
   /* Custom: two dates. */
   await page.locator('[data-range="custom"]').click();
   await page.waitForTimeout(150);
@@ -177,7 +200,7 @@ console.log("\n── 3 · newest first, by day, sticky headers, empty and end")
   });
   check(sticky.pinned === 1 && sticky.opaque && sticky.above, "scrolled: the filter row stays; exactly one day header pins right under it, and the row covers the rest", JSON.stringify(sticky));
   /* Empty: every type off. */
-  for (const k of ["escalation", "flag", "tier_change", "note"]) await page.locator(`[data-filter-chip="${k}"]`).click();
+  for (const k of ["escalation", "flag", "tier_change", "note"]) await chip(page, k);
   await page.waitForTimeout(200);
   const e = await state(page);
   check(e.rows === 0 && e.empty === "No events in the last 30 days", "nothing selected: the empty state names the range", String(e.empty));
@@ -213,7 +236,7 @@ console.log("\n── 4 · a row expands to its record; tier changes wear the au
 console.log("\n── 5 · Export CSV respects the filter");
 {
   const { ctx, page } = await open("/app/monitoring?tab=events");
-  for (const k of ["flag", "tier_change", "note"]) await page.locator(`[data-filter-chip="${k}"]`).click();
+  for (const k of ["flag", "tier_change", "note"]) await chip(page, k);
   await page.waitForTimeout(250);
   const s = await state(page);
   const [dl] = await Promise.all([page.waitForEvent("download"), page.locator("[data-export-csv]").click()]);
