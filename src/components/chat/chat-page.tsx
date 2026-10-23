@@ -44,7 +44,6 @@ import { EscalationBanner, Thread } from "@/components/chat/thread/thread";
 import { DetailSheet } from "@/components/chat/thread/detail-sheet";
 import { chatScenario } from "@/lib/chat/seed";
 import { activityById } from "@/lib/chat/activities";
-import { relLength, teenAsMentee } from "@/lib/record/mentees-demo";
 import { teensForMentor } from "@/lib/record/people-demo";
 import type { AssistInput } from "@/lib/chat/assist";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -330,13 +329,6 @@ export function ChatPage({
     () => (teen ? { teen, messages, artifacts, noteCount: notes.length, now } : null),
     [teen, messages, artifacts, notes.length, now]
   );
-  /** `relLength` from `mentees-demo` rather than arithmetic here — the mentee table
-   *  already phrases this, and two phrasings of one fact is how "5 months" and
-   *  "171 days" end up on two surfaces. */
-  const matchedFor = useMemo(
-    () => (teen ? relLength(teenAsMentee(teen, now).matchedAt, now) : null),
-    [teen, now]
-  );
 
   /* ═══ THE RAIL IS CONTROLLED FROM HERE ═══
      Because tagging a message in the THREAD has to be able to open the note
@@ -360,13 +352,19 @@ export function ChatPage({
      makes Care the default here too — derived like the rest, so a reader who
      then picks another tab is not pulled back. Overview is already the Care
      panel's default tab. */
-  const arrivedForCare = useSearchParams().get("care") === "overview";
+  const search = useSearchParams();
+  const arrivedForCare = search.get("care") === "overview";
+  /* `?rail=profile` (Care Hero v7.0): the identity strip's link, addressable —
+     the Monitoring row and the record can point at a teen's profile tab. */
+  const arrivedForProfile = search.get("rail") === "profile";
   const railTab: RailTab =
     pickedTab && pickedTab.threadId === thread?.id
       ? pickedTab.tab
-      : careEscalation || arrivedForCare
-        ? "care"
-        : "assist";
+      : arrivedForProfile
+        ? "profile"
+        : careEscalation || arrivedForCare
+          ? "care"
+          : "assist";
   /* ═══ SUPERSEDED (support-beside-hub): THE HUB AND SUPPORT COEXIST ═══
      SUP standing rule 6 was "one right-hand surface at a time", so a reader
      asking for the rail closed Support. The pack replaces it on this screen:
@@ -1074,10 +1072,11 @@ export function ChatPage({
                   }}
                   highlightTier={arrived === thread.id}
                   arrivedForCare={arrivedForCare}
+                  onOpenProfile={() => setRailTab("profile")}
+                  onOpenSupportTo={(id) => (canOpenInSupport(id) ? () => openInSupport(id) : undefined)}
                 />
               }
               assist={assist}
-              matchedFor={matchedFor}
               now={now}
               tab={railTab}
               onTabChange={setRailTab}

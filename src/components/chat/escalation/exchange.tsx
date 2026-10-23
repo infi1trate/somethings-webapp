@@ -24,256 +24,34 @@
 // Emergency information button (Supersession 5).
 
 import { useEffect, useId, useState } from "react";
-import { ArrowRight, Check, ChevronDown, Lock, MessageSquare, Sparkles } from "lucide-react";
+import { Check, ChevronDown, Lock, MessageSquare } from "lucide-react";
 import { announceClose } from "@/components/chat/escalation/close-toast";
 import { Quote } from "@/components/chat/escalation/quote";
 import { WaitingModule, type SupervisorEcho } from "@/components/chat/escalation/waiting-module";
 import { TierLozenge } from "@/components/ui/tier-lozenge";
 import type { EscalationState, MessageOrigin } from "@/lib/chat/types";
-import { REFERRAL_TYPE } from "@/lib/record/people-demo";
 import {
-  ASSESSMENT_QUESTIONS,
-  CLINICAL_SUBTYPES,
   CLOSE_OUT_TIER,
   CLOSE_OUT_TIER_COPY,
-  CRISIS_SECTION_LABEL,
-  CRISIS_TAGS,
-  EMERGENCY_SERVICES,
   FOLLOW_UP_IN,
   OUTCOMES,
-  RISK_LABEL,
-  SAFETY_PLAN_STATUS,
-  activeStep,
-  askedSteps,
   assessmentOf,
-  autoOutcome,
-  draftDebrief,
   escalationTarget,
   mentorStage,
   riskLevel,
-  sectionDone,
   supervisorStage,
   workingTier,
-  type CrisisNote,
-  type CrisisSectionId,
-  type RiskLevel,
 } from "@/lib/tiering/escalation";
-import { assessmentProgress, orderNodes, timelineNodes, type Lens, type TimelineNode } from "@/lib/tiering/timeline";
+import { noteProgressOf, noteTierOf, orderNodes, timelineNodes, type Lens, type TimelineNode } from "@/lib/tiering/timeline";
 import type { Tiering } from "@/lib/tiering/use-tiering";
 import { PLATFORM, TIER_NAME, isAlertTier, type Tier } from "@/lib/tiering/tiers";
 import { cn } from "@/lib/utils";
+import { AssessmentAccordion } from "@/components/chat/escalation/assessment-accordion";
+import { BODY, Field, LABEL, Primary, RING, RiskChip, TITLE, onRadioKeys, rovingTab } from "@/components/chat/escalation/controls";
+import { CrisisNoteAccordion } from "@/components/chat/escalation/crisis-note-accordion";
 
-const RING =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 const TIME = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
-const BODY = { font: "var(--type-body)" } as const;
-const LABEL = { font: "var(--type-field-label)" } as const;
-const TITLE = { font: "var(--type-card-title)" } as const;
-
-// ── PRIMITIVES ──────────────────────────────────────────────────────────────
-
-/** ═══ THE ONE PRIMARY, NEVER RED (pack v3.0) ═══ v2 turned it alert-red on a
- *  Tier 1–2 confirm; the requested tier stays neutral until confirmed. */
-function Primary({ children, onClick, slot }: { children: React.ReactNode; onClick: () => void; slot: string }) {
-  return (
-    <button
-      type="button"
-      data-exchange-primary={slot}
-      onClick={onClick}
-      className={cn(
-        "flex min-h-11 w-full items-center justify-center gap-2 rounded-full px-4 text-[var(--text-inverse)] transition-opacity hover:opacity-90",
-        "bg-[var(--text-primary)]",
-        RING
-      )}
-      style={{ font: "var(--type-button)" }}
-    >
-      {children}
-    </button>
-  );
-}
-
-/** ═══ RADIOGROUPS MOVE BY ARROW KEY (WAI-ARIA radio pattern) ═══ One tab
- *  stop per group — the checked radio, or the first when none is — and the
- *  arrows move focus AND selection, as a native radio set does. */
-function onRadioKeys(ev: React.KeyboardEvent<HTMLElement>) {
-  const step = ev.key === "ArrowRight" || ev.key === "ArrowDown" ? 1 : ev.key === "ArrowLeft" || ev.key === "ArrowUp" ? -1 : 0;
-  if (!step) return;
-  const radios = [...ev.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]:not([aria-disabled="true"])')];
-  const i = radios.indexOf(document.activeElement as HTMLElement);
-  if (i < 0) return;
-  ev.preventDefault();
-  const next = radios[(i + step + radios.length) % radios.length];
-  next.focus();
-  next.click();
-}
-const rovingTab = (on: boolean, first: boolean, anyOn: boolean) => (on || (!anyOn && first) ? 0 : -1);
-
-function Field({ label, value, onChange, rows = 2, slot, invalid = false, placeholder }: { label: string; value: string; onChange: (v: string) => void; rows?: number; slot: string; invalid?: boolean; placeholder?: string }) {
-  const id = useId();
-  return (
-    <div>
-      <label htmlFor={id} className="mb-1.5 block text-[var(--text-muted)]" style={LABEL}>
-        {label}
-      </label>
-      <textarea
-        id={id}
-        data-exchange-field={slot}
-        rows={rows}
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        aria-invalid={invalid || undefined}
-        className={cn(
-          "block w-full resize-none rounded-[var(--radius-control)] border bg-[var(--surface-card)] px-3 py-2 text-[var(--text-primary)] placeholder:text-[var(--text-muted)]",
-          invalid ? "border-[color:var(--state-error)]" : "border-[color:var(--border-subtle)]",
-          RING
-        )}
-        style={BODY}
-      />
-    </div>
-  );
-}
-
-/** A Yes / No pair as a radiogroup. */
-function YesNo({ value, onChange, label, slot }: { value: boolean | null | undefined; onChange: (v: boolean) => void; label: string; slot: string }) {
-  return (
-    <div role="radiogroup" aria-label={label} onKeyDown={onRadioKeys} className="flex gap-1.5">
-      {[true, false].map((v, i) => {
-        const on = value === v;
-        return (
-          <button
-            key={String(v)}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            tabIndex={rovingTab(on, i === 0, value === true || value === false)}
-            data-yes-no={`${slot}:${v ? "yes" : "no"}`}
-            onClick={() => onChange(v)}
-            className={cn(
-              "inline-flex min-h-9 min-w-14 items-center justify-center gap-1 rounded-full border px-3",
-              on ? "border-[color:var(--text-primary)] bg-[var(--surface-s2)] text-[var(--text-primary)]" : "border-[color:var(--border-subtle)] text-[var(--text-secondary)]",
-              !on && "hover:bg-[var(--tint-hover)]",
-              RING
-            )}
-            style={BODY}
-          >
-            {on && <Check aria-hidden className="size-3.5" />}
-            {v ? "Yes" : "No"}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Checkbox chips — a multi-select whose state is in words and a mark. */
-function Chips<T extends string>({ options, value, onChange, label }: { options: readonly { id: T; label: string }[]; value: T[]; onChange: (v: T[]) => void; label: string }) {
-  return (
-    <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
-      {options.map((o) => {
-        const on = value.includes(o.id);
-        return (
-          <button
-            key={o.id}
-            type="button"
-            role="checkbox"
-            aria-checked={on}
-            data-chip={o.id}
-            onClick={() => onChange(on ? value.filter((x) => x !== o.id) : [...value, o.id])}
-            className={cn(
-              "inline-flex min-h-8 items-center gap-1 rounded-full border px-3",
-              on ? "border-[color:var(--text-primary)] bg-[var(--surface-s2)] text-[var(--text-primary)]" : "border-[color:var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
-              RING
-            )}
-            style={BODY}
-          >
-            {on && <Check aria-hidden className="size-3.5" />}
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Single choice as radio rows. */
-function Choice<T extends string>({ options, value, onChange, label, slot }: { options: readonly { id: T; label: string }[]; value: T | null | undefined; onChange: (v: T) => void; label: string; slot: string }) {
-  return (
-    <div role="radiogroup" aria-label={label} onKeyDown={onRadioKeys} className="space-y-1.5">
-      {options.map((o, i) => {
-        const on = value === o.id;
-        return (
-          <button
-            key={o.id}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            tabIndex={rovingTab(on, i === 0, options.some((x) => x.id === value))}
-            data-choice={`${slot}:${o.id}`}
-            onClick={() => onChange(o.id)}
-            className={cn(
-              "flex w-full items-center gap-2.5 rounded-[var(--radius-inset)] border px-3 py-2 text-left",
-              on ? "border-[color:var(--text-primary)] bg-[var(--surface-s2)]" : "border-[color:var(--border-subtle)] bg-[var(--surface-s1)] hover:bg-[var(--tint-hover)]",
-              RING
-            )}
-            style={BODY}
-          >
-            <span aria-hidden className={cn("flex size-4 shrink-0 items-center justify-center rounded-full border", on ? "border-[color:var(--text-primary)]" : "border-[color:var(--border-default)]")}>
-              {on && <span className="size-2 rounded-full bg-[var(--text-primary)]" />}
-            </span>
-            <span className="text-[var(--text-primary)]">{o.label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── THE RISK CHIP ───────────────────────────────────────────────────────────
-
-/** ═══ ADVISORY, NEVER A TIER ═══ Computed from the answers, keyed on the
- *  level so each change settles once. NEUTRAL (pack v3.0, F3): the level is
- *  in words. `compact` drops the "Assessment suggests:" lead-in, for a
- *  timeline line whose title already says what the chip is about. */
-export function RiskChip({ level, compact = false }: { level: RiskLevel | null; compact?: boolean }) {
-  if (!level) return null;
-  return (
-    <span
-      key={level}
-      data-risk-chip={level}
-      className={cn(
-        /* ═══ NEUTRAL, IN EVERY LEVEL (pack v3.0, Workstream F3) ═══ Red in the
-           mentor's escalation view is the banner's, the escalation dot's and
-           the Tier 1–2 lozenges' alone. The chip was alert-tinted for
-           Moderate and High; it is words in a neutral chip now, and the level
-           is never colour alone anyway. */
-        "tier-settle inline-flex h-6 shrink-0 items-center rounded-full border border-[color:var(--border-default)] bg-[var(--surface-card)] px-2.5 text-[var(--text-primary)]"
-      )}
-      style={LABEL}
-    >
-      {/* TODO-COPY */}
-      {compact ? RISK_LABEL[level] : `Assessment suggests: ${RISK_LABEL[level]}`}
-    </span>
-  );
-}
-
-// ── THE CRISIS NOTE'S ONE-LINE SUMMARIES ─────────────────────────────────────
-
-function noteSummary(note: CrisisNote, id: CrisisSectionId): string {
-  const label = <T extends { id: string; label: string }>(list: readonly T[], v?: string) => list.find((x) => x.id === v)?.label ?? v ?? "";
-  switch (id) {
-    case "subtype":
-      return [label(CLINICAL_SUBTYPES, note.subtype), ...(note.tags ?? []).map((t) => label(CRISIS_TAGS, t))].filter(Boolean).join(" · ");
-    case "safety-plan":
-      return label(SAFETY_PLAN_STATUS, note.safetyPlan?.status);
-    case "resources":
-      return note.resources?.shared ? note.resources.list : "None shared";
-    case "referral":
-      return note.referral?.made ? note.referral.list.map((r) => label(REFERRAL_TYPE, r)).join(", ") : "No referral";
-    case "emergency":
-      return [note.contact?.engaged ? "Contact engaged" : "Contact not engaged", note.services?.contacted ? note.services.which.map((s) => label(EMERGENCY_SERVICES, s)).join(", ") : "No services"].join(" · ");
-  }
-}
+export { RiskChip };
 
 
 // ── THE HERO — state only ───────────────────────────────────────────────────
@@ -607,250 +385,6 @@ function Node({
   );
 }
 
-// ── THE ASSESSMENT (mentor's current node) ─────────────────────────────────
-
-function AssessmentCard({ e, name, onAnswer, onUseWording, tiering, teenId }: { e: EscalationState; name: string; onAnswer: (id: string, v: "yes" | "no") => void; onUseWording: (t: string, origin?: MessageOrigin) => void; tiering: Tiering; teenId: string }) {
-  const answers = assessmentOf(e).answers;
-  const steps = askedSteps(answers);
-  const active = activeStep(answers);
-  const answered = steps.filter((s) => answers[s.id]);
-  const risk = riskLevel(answers);
-  const [summary, setSummary] = useState(e.mentorSummary ?? "");
-  const [tried, setTried] = useState(false);
-  const [groupOpen, setGroupOpen] = useState(false);
-  const groupId = useId();
-  /* TODO-COPY. "Question 3 of 6"; Q6's follow-up is "Question 6 · follow-up". */
-  const n = active ? ASSESSMENT_QUESTIONS.findIndex((q) => q.id === (active.followUpOf ?? active.id)) + 1 : 0;
-  const header = active ? (active.followUpOf ? `Question ${n} · follow-up` : `Question ${n} of ${ASSESSMENT_QUESTIONS.length}`) : "";
-
-  /* ═══ THE REVIEW LEDGER (pack v5.0, Supersession 4) ═══ Every question
-     answered: the computed risk at the top, recomputing live as an answer is
-     amended; one short-label row per question (tap to see it verbatim and to
-     change the answer); the note; Submit. The full question text is never
-     the default. */
-  if (!active)
-    return (
-      <div data-m2 data-review-ledger className="space-y-3">
-        {/* The chip carries "Assessment suggests: …" itself — one home. */}
-        <p data-review-risk className="flex">
-          <RiskChip level={risk} />
-        </p>
-        <ol data-assessment-answered className="space-y-1">
-          {answered.map((s) => (
-            <AnsweredRow key={s.id} step={s} value={answers[s.id].value} slot="data-answered" onAmend={onAnswer} />
-          ))}
-        </ol>
-        <Field slot="mentor-summary" label={`In a sentence or two, what's going on with ${name}`} value={summary} onChange={setSummary} invalid={tried && !summary.trim()} />
-        {tried && !summary.trim() && (
-          <p role="alert" className="text-[var(--state-error)]" style={LABEL}>
-            {/* TODO-COPY */}
-            Add a sentence for your supervisor.
-          </p>
-        )}
-        <Primary
-          slot="submit-assessment"
-          onClick={() => {
-            setTried(true);
-            if (!summary.trim()) return;
-            tiering.submitAssessment(teenId, summary);
-          }}
-        >
-          {/* TODO-COPY */}
-          Submit to supervisor
-        </Primary>
-      </div>
-    );
-
-  return (
-    <div data-m2 className="space-y-3">
-      {/* ═══ QUESTION FIRST, IN A FIXED PLACE (pack v5.0, Supersession 3) ═══
-          The live question sits at the top of the node and never moves as
-          answers accrue below it — measured at 0, 3 and 6 answers.
-          ═══ TWO ZONES (pack v4.0, Supersession 2), unchanged ═══
-             1  ASK {TEEN}      the question, verbatim, and "Ask in chat" — it
-                               goes into the message box, editable, never sent
-             2  {TEEN}'S ANSWER  Yes / No, on a sunken well: subordinate to
-                               the asking, and never disabled */}
-      <div data-assessment data-assessment-active={active.id} className="space-y-3">
-        <p data-question-header className="tabular-nums text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase">
-          {header}
-        </p>
-        {/* ═══ THE SWAP (make it magical 1) ═══ Keyed on the question, so the
-            card's content changes in place — one soft fade — while the card
-            itself holds still. Off under reduced motion. */}
-        <section key={active.id} data-zone="ask" aria-labelledby={`${active.id}-ask`} className="q-swap space-y-1.5">
-          {/* ═══ THE NEXT QUESTION IS ANNOUNCED ═══ A polite, atomic region. */}
-          <div data-question-live aria-live="polite" aria-atomic="true" className="space-y-1">
-            <p id={`${active.id}-ask`} data-zone-label className="text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase">
-              {/* TODO-COPY */}
-              Ask {name}
-              <span className="sr-only">
-                {" · "}
-                {header}
-              </span>
-            </p>
-            <p className="text-[var(--text-primary)]" style={TITLE}>
-              &ldquo;{active.text}&rdquo;
-            </p>
-            {active.example && (
-              <p className="text-[var(--text-secondary)]" style={LABEL}>
-                {active.example}
-              </p>
-            )}
-          </div>
-          <button
-            type="button"
-            data-assessment-wording={active.id}
-            onClick={() => onUseWording(active.text, { kind: "assessment", questionId: active.id })}
-            className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3.5 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
-            style={BODY}
-          >
-            {/* TODO-COPY */}
-            Ask in chat <ArrowRight aria-hidden className="size-3.5" />
-          </button>
-        </section>
-        <section data-zone="answer" aria-labelledby={`${active.id}-answer`} className="space-y-2 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p id={`${active.id}-answer`} data-zone-label className="text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase">
-                {/* TODO-COPY */}
-                {name}&rsquo;s answer
-              </p>
-              <p data-zone-hint className="text-[var(--text-secondary)]" style={LABEL}>
-                {/* TODO-COPY — the pack's line. */}
-                Record what {name} tells you.
-              </p>
-            </div>
-            {/* ═══ ANSWERS ARE ACTIONS, NOT A SELECTION ═══ Two buttons in a
-                labelled group: as radios, an arrow key would answer a clinical
-                question by accident. */}
-            <div role="group" aria-label={`${name}'s answer`} className="flex gap-1.5">
-              {(["yes", "no"] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  data-yes-no={`${active.id}:${v}`}
-                  onClick={() => onAnswer(active.id, v)}
-                  className={cn("inline-flex min-h-9 min-w-14 items-center justify-center rounded-full border border-[color:var(--border-default)] bg-[var(--surface-raised)] px-3 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
-                  style={BODY}
-                >
-                  {v === "yes" ? "Yes" : "No"}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-      </div>
-      {/* ═══ THE ANSWERED GROUP, COLLAPSED (Supersession 3) ═══ One summary
-          row below the card; expanding shows the short-label rows, where an
-          answer can be changed. */}
-      {answered.length > 0 && (
-        <div data-answered-group>
-          <button
-            type="button"
-            data-answered-toggle
-            aria-expanded={groupOpen}
-            aria-controls={groupId}
-            onClick={() => setGroupOpen((o) => !o)}
-            className={cn("flex min-h-8 w-full items-center gap-1.5 rounded-sm text-left text-[var(--text-secondary)] hover:text-[var(--text-primary)]", RING)}
-            style={LABEL}
-          >
-            {/* The count settles as the record accrues (make it magical 1). */}
-            <span key={answered.length} className="tier-settle tabular-nums">
-              {/* TODO-COPY */}
-              {answered.length} answered
-            </span>
-            <ChevronDown aria-hidden className={cn("size-3.5 transition-transform motion-reduce:transition-none", groupOpen && "rotate-180")} />
-          </button>
-          <ol id={groupId} hidden={!groupOpen} data-assessment-answered className="mt-1 space-y-1">
-            {answered.map((s) => (
-              <AnsweredRow key={s.id} step={s} value={answers[s.id].value} slot="data-answered" onAmend={onAnswer} />
-            ))}
-          </ol>
-        </div>
-      )}
-      <p data-assessment-progress className="text-[var(--text-muted)]" style={LABEL}>
-        {/* TODO-COPY — the pack's line, once. */}
-        Your supervisor sees each answer as you give it.
-      </p>
-    </div>
-  );
-}
-
-/** ═══ AN ANSWERED ROW (pack v4.0, Workstream C) ═══ A short label — what
- *  the question assesses — and the answer, on one line; expanding shows the
- *  question VERBATIM. Never a truncated question: "Have you wished you were
- *  dead o…" was the defect. Both lenses render this one row.
- *  ═══ AMEND IN PLACE (pack v5.0, B1) ═══ With `onAmend` (the mentor, before
- *  Submit), the expansion also offers Change answer. */
-function AnsweredRow({ step, value, slot, onAmend }: { step: ReturnType<typeof askedSteps>[number]; value: "yes" | "no"; slot: "data-answered" | "data-s1-answer"; onAmend?: (id: string, v: "yes" | "no") => void }) {
-  const [open, setOpen] = useState(false);
-  const id = useId();
-  /* TODO-COPY */
-  const label = step.followUpOf ? "↳ Within the past 3 months" : step.assesses;
-  return (
-    <li {...{ [slot]: step.id }} className="rounded-[var(--radius-inset)] bg-[var(--surface-s1)]" style={LABEL}>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setOpen((o) => !o)}
-        className={cn("flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-inset)] px-3 py-1.5 text-left", RING)}
-      >
-        <span data-answer-label className="min-w-0 flex-1 break-words text-[var(--text-secondary)]">{label}</span>
-        <span data-answer-value className="shrink-0 text-[var(--text-primary)]">{value === "yes" ? "Yes" : "No"}</span>
-        <ChevronDown aria-hidden className={cn("size-3.5 shrink-0 text-[var(--icon-secondary)] transition-transform motion-reduce:transition-none", open && "rotate-180")} />
-      </button>
-      {open && (
-        <div id={id} className="space-y-2 px-3 pb-2.5">
-          <p data-answer-verbatim className="text-[var(--text-primary)]">
-            &ldquo;{step.text}&rdquo;
-          </p>
-          {onAmend && (
-            <div role="group" aria-label="Change answer" data-answer-amend className="flex items-center gap-1.5">
-              <span className="mr-1 text-[var(--text-muted)]">
-                {/* TODO-COPY */}
-                Change answer
-              </span>
-              {(["yes", "no"] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  aria-pressed={value === v}
-                  data-amend={`${step.id}:${v}`}
-                  onClick={() => onAmend(step.id, v)}
-                  className={cn(
-                    "inline-flex min-h-8 min-w-12 items-center justify-center rounded-full border px-3",
-                    value === v ? "border-[color:var(--text-primary)] bg-[var(--surface-raised)] text-[var(--text-primary)]" : "border-[color:var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
-                    RING
-                  )}
-                >
-                  {v === "yes" ? "Yes" : "No"}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </li>
-  );
-}
-
-function AnswersList({ e }: { e: EscalationState }) {
-  const a = assessmentOf(e);
-  const steps = askedSteps(a.answers).filter((s) => a.answers[s.id]);
-  return (
-    <div className="space-y-1.5">
-      <ol className="space-y-1">
-        {steps.map((s) => (
-          <AnsweredRow key={s.id} step={s} value={a.answers[s.id].value} slot="data-s1-answer" />
-        ))}
-      </ol>
-      {e.mentorSummary && <Quote slot="mentor-summary" text={e.mentorSummary} who="Mentor's summary" at={a.submittedAt ?? e.openedAt} />}
-    </div>
-  );
-}
-
 // ── CONFIRM THE TIER (supervisor's current node) ───────────────────────────
 
 function ConfirmCard({ e, name, tiering, teenId, onSettled }: { e: EscalationState; name: string; tiering: Tiering; teenId: string; onSettled?: () => void }) {
@@ -940,195 +474,6 @@ function ReviewCard({ e, name, tiering, teenId, onSettled }: { e: EscalationStat
       >
         {/* TODO-COPY */}
         Mark reviewed
-      </Primary>
-    </div>
-  );
-}
-
-// ── THE CRISIS NOTE, ONE SECTION PER NODE ──────────────────────────────────
-
-function SectionCard({ id, note, onSave, editing = false }: { id: CrisisSectionId; note: CrisisNote | undefined; onSave: (patch: Partial<CrisisNote>) => void; editing?: boolean }) {
-  const [draft, setDraft] = useState<CrisisNote>(note ?? {});
-  const d = { ...note, ...draft };
-  const set = (patch: Partial<CrisisNote>) => setDraft((x) => ({ ...x, ...patch }));
-  const [tried, setTried] = useState(false);
-  return (
-    <div data-crisis-section={id} data-open className="space-y-3">
-      {id === "subtype" && (
-        <>
-          <Choice label="Clinical subtype" slot="subtype" options={CLINICAL_SUBTYPES} value={d.subtype as never} onChange={(v) => set({ subtype: v })} />
-          <div>
-            <p className="mb-1.5 text-[var(--text-muted)]" style={LABEL}>Additional tags (optional)</p>
-            <Chips label="Additional tags" options={CRISIS_TAGS} value={(d.tags ?? []) as never[]} onChange={(v) => set({ tags: v })} />
-          </div>
-        </>
-      )}
-      {id === "safety-plan" && (
-        <>
-          <Choice label="Safety plan" slot="safety-plan" options={SAFETY_PLAN_STATUS} value={d.safetyPlan?.status as never} onChange={(v) => set({ safetyPlan: { status: v, usage: d.safetyPlan?.usage ?? "" } })} />
-          <Field slot="safety-usage" label="How they'll use it" value={d.safetyPlan?.usage ?? ""} onChange={(v) => set({ safetyPlan: { status: d.safetyPlan?.status ?? "", usage: v } })} />
-        </>
-      )}
-      {id === "resources" && (
-        <>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[var(--text-primary)]" style={BODY}>Resources shared?</span>
-            <YesNo label="Resources shared" slot="resources" value={d.resources?.shared} onChange={(v) => set({ resources: { shared: v, list: d.resources?.list ?? "" } })} />
-          </div>
-          {d.resources?.shared && <Field slot="resources-list" label="Which resources" value={d.resources.list} onChange={(v) => set({ resources: { shared: true, list: v } })} invalid={tried && !d.resources.list.trim()} />}
-        </>
-      )}
-      {id === "referral" && (
-        <>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[var(--text-primary)]" style={BODY}>Referral made?</span>
-            <YesNo label="Referral made" slot="referral" value={d.referral?.made} onChange={(v) => set({ referral: { made: v, list: d.referral?.list ?? [] } })} />
-          </div>
-          {d.referral?.made && <Chips label="Referred to" options={REFERRAL_TYPE} value={d.referral.list as never[]} onChange={(v) => set({ referral: { made: true, list: v } })} />}
-        </>
-      )}
-      {id === "emergency" && (
-        <>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[var(--text-primary)]" style={BODY}>Emergency contact engaged?</span>
-            <YesNo label="Emergency contact engaged" slot="contact" value={d.contact?.engaged} onChange={(v) => set({ contact: { engaged: v, details: d.contact?.details ?? "" } })} />
-          </div>
-          {d.contact?.engaged && <Field slot="contact-details" label="Who, and how" value={d.contact.details} onChange={(v) => set({ contact: { engaged: true, details: v } })} invalid={tried && !d.contact.details.trim()} />}
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[var(--text-primary)]" style={BODY}>Emergency services contacted?</span>
-            <YesNo label="Emergency services contacted" slot="services" value={d.services?.contacted} onChange={(v) => set({ services: { contacted: v, which: d.services?.which ?? [] } })} />
-          </div>
-          {d.services?.contacted && <Chips label="Which services" options={EMERGENCY_SERVICES} value={d.services.which as never[]} onChange={(v) => set({ services: { contacted: true, which: v } })} />}
-        </>
-      )}
-      {tried && !sectionDone(d, id) && (
-        <p role="alert" className="text-[var(--state-error)]" style={LABEL}>
-          {/* TODO-COPY */}
-          Answer this section to continue.
-        </p>
-      )}
-      <button
-        type="button"
-        data-crisis-continue={id}
-        onClick={() => {
-          setTried(true);
-          if (!sectionDone(d, id)) return;
-          onSave(d);
-        }}
-        className={cn("inline-flex min-h-10 items-center rounded-full bg-[var(--text-primary)] px-4 text-[var(--text-inverse)] hover:opacity-90", RING)}
-        style={{ font: "var(--type-button)" }}
-      >
-        {/* TODO-COPY */}
-        {editing ? "Save" : "Continue"}
-      </button>
-    </div>
-  );
-}
-
-/** A completed section's expansion: its summary, and Edit while open. */
-function SectionDone({ id, note, open, onSave }: { id: CrisisSectionId; note: CrisisNote; open: boolean; onSave: (patch: Partial<CrisisNote>) => void }) {
-  const [editing, setEditing] = useState(false);
-  if (editing)
-    return (
-      <SectionCard
-        id={id}
-        note={note}
-        editing
-        onSave={(p) => {
-          onSave(p);
-          setEditing(false);
-        }}
-      />
-    );
-  return (
-    <div className="flex items-start justify-between gap-2">
-      <p className="text-[var(--text-secondary)]" style={LABEL}>
-        {noteSummary(note, id) || "—"}
-      </p>
-      {open && (
-        <button type="button" onClick={() => setEditing(true)} aria-label={`Edit ${CRISIS_SECTION_LABEL[id]}`} className={cn("shrink-0 rounded-sm px-1 text-[var(--text-primary)] underline underline-offset-2", RING)} style={LABEL}>
-          Edit
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ── OUTCOME, THEN DEBRIEF (two nodes) ───────────────────────────────────────
-
-function OutcomeCard({ e, tiering, teenId }: { e: EscalationState; tiering: Tiering; teenId: string }) {
-  const auto = autoOutcome(e.crisisNote);
-  const [id, setId] = useState<string | null>(e.outcome?.id ?? auto);
-  const [tried, setTried] = useState(false);
-  return (
-    <div data-s3 className="space-y-3">
-      {auto && id === auto && (
-        <span data-auto-tagged className="inline-flex rounded-full bg-[var(--surface-s2)] px-2 py-0.5 text-[var(--text-secondary)]" style={LABEL}>
-          {/* TODO-COPY */}
-          Suggested from the crisis note
-        </span>
-      )}
-      <Choice label="Outcome" slot="outcome" options={OUTCOMES} value={id as never} onChange={(v) => setId(v)} />
-      {tried && !id && (
-        <p role="alert" className="text-[var(--state-error)]" style={LABEL}>
-          {/* TODO-COPY */}
-          Choose an outcome to continue.
-        </p>
-      )}
-      <Primary
-        slot="choose-outcome"
-        onClick={() => {
-          setTried(true);
-          if (!id) return;
-          tiering.chooseOutcome(teenId, { id, autoTagged: id === auto });
-        }}
-      >
-        {/* TODO-COPY */}
-        Continue
-      </Primary>
-    </div>
-  );
-}
-
-function DebriefCard({ e, name, tiering, teenId, teenLines, mentorLines }: { e: EscalationState; name: string; tiering: Tiering; teenId: string; teenLines: string[]; mentorLines: string[] }) {
-  const draft = draftDebrief({ name, escalation: e, teenLines, mentorLines });
-  const [debrief, setDebrief] = useState(e.outcome?.debrief || draft);
-  const [plan, setPlan] = useState(e.outcome?.plan ?? "");
-  const [additional, setAdditional] = useState(e.outcome?.additional ?? "");
-  const [tried, setTried] = useState(false);
-  const isDraft = debrief === draft;
-  return (
-    <div data-s3 className="space-y-4">
-      <div>
-        {isDraft && (
-          /* ═══ CLEARLY A DRAFT ═══ Fake AI (answered 2026-10-21) — see
-             `draftDebrief`. It drafts the narrative only. */
-          <span data-ai-draft className="mb-1.5 inline-flex items-center gap-1 rounded-full border border-dashed border-[color:var(--border-default)] px-2 py-0.5 text-[var(--text-secondary)]" style={LABEL}>
-            <Sparkles aria-hidden className="size-3" />
-            {/* TODO-COPY */}
-            AI draft · edit before saving
-          </span>
-        )}
-        <Field slot="debrief" label="Debrief" value={debrief} onChange={setDebrief} rows={5} invalid={tried && !debrief.trim()} />
-      </div>
-      <Field slot="plan" label="Plan for continued support" value={plan} onChange={setPlan} invalid={tried && !plan.trim()} />
-      <Field slot="additional" label="Additional information (optional)" value={additional} onChange={setAdditional} />
-      {tried && (!debrief.trim() || !plan.trim()) && (
-        <p role="alert" className="text-[var(--state-error)]" style={LABEL}>
-          {/* TODO-COPY */}
-          Fill in the debrief and the plan.
-        </p>
-      )}
-      <Primary
-        slot="save-outcome"
-        onClick={() => {
-          setTried(true);
-          if (!debrief.trim() || !plan.trim()) return;
-          tiering.saveDebrief(teenId, { debrief: debrief.trim(), debriefIsDraft: isDraft, plan: plan.trim(), additional: additional.trim() });
-        }}
-      >
-        {/* TODO-COPY */}
-        Save debrief
       </Primary>
     </div>
   );
@@ -1262,7 +607,8 @@ export function EscalationExchange({
     if (closedTier !== undefined) announceClose(e.id, name, closedTier);
   }, [closedTier, e.id, name]);
   const target = escalationTarget(e);
-  const saveNote = (patch: Partial<CrisisNote>) => tiering.saveCrisisNote(teenId, patch);
+  const noteTier = noteTierOf(e);
+  const progress = noteProgressOf(e);
 
   /* ── TITLES — TODO-COPY, every line ── */
   const titleOf = (n: TimelineNode): string => {
@@ -1275,7 +621,7 @@ export function EscalationExchange({
         return m ? `Added from the chat · ${m.quote.senderName}` : "Added from the chat";
       }
       case "assessment":
-        if (n.state === "current") return lens === "mentor" ? `Go through the assessment with ${name}` : "Assessment in progress";
+        if (n.state === "current") return lens === "mentor" ? `Go through the assessment with ${name}` : `${mentorName === "the mentor" ? "The mentor is" : `${mentorName} is`} going through the assessment`;
         return lens === "mentor" ? "Assessment sent" : "Assessment received";
       case "waiting":
         /* TODO-COPY. ═══ THE HOLDER'S SINGLE HOME (pack v5.0, Supersession 1) ═══
@@ -1286,11 +632,9 @@ export function EscalationExchange({
       case "confirm":
         return n.state === "current" ? `Confirm ${name}'s tier` : `Tier ${e.confirmedTier} confirmed`;
       case "note":
-        return CRISIS_SECTION_LABEL[n.section!];
-      case "outcome":
-        return n.state === "current" ? "Record the outcome" : `Outcome · ${OUTCOMES.find((o) => o.id === e.outcome?.id)?.label ?? ""}`;
-      case "debrief":
-        return n.state === "current" ? "Write the debrief" : "Debrief saved";
+        /* ═══ ONE NOTE NODE (pack v6.1) ═══ Its title carries the live
+           progress; complete, it says so and expands to the summaries. */
+        return n.state === "completed" ? "Crisis note complete" : progress ? `Crisis note · ${progress.done} of ${progress.total}` : "Crisis note";
       case "close":
         return "Close and schedule the follow-up";
       case "closed":
@@ -1301,13 +645,20 @@ export function EscalationExchange({
   const cardOf = (n: TimelineNode): React.ReactNode => {
     switch (n.kind) {
       case "assessment":
+        /* ═══ ONE ACCORDION, BOTH LENSES (pack v6.1, Supersession 4) ═══ The
+           holder answers in it; the observing supervisor reads it filling in
+           live — the old "3 of 6" count is retired. */
         return lens === "mentor" ? (
-          <AssessmentCard e={e} name={name} tiering={tiering} teenId={teenId} onAnswer={(id, v) => tiering.answer(teenId, id, v)} onUseWording={onUseWording} />
+          <AssessmentAccordion
+            e={e}
+            name={name}
+            mode="holder"
+            onAnswer={(id, v) => tiering.answer(teenId, id, v)}
+            onUseWording={onUseWording}
+            onSubmit={(summary) => tiering.submitAssessment(teenId, summary)}
+          />
         ) : (
-          /* Progress only — never the live questions (Workstream D). */
-          <p data-s0-progress className="tabular-nums text-[var(--text-secondary)]" style={BODY}>
-            {assessmentProgress(e)}
-          </p>
+          <AssessmentAccordion e={e} name={name} mode="observer" />
         );
       case "waiting":
         /* ═══ THE WAITING MODULE (pack v4.0, Workstream D) ═══ */
@@ -1325,11 +676,7 @@ export function EscalationExchange({
       case "confirm":
         return <ConfirmCard e={e} name={name} tiering={tiering} teenId={teenId} onSettled={onSettled} />;
       case "note":
-        return <SectionCard key={n.section} id={n.section!} note={e.crisisNote} onSave={saveNote} />;
-      case "outcome":
-        return <OutcomeCard e={e} tiering={tiering} teenId={teenId} />;
-      case "debrief":
-        return <DebriefCard e={e} name={name} tiering={tiering} teenId={teenId} teenLines={teenLines} mentorLines={mentorLines} />;
+        return noteTier ? <CrisisNoteAccordion e={e} tier={noteTier} name={name} tiering={tiering} teenId={teenId} teenLines={teenLines} mentorLines={mentorLines} /> : null;
       case "close":
         return <CloseCard e={e} name={name} tiering={tiering} teenId={teenId} onSettled={onSettled} />;
       case "closed": {
@@ -1410,13 +757,15 @@ export function EscalationExchange({
         return m ? <Quote slot="moment" text={m.quote.text} who={m.quote.senderName} at={m.quote.at} note={m.note || undefined} /> : null;
       }
       case "assessment":
-        return n.state === "completed" ? <AnswersList e={e} /> : null;
+        return n.state === "completed" ? <AssessmentAccordion e={e} name={name} mode="readonly" summaryBy={lens === "mentor" ? "You" : "Mentor's summary"} /> : null;
       case "confirm": {
         const ev = [...tiering.eventsFor(teenId)].reverse().find((x) => x.escalationId === e.id && (x.kind === "confirmed" || x.kind === "placed" || x.kind === "stepped-down"));
         return ev?.reason ? <p className="text-[var(--text-secondary)]" style={LABEL}>{ev.reason}</p> : null;
       }
       case "note":
-        return e.crisisNote ? <SectionDone id={n.section!} note={e.crisisNote} open={open && lens === "supervisor"} onSave={saveNote} /> : null;
+        /* Complete but not yet closed, a saved row still amends; closed, the
+           note is read-only. */
+        return noteTier && lens === "supervisor" ? <CrisisNoteAccordion e={e} tier={noteTier} name={name} tiering={tiering} teenId={teenId} teenLines={teenLines} mentorLines={mentorLines} readOnly={!open} /> : null;
       default:
         return null;
     }
@@ -1434,7 +783,7 @@ export function EscalationExchange({
   const variantOf = (n: TimelineNode): NodeVariant =>
     n.state === "current" && (n.kind === "waiting" || (n.kind === "assessment" && lens === "supervisor")) ? "waiting" : "action";
   const subOf = (n: TimelineNode): string | undefined =>
-    n.kind === "note" && n.state === "completed" ? noteSummary(e.crisisNote ?? {}, n.section!) || undefined : undefined;
+    n.kind === "note" && n.state === "completed" && e.outcome?.id ? (OUTCOMES.find((o) => o.id === e.outcome!.id)?.label ?? undefined) : undefined;
   /* ═══ ONE LABEL SET FOR THE FUTURE (pack v5.0, A3) ═══ The path row and
      its locked rows read these and only these. TODO-COPY. */
   const stepName = (n: TimelineNode): string => {
@@ -1444,11 +793,7 @@ export function EscalationExchange({
       case "confirm":
         return "Confirm tier";
       case "note":
-        return CRISIS_SECTION_LABEL[n.section!];
-      case "outcome":
-        return "Outcome";
-      case "debrief":
-        return "Debrief";
+        return "Crisis note";
       case "close":
       case "closed":
         return "Close & follow-up";

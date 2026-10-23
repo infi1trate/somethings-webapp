@@ -275,7 +275,6 @@ export function Rail({
   care,
   careDot,
   assist,
-  matchedFor,
   now,
   /** CONTROLLED. See `RailMode` — the thread can put the rail into a mode, so
    *  neither the tab nor the mode can live in this component. */
@@ -303,8 +302,6 @@ export function Rail({
   /** Everything the Assist ladder reads. Null on a support thread, where none of
    *  its rules apply. */
   assist: AssistInput | null;
-  /** Phrased by the page — `mentees-demo` owns the arithmetic. */
-  matchedFor: string | null;
   now: number;
   tab: RailTab;
   onTabChange: (tab: RailTab) => void;
@@ -383,7 +380,7 @@ export function Rail({
             />
           )}
           {active === "profile" && (
-            <ProfilePanel thread={thread} matchedFor={matchedFor} />
+            <ProfilePanel thread={thread} />
           )}
           {active === "toolkit" && (
             <ToolkitPanel

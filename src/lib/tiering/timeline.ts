@@ -12,9 +12,15 @@
 //   current    the pulse; the step's action card expands inside it
 //   upcoming   ghosted, locked, one line naming what comes next and when
 //
-// ═══ ONLY TWO UPCOMING NODES ═══ The next step and the exit. A ghost for every
-// remaining crisis-note section would bury the live node; the exit is always
-// shown because it is what makes the escalation feel resolvable.
+// ═══ ONLY TWO UPCOMING NODES ═══ The next step and the exit; the exit is
+// always shown because it is what makes the escalation feel resolvable.
+//
+// ═══ ONE CRISIS NOTE NODE (pack v6.1, Supersession 2) ═══ v3.0's "the note
+// assembles as timeline events" — a node per section, then Outcome, then
+// Debrief — is REVERSED: one Crisis note node holds the accordion
+// (`CrisisNoteAccordion`, rows from `note-rows.ts`) and completes when every
+// row is done. Traded for random access and a quieter timeline. Close &
+// follow-up stays its own node: the action, not documentation.
 //
 // ═══ THE BATON SURVIVES AS A MODEL ═══ The "Your move" banner is retired
 // (Supersession 1); whose move it is becomes the current node's position.
@@ -23,19 +29,8 @@
 
 import type { EscalationState } from "@/lib/chat/types";
 import type { TierState } from "@/lib/tiering/events";
-import {
-  ASSESSMENT_QUESTIONS,
-  CRISIS_SECTION_LABEL,
-  activeSection,
-  answeredCount,
-  assessmentOf,
-  crisisSections,
-  escalationTarget,
-  needsAssessment,
-  sectionDone,
-  workingTier,
-  type CrisisSectionId,
-} from "@/lib/tiering/escalation";
+import { assessmentOf, escalationTarget, needsAssessment, workingTier } from "@/lib/tiering/escalation";
+import { noteComplete, noteDoneAt, noteProgress } from "@/lib/tiering/note-rows";
 import { PLATFORM, isAlertTier } from "@/lib/tiering/tiers";
 
 export type NodeState = "completed" | "current" | "upcoming";
@@ -49,8 +44,6 @@ export type NodeKind =
   | "review"
   | "confirm"
   | "note"
-  | "outcome"
-  | "debrief"
   | "close"
   | "closed";
 
@@ -60,8 +53,6 @@ export interface TimelineNode {
   state: NodeState;
   /** When it happened (completed) — null for current and upcoming. */
   at: number | null;
-  /** For a crisis-note section node. */
-  section?: CrisisSectionId;
   /** For a moment node. */
   momentId?: string;
   /** Upcoming only: WHEN it comes, as an "after …" clause. The step's NAME
@@ -117,18 +108,10 @@ export function timelineNodes(e: EscalationState, state: TierState, lens: Lens):
       }
       push({ id: "confirm", kind: "confirm", condition: "after the assessment arrives" }, e.confirmedTier !== undefined, e.confirmedAt ?? null);
       const t = noteTier(e);
-      /* Before a Tier 1–2 confirmation the note's length is not known — the
-         requested tier stands in for it, so the exit line is honest either way. */
-      const sections = crisisSections(t ?? (isAlertTier(target) ? target : 2));
-      sections.forEach((id, i) => {
-        /* The condition names the step before it, so it stays true as the
-           note fills in. TODO-COPY. */
-        const after = i === 0 ? "the tier is confirmed" : CRISIS_SECTION_LABEL[sections[i - 1]].toLowerCase();
-        push({ id: `note:${id}`, kind: "note", section: id, condition: `after ${after}` }, sectionDone(e.crisisNote, id), e.crisisNote?.sectionAt?.[id] ?? e.crisisNote?.updatedAt ?? null);
-      });
-      push({ id: "outcome", kind: "outcome", condition: "after the note is complete" }, !!e.outcome, e.outcome?.chosenAt ?? e.outcome?.savedAt ?? null);
-      push({ id: "debrief", kind: "debrief", condition: "after the outcome" }, !!e.outcome?.savedAt, e.outcome?.savedAt ?? null);
-      push({ id: "close", kind: "close", condition: "after the debrief" }, closed, e.resolvedAt);
+      /* Before a Tier 1–2 confirmation the note's length is not known; it is
+         simply the step after the confirmation. */
+      push({ id: "note", kind: "note", condition: "after the tier is confirmed" }, t !== null && noteComplete(e, t), t !== null ? noteDoneAt(e, t) : null);
+      push({ id: "close", kind: "close", condition: "after the note is complete" }, closed, e.resolvedAt);
     }
   }
 
@@ -155,11 +138,12 @@ export function orderNodes(nodes: TimelineNode[], order = TIMELINE_ORDER): Timel
 
 export const currentNode = (nodes: TimelineNode[]) => nodes.find((n) => n.state === "current") ?? null;
 
-/** The assessment's one-line state on the supervisor lens — progress only,
- *  never the live questions (Workstream D). TODO-COPY. */
-export function assessmentProgress(e: EscalationState): string {
-  return `${answeredCount(assessmentOf(e).answers)} of ${ASSESSMENT_QUESTIONS.length} answered`;
+/** The crisis note's live progress, for its node's title — null before a
+ *  Tier 1–2 confirmation. */
+export function noteProgressOf(e: EscalationState): { done: number; total: number } | null {
+  const t = noteTier(e);
+  return t ? noteProgress(e, t) : null;
 }
 
-/** Which crisis-note section is live, for the supervisor's current node. */
-export const liveSection = (e: EscalationState) => (noteTier(e) ? activeSection(e.crisisNote, noteTier(e)!) : null);
+/** The tier the note is written at (Tier 1 or 2), once confirmed. */
+export const noteTierOf = noteTier;

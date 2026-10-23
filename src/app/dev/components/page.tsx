@@ -707,7 +707,7 @@ export default function ComponentsAuditPage() {
               {
                 label: "Profile",
                 body: (
-                  <ProfilePanel thread={GALLERY_THREAD} matchedFor="5 months" />
+                  <ProfilePanel thread={GALLERY_THREAD} />
                 ),
               },
               {

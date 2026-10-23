@@ -158,7 +158,8 @@ console.log("\n── the rail @ escalation-active");
       assessmentOpen: !!panel,
       /* RETARGETED (pack v5.0, Supersession 3): the count is the collapsed
          answered group's summary row; "Question 3 of 6" is the card's header. */
-      progress: document.querySelector("[data-answered-toggle]")?.textContent.trim(),
+      /* RETARGETED (pack v6.1): the accordion's progress line. */
+      progress: document.querySelector("[data-assessment-progress]")?.textContent.trim(),
       /* NO SCORE, NO PERCENTAGE. SUPERSEDED IN PART (pack v2.0): the pack
          adds ONE advisory line, "Assessment suggests: …", computed from the
          answers and never a tier. A risk word anywhere else would be the
@@ -178,10 +179,12 @@ console.log("\n── the rail @ escalation-active");
   check(rail.labels[0]?.startsWith("Care"), "Care is the first tab", rail.labels.join(" | "));
   check(rail.selected?.startsWith("Care"), "and selected on open", String(rail.selected));
   check(rail.assessmentOpen, "the assessment is what it shows");
-  check(rail.progress === "2 answered", "with a count of what is answered", String(rail.progress));
-  /* pack v3.0: the mentor's question card carries no live chip; the risk
-     arrives on the completed node once the assessment is sent. */
-  check(!rail.hasPercent && !rail.riskOutsideChip && rail.chip === null, "no score, percentage or risk word while the mentor is still answering", String(rail.chip));
+  check(rail.progress === "2 of 6 answered", "with a count of what is answered", String(rail.progress));
+  /* SUPERSEDED (pack v6.1): v3 kept the chip off the mentor's card until the
+     assessment was sent; v6.1's walkthrough verifies the risk chip at every
+     step, so it is LIVE from the first answer. What survives: no score, no
+     percentage, and no risk word anywhere but the one advisory chip. */
+  check(!rail.hasPercent && !rail.riskOutsideChip && rail.chip === "Assessment suggests: Low risk", "no score or percentage; the one live advisory chip, and no risk word outside it", String(rail.chip));
   await p.context().close();
 }
 
@@ -194,7 +197,7 @@ console.log("\n── the assessment @ escalation-active");
   const p = await chat("escalation-active");
   const before = await p.evaluate(`(() => ({
     active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive,
-    answered: document.querySelectorAll("[data-answered]").length,
+    answered: document.querySelectorAll('[data-acc-row][data-acc-state="answered"]').length,
     /* THE WORDING HELP is the field that matters most at 2am, and one press puts
        it in the composer rather than making a frightened mentor retype it. */
     wording: document.querySelectorAll("[data-assessment-wording]").length,
@@ -208,12 +211,12 @@ console.log("\n── the assessment @ escalation-active");
     const s = JSON.parse(localStorage.getItem("${KEY}")).state.escalations.t13;
     return {
       at: s?.safetyCheck?.answers?.q3?.at ?? null,
-      progress: document.querySelector("[data-answered-toggle]")?.textContent.trim(),
+      progress: document.querySelector("[data-assessment-progress]")?.textContent.trim(),
       active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive,
     };
   })()`);
   check(typeof after.at === "number", "answering records it, with a time", String(after.at));
-  check(after.progress === "3 answered" && after.active === "q4", "and the count follows, with the next question open", JSON.stringify(after));
+  check(after.progress === "3 of 6 answered" && after.active === "q4", "and the count follows, with the next question open", JSON.stringify(after));
 
   // The wording goes into the composer, unsent.
   await p.locator("[data-assessment-wording]").click();

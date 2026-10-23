@@ -111,7 +111,8 @@ const contrast = (page, rows) =>
 async function answerAll(page) {
   for (const id of ["q3:yes", "q4:no", "q5:no", "q6:no"]) {
     await page.locator(`[data-yes-no="${id}"]`).click();
-    await page.waitForTimeout(100);
+    /* The record-and-advance breath (pack v6.1) before the next row opens. */
+    await page.waitForTimeout(400);
   }
   await page.locator('[data-exchange-field="mentor-summary"]').fill("Jordan has a plan but no means tonight; aunt is on her way.");
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
@@ -126,9 +127,12 @@ async function noteThrough(page, ids) {
     emergency: async () => { await page.locator('[data-yes-no="contact:no"]').click(); await page.locator('[data-yes-no="services:no"]').click(); },
   };
   for (const id of ids) {
+    /* RETARGETED (pack v6.1): "Continue" is "Save section" on the row; the
+       next untouched row opens after the breath. */
+    if (!(await page.locator(`[data-note-row="${id}"][data-note-open]`).count())) await page.locator(`[data-note-row="${id}"] > button`).click();
     await steps[id]();
-    await page.locator(`[data-crisis-continue="${id}"]`).click();
-    await page.waitForTimeout(150);
+    await page.locator(`[data-exchange-primary="save-section:${id}"]`).click();
+    await page.waitForTimeout(450);
   }
 }
 
@@ -150,13 +154,15 @@ const STATES = [];
   STATES.push(["Tier 1 · note in progress", await store(s.page)]);
   await noteThrough(s.page, ["emergency"]);
   /* Nothing in this note auto-tags, so the supervisor chooses. */
+  /* RETARGETED (pack v6.1): Outcome and Debrief are the note's last rows;
+     saving Emergency opened Outcome. */
   await s.page.locator('[data-choice="outcome:stabilized"]').click();
-  await s.page.locator('[data-exchange-primary="choose-outcome"]').click();
-  await s.page.waitForTimeout(250);
+  await s.page.locator('[data-exchange-primary="save-section:outcome"]').click();
+  await s.page.waitForTimeout(450);
   STATES.push(["Tier 1 · outcome chosen", await store(s.page)]);
   await s.page.locator('[data-exchange-field="plan"]').fill("Check in daily this week.");
-  await s.page.locator('[data-exchange-primary="save-outcome"]').click();
-  await s.page.waitForTimeout(300);
+  await s.page.locator('[data-exchange-primary="save-section:debrief"]').click();
+  await s.page.waitForTimeout(600);
   STATES.push(["Tier 1 · debrief saved", await store(s.page)]);
   await s.page.locator('[data-exchange-primary="close-escalation"]').click();
   await s.page.waitForTimeout(400);
@@ -266,16 +272,18 @@ console.log("\n── 4 · keyboard: Care tabs, timeline traversal, the live ann
   const order = nodeStops.filter((s, i) => nodeStops.indexOf(s) === i);
   check(order.every((s, i) => i === 0 || domOrder.indexOf(s) > domOrder.indexOf(order[i - 1])), "Tab walks the timeline in visual order — the current card, then completed nodes downward", order.join(" → "));
   const live = await page.evaluate(() => ({ role: document.querySelector("[data-timeline-live]")?.getAttribute("role"), live: document.querySelector("[data-timeline-live]")?.getAttribute("aria-live"), text: document.querySelector("[data-timeline-live]")?.textContent }));
-  check(live.role === "status" && live.live === "polite" && live.text === "Now: Safety plan", "the current node is announced politely: “Now: Safety plan”", JSON.stringify(live));
-  /* Completing the step moves the announcement. */
+  /* RETARGETED (pack v6.1): the current node is the one Crisis note, its
+     title carrying the progress. */
+  check(live.role === "status" && live.live === "polite" && live.text === "Now: Crisis note · 1 of 6", "the current node is announced politely: “Now: Crisis note · 1 of 6”", JSON.stringify(live));
+  /* Saving a section moves the count, and the accordion announces the save. */
   await page.locator('[data-choice="safety-plan:maintained"]').click();
-  await page.locator('[data-crisis-continue="safety-plan"]').click();
-  await page.waitForTimeout(250);
-  const live2 = await page.evaluate(() => document.querySelector("[data-timeline-live]")?.textContent);
-  check(live2 === "Now: Resources shared", "and it moves with the handoff", String(live2));
+  await page.locator('[data-exchange-primary="save-section:safety-plan"]').click();
+  await page.waitForTimeout(450);
+  const live2 = await page.evaluate(() => ({ now: document.querySelector("[data-timeline-live]")?.textContent, saved: document.querySelector("[data-note-live]")?.textContent }));
+  check(live2.now === "Now: Crisis note · 2 of 6" && live2.saved === "Safety plan saved · 2 of 6 sections", "and it moves with the save: the count, and “Safety plan saved · 2 of 6 sections”", JSON.stringify(live2));
   const fresh = await page.evaluate(() => [...document.querySelectorAll("[data-node-fresh]")].map((n) => n.closest("[data-node]").dataset.node));
-  check(fresh.join() === "note:safety-plan", "exactly one node settles — the one just completed (make it magical 1)", fresh.join(","));
-  const exp = await page.locator('[data-node="note:subtype"] button[aria-expanded]').getAttribute("aria-expanded");
+  check(fresh.length === 0, "a section save settles no timeline node — the note completes once, as one node", fresh.join(","));
+  const exp = await page.locator('[data-node="assessment"] button[aria-expanded]').first().getAttribute("aria-expanded");
   check(exp === "false", "completed nodes are disclosure buttons, collapsed by default");
   await ctx.close();
   /* Reduced motion: the pulse becomes a static ring. */

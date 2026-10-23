@@ -114,7 +114,9 @@ const measure = (page) =>
       bodyBg: bg(body), s1: tok("--surface-s1"),
       heroKind: hero?.dataset.careHero ?? null,
       heroBg: bg(hero), raised,
-      heroFirst: panel?.firstElementChild === hero,
+      /* RETARGETED (Care Hero v7.0): the hero sits inside the CareHero root,
+         under the identity strip — the root is the panel's first child. */
+      heroFirst: panel?.firstElementChild?.matches("[data-care-hero-root]") && panel.firstElementChild.contains(hero) && hero.previousElementSibling?.matches("[data-care-identity]"),
       tabsAfterHero: !!panel?.children[1]?.querySelector("[data-care-tabs]"),
       ringed: ringed.map((el) => el.dataset.nodeCard !== undefined ? `node:${el.dataset.nodeAccent}` : el.tagName),
       ringColor: ringed[0] ? getComputedStyle(ringed[0]).boxShadow : null,
@@ -146,9 +148,10 @@ for (const [label, extra] of [["Tier 4", {}], ["Tier 2", T2]]) {
   const { ctx, page } = await open("/app/chat/t14", { extra });
   const m = await measure(page);
   check(m.heroKind === "steady" && m.heroFirst && m.tabsAfterHero, `${label}: the Teen Status card is the hero, above the tabs`, JSON.stringify({ k: m.heroKind, f: m.heroFirst, t: m.tabsAfterHero }));
-  /* RETARGETED (pack v5.0, Supersession 5): the mentor's card is the Risk
-     tier cell alone — the diagnosis is not in the DOM at all. */
-  check(m.cells.join("|") === "Risk tier" && !(await page.evaluate(() => !!document.querySelector("[data-care-brief]"))), `${label}: the mentor sees the Risk tier cell only — no diagnosis in the DOM`, m.cells.join(" · "));
+  /* RETARGETED (Care Hero v7.0, superseding v5.0 Supersession 5): the
+     mentor's card anchors on the Mentorship, then the Risk tier — and the
+     diagnosis is still not in the DOM at all. */
+  check(m.cells.join("|") === "The mentorship|Risk tier" && !(await page.evaluate(() => !!document.querySelector("[data-care-brief]"))), `${label}: the mentor sees the Mentorship, then Risk tier — no diagnosis in the DOM`, m.cells.join(" · "));
   check(m.heroBg === m.raised && m.bodyBg === m.s1 && m.canvasBg === m.base && m.s1 !== m.raised, `${label}: the thread on the base, the Care body one step deeper (s1), the card raised`, `${m.canvasBg} · ${m.bodyBg} · ${m.heroBg}`);
   check(m.washed === 0, `${label}: no whole-card wash — the tint lives in the lozenge alone`, String(m.washed));
   check(m.ringed.length === 0, `${label}: steady has no current step, so nothing is raised AND ringed`, m.ringed.join());
@@ -268,7 +271,7 @@ const timeline = (page) =>
       disabled: [...(card?.querySelectorAll("[data-yes-no]") ?? [])].some((b) => b.disabled || b.getAttribute("aria-disabled") === "true"),
       answerBg: ans ? getComputedStyle(ans).backgroundColor : null, s1: tok("--surface-s1"),
       cardBorder: card ? getComputedStyle(card).borderTopWidth : null,
-      question: card?.querySelector('[data-zone="ask"] [data-question-live] p:nth-of-type(2)')?.textContent.trim(),
+      question: card?.querySelector('[data-zone="ask"] [data-question-text]')?.textContent.trim(),
     };
   });
   check(q.zones.join() === "ask,answer" && q.labels[0] === "Ask Jordan" && q.labels[1] === "Jordan’s answer", "two zones: Ask Jordan, then Jordan’s answer", JSON.stringify(q.labels));
@@ -282,12 +285,13 @@ const timeline = (page) =>
   check(ins.box && q.question?.includes(ins.box) && ins.sent === sentBefore, "Ask in chat puts the question in the message box, editable — nothing is sent", JSON.stringify({ box: ins.box?.slice(0, 40), sent: ins.sent, before: sentBefore }));
 
   /* ── ANSWERED ROWS: short label, verbatim on expand ── */
-  const rows = await page.evaluate(() => [...document.querySelectorAll("[data-answered]")].map((r) => ({ id: r.dataset.answered, label: r.querySelector("[data-answer-label]")?.textContent.trim() })));
+  /* RETARGETED (pack v6.1): the answered rows are the accordion's own rows. */
+  const rows = await page.evaluate(() => [...document.querySelectorAll('[data-acc-row][data-acc-state="answered"]')].map((r) => ({ id: r.dataset.accRow, label: r.querySelector("[data-acc-label]")?.textContent.trim() })));
   check(rows.length >= 1 && rows.every((r) => r.label && !/^Have you/.test(r.label) && !/…/.test(r.label)), "answered rows carry the short label, not a cut question", rows.map((r) => r.label).join(" · "));
-  /* (pack v5.0) The answered rows live in the collapsed group below the card. */
-  await page.locator("[data-answered-toggle]").click();
-  await page.locator(`[data-answered="${rows[0]?.id}"] button`).first().click();
-  const verb = await page.evaluate((id) => document.querySelector(`[data-answered="${id}"] [data-answer-verbatim]`)?.textContent.trim(), rows[0]?.id);
+  /* (pack v6.1) Tap an answered row: it re-opens with the question verbatim. */
+  await page.locator(`[data-acc-row="${rows[0]?.id}"] > button`).click();
+  await page.waitForTimeout(200);
+  const verb = await page.evaluate((id) => document.querySelector(`[data-acc-panel="${id}"] [data-question-text]`)?.textContent.trim(), rows[0]?.id);
   check(verb === "“Have you wished you were dead or wished you could go to sleep and not wake up?”", "expanded, the question VERBATIM", String(verb));
   check(t.cut.length === 0, "nothing in the timeline is ellipsised", t.cut.join(" | "));
   await page.screenshot({ path: `${OUT}/03-question-card.png` });
@@ -297,7 +301,8 @@ const timeline = (page) =>
     const no = page.locator('[data-yes-no$=":no"]').first();
     if (!(await no.count())) break;
     await no.click();
-    await page.waitForTimeout(120);
+    /* The record-and-advance breath (pack v6.1). */
+    await page.waitForTimeout(400);
   }
   await page.locator('[data-exchange-field="mentor-summary"]').fill("Probe: Jordan is talking, no plan.");
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
@@ -364,7 +369,9 @@ const timeline = (page) =>
   /* Supervisor, T2 confirmed, mid-note: completed note rows wrap, never cut. */
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-tier2" });
   const t = await timeline(page);
-  const sub = await page.evaluate(() => [...document.querySelectorAll("[data-node-sub]")].map((s) => s.textContent.trim()));
+  /* RETARGETED (pack v6.1): a completed section is a row in the note's
+     accordion, its summary on the row's second line. */
+  const sub = await page.evaluate(() => [...document.querySelectorAll('[data-note-row][data-note-state="complete"] [data-note-summary]')].map((s) => s.textContent.trim()));
   check(t.cut.length === 0 && t.variant === "action" && t.pulse, "a supervisor's note step is an ACTION node, and nothing is ellipsised", JSON.stringify({ cut: t.cut, v: t.variant }));
   check(sub.length >= 1, "a completed note section states its summary on a second line, whole", sub.join(" | "));
   await ctx.close();
@@ -377,7 +384,7 @@ let assessed;
 {
   /* The mentor asks Q3 in chat and sends it; answers no; submits. */
   const { ctx, page } = await open("/app/chat/t13", { chat: "escalation-active" });
-  for (let i = 0; i < 2; i++) { await page.locator('[data-yes-no$=":no"]').first().click(); await page.waitForTimeout(120); }
+  for (let i = 0; i < 2; i++) { await page.locator('[data-yes-no$=":no"]').first().click(); await page.waitForTimeout(400); }
   const q = await page.evaluate(() => document.querySelector("[data-assessment-active]")?.dataset.assessmentActive);
   await page.locator("[data-assessment-wording]").click();
   await page.waitForTimeout(200);
@@ -394,7 +401,7 @@ let assessed;
   await page.waitForTimeout(400);
   const back = await page.evaluate(() => ({ rail: document.querySelector('[data-rail-tab][aria-selected="true"]')?.dataset.railTab, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, node: !!document.querySelector('[data-node="assessment"]') }));
   check(back.rail === "care" && back.tab === "overview" && back.node, "the glyph opens the assessment: Care, Overview, its node", JSON.stringify(back));
-  for (let i = 0; i < 8; i++) { const no = page.locator('[data-yes-no$=":no"]').first(); if (!(await no.count())) break; await no.click(); await page.waitForTimeout(120); }
+  for (let i = 0; i < 8; i++) { const no = page.locator('[data-yes-no$=":no"]').first(); if (!(await no.count())) break; await no.click(); await page.waitForTimeout(400); }
   await page.locator('[data-exchange-field="mentor-summary"]').fill("Probe: talking, no plan.");
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
   await page.waitForTimeout(500);
