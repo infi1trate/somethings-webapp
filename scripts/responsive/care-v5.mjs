@@ -440,6 +440,15 @@ let assessedState;
   await page.waitForTimeout(1200);
   const land = await page.evaluate(() => ({ rail: document.querySelector('[data-rail-tab][aria-selected="true"]')?.dataset.railTab, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, state: document.querySelector("[data-care-panel]")?.dataset.careState, trace: !!document.querySelector('[data-node-state="current"] [data-node-trace]') }));
   check(land.rail === "care" && land.tab === "overview" && land.state === "active" && land.trace, "the notification opens the conversation on Care Overview, and the current node traces its ring", JSON.stringify(land));
+  /* The deep link on its own: a thread with NO open escalation (Imani's is
+     closed) still opens on Care Overview from a notice — and not without it. */
+  await page.goto(`${BASE}/app/chat/t21?care=overview`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1000);
+  const viaLink = await page.evaluate(() => ({ rail: document.querySelector('[data-rail-tab][aria-selected="true"]')?.dataset.railTab, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
+  await page.goto(`${BASE}/app/chat/t21`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1000);
+  const plain = await page.evaluate(() => document.querySelector('[data-rail-tab][aria-selected="true"]')?.dataset.railTab);
+  check(viaLink.rail === "care" && viaLink.tab === "overview" && plain !== "care", "the link alone opens Care Overview — on a thread with no open escalation", JSON.stringify({ viaLink, plain }));
   /* Monitoring's stage line, on the same record. */
   await page.goto(`${BASE}/app/monitoring`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1000);
