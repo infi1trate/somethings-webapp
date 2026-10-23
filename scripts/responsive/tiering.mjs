@@ -177,7 +177,7 @@ console.log("\n── 4 · the Care tabs");
   const { ctx, page } = await open("/app/chat/t14");
   await careTab(page).click();
   await page.waitForTimeout(300);
-  const tabs = await page.evaluate(() => ({ labels: [...document.querySelectorAll("[data-care-tab]")].map((c) => c.textContent), first: (() => { const p = document.querySelector("[data-care-panel]"); return !!p?.children[0]?.matches("[data-care-hero]") && !!p?.children[1]?.querySelector("[data-care-tabs]"); })(), sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
+  const tabs = await page.evaluate(() => ({ labels: [...document.querySelectorAll("[data-care-tab]")].map((c) => c.textContent), first: (() => { const p = document.querySelector("[data-care-panel]"); /* RETARGETED (Care Hero v7.0): the hero sits in the CareHero root. */ return !!p?.children[0]?.matches("[data-care-hero-root]") && !!p.children[0].querySelector("[data-care-hero]") && !!p?.children[1]?.querySelector("[data-care-tabs]"); })(), sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
   check(tabs.labels.join("|") === "Overview|Safety plan|Emergency info|Resources|History" && tabs.first && tabs.sel === "overview", "Overview · Safety plan · Emergency info · Resources · History, right under the hero (pack v4.0), on Overview", JSON.stringify(tabs));
   const sub = await page.evaluate(() => document.querySelectorAll("[data-care-sub]").length);
   check(sub === 0, "and the mid-panel sub-chips are gone", `${sub}`);
@@ -370,8 +370,10 @@ let assessed;
   const s0 = await page.evaluate(() => ({
     active: [...document.querySelectorAll("[data-assessment-active]")].map((q) => q.dataset.assessmentActive),
     text: document.querySelector("[data-assessment-active]")?.innerText,
-    answered: [...document.querySelectorAll("[data-answered]")].map((q) => q.dataset.answered),
+    answered: [...document.querySelectorAll("[data-acc-row]")].filter((r) => r.dataset.accState === "answered").map((r) => r.dataset.accRow),
+    rows: document.querySelectorAll("[data-acc-row]").length,
     progress: document.querySelector("[data-assessment-progress]")?.textContent,
+    reassure: [...document.querySelectorAll("[data-assessment-accordion] p")].filter((p) => p.textContent === "Your supervisor sees each answer as you give it.").length,
     header: document.querySelector("[data-question-header]")?.textContent.trim(),
     count: document.querySelector("[data-answered-toggle]")?.textContent.trim(),
     placeholder: /placeholder/i.test(document.querySelector("[data-assessment]")?.innerText ?? ""),
@@ -383,14 +385,18 @@ let assessed;
      path that reads FORWARDS — the next step, then the exit. */
   check(x0?.upcoming.join() === "waiting,closed" && /^Close & follow-up · after the note is complete$/.test(await page.evaluate(() => document.querySelector('[data-node="closed"] [data-node-condition]')?.textContent ?? "")), "the exit is always on the Up next path, with its condition", x0?.upcoming.join());
   check(x0?.live === "Now: Go through the assessment with Jordan", "the current node is announced in the header's live region", String(x0?.live));
-  check(s0.active.join() === "q3" && s0.answered.join() === "q1,q2", "exactly one active question (Q3); Q1–Q2 collapsed below it; Q4–Q6 not rendered", JSON.stringify({ a: s0.active, d: s0.answered }));
+  /* RETARGETED (pack v6.1, Supersession 1): all six rows always; exactly
+     one open — the first unanswered. */
+  check(s0.active.join() === "q3" && s0.answered.join() === "q1,q2" && s0.rows === 6, "six rows; exactly one open (Q3, the first unanswered); Q1–Q2 answered", JSON.stringify({ a: s0.active, d: s0.answered, rows: s0.rows }));
   /* Quotes normalised: the panel sets the question in typographic quotes. */
   const q3 = (s0.text ?? "").replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
   check(q3.includes('"Have you thought about how you might do that?"') && q3.includes("I thought about pills, but I'd never actually do it."), "Q3 in the pack's wording, with its example", q3.slice(0, 80));
   /* RETARGETED (pack v5.0, Supersession 3): question first — "Question 3 of
      6" heads the card; the count is the collapsed group's "2 answered"; the
      reassurance is said once. */
-  check(s0.header === "Question 3 of 6" && s0.count === "2 answered" && s0.progress === "Your supervisor sees each answer as you give it." && !s0.placeholder, "Question 3 of 6 heads the card; 2 answered below; the reassurance once", JSON.stringify(s0));
+  /* RETARGETED (pack v6.1): the header and the answered group are
+     retired; the progress line counts, the reassurance is said once. */
+  check(!s0.header && !s0.count && s0.progress === "2 of 6 answered" && s0.reassure === 1 && !s0.placeholder, "no Question n of 6 header, no answered group; 2 of 6 answered; the reassurance once", JSON.stringify({ ...s0, text: undefined }));
   /* Put in message box: the question's own words, into the composer, unsent. */
   await page.locator('[data-assessment-wording="q3"]').click();
   await page.waitForTimeout(250);
@@ -398,22 +404,24 @@ let assessed;
   check(comp === "Have you thought about how you might do that?", "Put in message box drops the verbatim question into the composer", String(comp));
   await page.locator('[data-yes-no="q3:yes"]').focus();
   await page.keyboard.press("Enter");
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(500);
   const streamed = (await store(page)).escalations.t13?.safetyCheck;
-  const s1 = await page.evaluate(() => ({ active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive, focus: document.activeElement?.dataset.yesNo, live: document.querySelector("[data-assessment-active] [data-question-live]")?.getAttribute("aria-live") }));
-  check(s1.focus === "q4:yes" && s1.live === "polite", "after Enter, focus is on Q4's Yes and Q4 is announced (polite live region)", JSON.stringify(s1));
+  const s1 = await page.evaluate(() => ({ active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive, focus: document.activeElement?.dataset.assessmentWording, live: document.querySelector("[data-acc-live]")?.getAttribute("aria-live"), said: document.querySelector("[data-acc-live]")?.textContent }));
+  /* RETARGETED (pack v6.1, shared a11y): focus moves to the newly opened
+     row's first control (its Ask in chat), and the record is announced. */
+  check(s1.active === "q4" && s1.focus === "q4" && s1.live === "polite" && s1.said === "Method, no intent recorded · 3 of 6 answered", "after Enter, Q4 opens with focus on its first control, and the record is announced (polite)", JSON.stringify(s1));
   check(streamed?.answers?.q3?.value === "yes" && streamed.submittedAt === null, "an answer is on the record the moment it is given — before Submit", JSON.stringify(streamed?.answers?.q3));
   for (const id of ["q4:no", "q5:no", "q6:yes"]) {
     await page.locator(`[data-yes-no="${id}"]`).click();
-    await page.waitForTimeout(150);
+    await page.waitForTimeout(450);
   }
   const s2 = await page.evaluate(() => ({ active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive, text: document.querySelector("[data-assessment-active]")?.innerText, submit: !!document.querySelector('[data-exchange-primary="submit-assessment"]') }));
-  check(s2.active === "q6b" && /Was this within the past 3 months\?/.test(s2.text ?? "") && !s2.submit, "a Yes on Q6 asks the 3-month follow-up; no Submit yet", JSON.stringify({ ...s2, text: undefined }));
+  check(s2.active === "q6" && /Was this within the past 3 months\?/.test(s2.text ?? "") && !s2.submit, "a Yes on Q6 asks the 3-month follow-up inside Q6's row; no Submit yet", JSON.stringify({ ...s2, text: undefined }));
   await page.locator('[data-yes-no="q6b:no"]').click();
-  await page.waitForTimeout(200);
+  await page.waitForTimeout(450);
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
   await page.waitForTimeout(200);
-  const empty = await page.evaluate(() => ({ alert: document.querySelector("[data-m2] [role=alert]")?.textContent, invalid: document.querySelector('[data-exchange-field="mentor-summary"]')?.getAttribute("aria-invalid") }));
+  const empty = await page.evaluate(() => ({ alert: document.querySelector("[data-review-ledger] [role=alert]")?.textContent, invalid: document.querySelector('[data-exchange-field="mentor-summary"]')?.getAttribute("aria-invalid") }));
   check(!!empty.alert && empty.invalid === "true" && (await store(page)).escalations.t13.safetyCheck.submittedAt === null, "Submit with no summary names the gap and sends nothing", JSON.stringify(empty));
   await page.locator('[data-exchange-field="mentor-summary"]').fill("Jordan has a plan involving pills and gave away her headphones yesterday.");
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
@@ -441,8 +449,10 @@ let closed;
   /* S0 first: while the mentor is still assessing, progress only. */
   const z = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active" });
   const z0 = await xs(z.page);
-  const prog = await z.page.evaluate(() => ({ text: document.querySelector("[data-s0-progress]")?.textContent, questions: document.querySelectorAll("[data-node-state='current'] [data-assessment-active], [data-node-state='current'] [data-s1-answer]").length }));
-  check(z0?.stage === "S0" && z0.current.join() === "assessment" && prog.text === "2 of 6 answered" && prog.questions === 0, "assessment in progress: the current node is a count — no live question sprawl", JSON.stringify({ z0, prog }));
+  const prog = await z.page.evaluate(() => ({ text: document.querySelector("[data-node-state='current'] [data-assessment-progress]")?.textContent, mode: document.querySelector("[data-node-state='current'] [data-assessment-accordion]")?.dataset.accMode, controls: document.querySelectorAll("[data-node-state='current'] [data-yes-no], [data-node-state='current'] [data-assessment-wording], [data-node-state='current'] textarea").length }));
+  /* RETARGETED (pack v6.1, Supersession 4): the count row is the live
+     read-only accordion now — progress, and no control of any kind. */
+  check(z0?.stage === "S0" && z0.current.join() === "assessment" && prog.text === "2 of 6 answered" && prog.mode === "observer" && prog.controls === 0, "assessment in progress: the live read-only accordion — progress, no controls", JSON.stringify({ z0, prog }));
   check(z0?.upcoming.join() === "confirm,close", "and Confirm waits on the Up next path, before the exit", z0?.upcoming.join());
   await z.ctx.close();
 
@@ -451,8 +461,10 @@ let closed;
   check(x0?.lens === "supervisor" && x0.stage === "S1" && x0.current.join() === "confirm" && x0.done.includes("assessment"), "assessment received: completed; Confirm tier is current", JSON.stringify(x0));
   const answers = await expandNode(page, "assessment");
   const risk = await page.evaluate(() => document.querySelector('[data-node="assessment"] [data-risk-chip]')?.dataset.riskChip);
-  const answerRows = await page.evaluate(() => document.querySelectorAll('[data-node="assessment"] [data-s1-answer]').length);
-  check(answerRows === 7 && risk === "high" && /gave away her headphones/.test(answers), "expanded, the received node holds the seven answers, High, and the summary — the same record", JSON.stringify({ answerRows, risk }));
+  const answerRows = await page.evaluate(() => document.querySelectorAll('[data-node="assessment"] [data-acc-row][data-acc-state="answered"]').length);
+  /* RETARGETED (pack v6.1): six rows read-only — Q6's follow-up is inside
+     Q6's row, not a seventh. */
+  check(answerRows === 6 && risk === "high" && /gave away her headphones/.test(answers), "expanded, the received node holds the six answered rows, High, and the summary — the same record", JSON.stringify({ answerRows, risk }));
   const note = await expandNode(page, "raised");
   check(/Jordan said/.test(note) && (await page.evaluate(() => !!document.querySelector('[data-node="raised"] [data-quote="mentor-note"] figcaption'))), "the mentor's note is quote-framed with attribution", note.slice(0, 60));
   const s1 = await page.evaluate(() => ({
@@ -490,63 +502,68 @@ let closed;
   const s2 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, line: document.querySelector("[data-tier-line-text]")?.textContent, lozenge: !!document.querySelector("[data-tier-line] .tier-settle [data-tier-lozenge]") }));
   const x2 = await xs(page);
   check(s2.stage === "S2" && /^Confirmed by .+ · \d/.test(s2.line ?? "") && s2.lozenge, "S2: the header's chip has settled into the Tier 1 lozenge, signed and timed", JSON.stringify(s2));
-  check(x2?.current.join() === "note:subtype" && x2.upcoming.join() === "note:safety-plan,close", "the note assembles as nodes: Clinical subtype is current, the next section first on the path", JSON.stringify({ cur: x2?.current, up: x2?.upcoming }));
+  /* RETARGETED (pack v6.1, Supersession 2 — the named reversal): ONE Crisis
+     note node, its accordion's first row open; Close is the only step ahead. */
+  const openRow = () => page.evaluate(() => [...document.querySelectorAll("[data-note-row][data-note-open]")].map((r) => r.dataset.noteRow).join());
+  check(x2?.current.join() === "note" && x2.upcoming.join() === "close" && (await openRow()) === "subtype" && x2.title === "Crisis note · 0 of 7", "one Crisis note node · 0 of 7, Clinical subtype open; Close is next", JSON.stringify({ cur: x2?.current, up: x2?.upcoming, title: x2?.title }));
   /* ═══ NO GUIDANCE COMPOSER (Supersession 2) ═══ */
   const g = await page.evaluate(() => ({ composer: !!document.querySelector("[data-send-guidance], [data-guidance-composer]"), link: document.querySelector('[data-timeline-support="supervisor"]')?.textContent ?? null }));
   check(!g.composer && /^Message .+ in Support/.test(g.link ?? ""), "no guidance composer — a quiet Message {mentor} in Support link instead", JSON.stringify(g));
-  /* The note, node by node. */
-  await page.locator('[data-crisis-continue="subtype"]').click();
+  /* The note, row by row (pack v6.1). Each save breathes before the next
+     row opens, so the waits cover it. */
+  await page.locator('[data-exchange-primary="save-section:subtype"]').click();
   await page.waitForTimeout(100);
-  check(!!(await page.evaluate(() => document.querySelector('[data-node="note:subtype"] [role=alert]'))), "Continue on an empty section names the gap");
+  check(!!(await page.evaluate(() => document.querySelector('[data-note-row="subtype"] [role=alert]'))), "Save section on an empty section names the gap");
   await page.locator('[data-choice="subtype:suicidal_ideation"]').click();
   await page.locator('[data-chip="housing"]').click();
-  await page.locator('[data-crisis-continue="subtype"]').click();
-  await page.waitForTimeout(150);
+  await page.locator('[data-exchange-primary="save-section:subtype"]').click();
+  await page.waitForTimeout(450);
   await page.locator('[data-choice="safety-plan:created"]').click();
   await page.locator('[data-exchange-field="safety-usage"]').fill("Text her aunt and use the grounding steps.");
-  await page.locator('[data-crisis-continue="safety-plan"]').click();
-  await page.waitForTimeout(150);
+  await page.locator('[data-exchange-primary="save-section:safety-plan"]').click();
+  await page.waitForTimeout(450);
   await page.locator('[data-yes-no="resources:no"]').click();
-  await page.locator('[data-crisis-continue="resources"]').click();
-  await page.waitForTimeout(150);
+  await page.locator('[data-exchange-primary="save-section:resources"]').click();
+  await page.waitForTimeout(450);
   await page.locator('[data-yes-no="referral:yes"]').click();
   await page.locator('[data-chip="therapist"]').click();
-  await page.locator('[data-crisis-continue="referral"]').click();
-  await page.waitForTimeout(150);
+  await page.locator('[data-exchange-primary="save-section:referral"]').click();
+  await page.waitForTimeout(450);
   const x5 = await xs(page);
-  check(x5?.current.join() === "note:emergency" && ["note:subtype", "note:safety-plan", "note:resources", "note:referral"].every((n) => x5.done.includes(n)), "Tier 1 reaches section 5 (emergency) as the current node; 1–4 are completed nodes", JSON.stringify({ cur: x5?.current, done: x5?.done }));
+  const rows5 = await page.evaluate(() => [...document.querySelectorAll("[data-note-row]")].map((r) => `${r.dataset.noteRow}:${r.dataset.noteState}`));
+  check(x5?.current.join() === "note" && (await openRow()) === "emergency" && rows5.slice(0, 4).every((r) => r.endsWith(":complete")) && x5.title === "Crisis note · 4 of 7", "Tier 1 reaches section 5 (emergency) as the open row; rows 1–4 complete · 4 of 7", JSON.stringify({ open: await openRow(), rows5, title: x5?.title }));
   await page.locator('[data-yes-no="contact:yes"]').click();
   await page.locator('[data-exchange-field="contact-details"]').fill("Her aunt, by phone.");
   await page.locator('[data-yes-no="services:yes"]').click();
   await page.locator('[data-chip="mobile_crisis"]').click();
-  await page.locator('[data-crisis-continue="emergency"]').click();
+  await page.locator('[data-exchange-primary="save-section:emergency"]').click();
   await page.waitForTimeout(400);
   const s3 = await page.evaluate(() => ({
-    current: document.querySelector('[data-node-state="current"]')?.dataset.node,
+    current: document.querySelector("[data-note-row][data-note-open]")?.dataset.noteRow,
     auto: document.querySelector('[data-choice][aria-checked="true"]')?.dataset.choice,
     tagged: !!document.querySelector("[data-auto-tagged]"),
   }));
-  check(s3.current === "outcome" && s3.auto === "outcome:mobile_crisis" && s3.tagged, "the outcome node: auto-tagged Mobile crisis from the note, and says so", JSON.stringify(s3));
-  await page.locator('[data-exchange-primary="choose-outcome"]').click();
-  await page.waitForTimeout(300);
-  const s3b = await page.evaluate(() => ({ current: document.querySelector('[data-node-state="current"]')?.dataset.node, draft: !!document.querySelector("[data-ai-draft]"), debrief: document.querySelector('[data-exchange-field="debrief"]')?.value ?? "" }));
-  check(s3b.current === "debrief" && s3b.draft && s3b.debrief.length > 40 && !/Tier \d|Suicidal ideation/.test(s3b.debrief), "then the debrief node: an AI draft, badged, that writes no tier or subtype", s3b.debrief.slice(0, 70));
+  check(s3.current === "outcome" && s3.auto === "outcome:mobile_crisis" && s3.tagged, "the Outcome row: auto-tagged Mobile crisis from the note, and says so", JSON.stringify(s3));
+  await page.locator('[data-exchange-primary="save-section:outcome"]').click();
+  await page.waitForTimeout(450);
+  const s3b = await page.evaluate(() => ({ current: document.querySelector("[data-note-row][data-note-open]")?.dataset.noteRow, draft: !!document.querySelector("[data-ai-draft]"), debrief: document.querySelector('[data-exchange-field="debrief"]')?.value ?? "" }));
+  check(s3b.current === "debrief" && s3b.draft && s3b.debrief.length > 40 && !/Tier \d|Suicidal ideation/.test(s3b.debrief), "then the Debrief row: an AI draft, badged, that writes no tier or subtype", s3b.debrief.slice(0, 70));
   await page.locator('[data-exchange-field="debrief"]').fill(s3b.debrief + " Mobile crisis arrived at 7:40.");
   await page.waitForTimeout(100);
   check(!(await page.evaluate(() => !!document.querySelector("[data-ai-draft]"))), "editing the draft takes the AI badge off");
-  await page.locator('[data-exchange-primary="save-outcome"]').click();
+  await page.locator('[data-exchange-primary="save-section:debrief"]').click();
   await page.waitForTimeout(150);
   check(!(await store(page)).escalations.t13.outcome?.savedAt, "Save with no plan saves nothing");
   await page.locator('[data-exchange-field="plan"]').fill("Daily check-ins this week; therapist intake Thursday.");
-  await page.locator('[data-exchange-primary="save-outcome"]').click();
-  await page.waitForTimeout(400);
+  await page.locator('[data-exchange-primary="save-section:debrief"]').click();
+  await page.waitForTimeout(600);
   st = await store(page);
   const o = st.escalations.t13.outcome;
   check(o?.id === "mobile_crisis" && o.autoTagged && o.debriefIsDraft === false && typeof o.chosenAt === "number" && typeof o.savedAt === "number" && o.savedAt >= o.chosenAt, "outcome then debrief: two writes on one record, marked as edited", JSON.stringify(o && { id: o.id, auto: o.autoTagged, draft: o.debriefIsDraft }));
   const s4 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, dest: document.querySelector("[data-close-destination]")?.textContent, follow: document.querySelector('[data-follow-up][aria-checked="true"]')?.dataset.followUp }));
   const x4 = await xs(page);
   check(s4.stage === "S4" && /moves Jordan to Tier 3 Monitoring/.test(s4.dest ?? "") && s4.follow === "1" && x4.current.join() === "close" && x4.upcoming.length === 0, "close is the last current node, nothing left ahead; it names Tier 3 Monitoring", JSON.stringify(s4));
-  check(["raised", "assessment", "confirm", "note:subtype", "note:emergency", "outcome", "debrief"].every((n) => x4.done.includes(n)), "every step is a completed node below it", x4.done.join(" "));
+  check(["raised", "assessment", "confirm", "note"].every((n) => x4.done.includes(n)) && !x4.done.some((n) => /^note:|^outcome$|^debrief$/.test(n)), "every step is a completed node below it — the note as one", x4.done.join(" "));
   await page.locator('[data-follow-up="1"]').focus();
   await page.keyboard.press("ArrowRight");
   await page.waitForTimeout(100);
@@ -608,19 +625,20 @@ console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 e
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-tier2" });
   const x = await xs(page);
   const chip = await page.evaluate(() => document.querySelector('[data-node="assessment"] [data-risk-chip]')?.textContent);
-  check(x?.stage === "S2" && x.current.join() === "note:safety-plan" && x.done.includes("note:subtype") && chip === "Moderate risk", "Tier 2 fixture: section 1 completed, Safety plan current; the received node keeps the Moderate chip", JSON.stringify({ x, chip }));
+  const t2open = await page.evaluate(() => ({ open: document.querySelector("[data-note-row][data-note-open]")?.dataset.noteRow, subtype: document.querySelector('[data-note-row="subtype"]')?.dataset.noteState }));
+  check(x?.stage === "S2" && x.current.join() === "note" && x.title === "Crisis note · 1 of 6" && t2open.open === "safety-plan" && t2open.subtype === "complete" && chip === "Moderate risk", "Tier 2 fixture: 1 of 6, Safety plan open; the received node keeps the Moderate chip", JSON.stringify({ x, t2open, chip }));
   await page.locator('[data-choice="safety-plan:maintained"]').click();
-  await page.locator('[data-crisis-continue="safety-plan"]').click();
-  await page.waitForTimeout(120);
+  await page.locator('[data-exchange-primary="save-section:safety-plan"]').click();
+  await page.waitForTimeout(450);
   await page.locator('[data-yes-no="resources:yes"]').click();
   await page.locator('[data-exchange-field="resources-list"]').fill("988 and the Trevor Project.");
-  await page.locator('[data-crisis-continue="resources"]').click();
-  await page.waitForTimeout(120);
+  await page.locator('[data-exchange-primary="save-section:resources"]').click();
+  await page.waitForTimeout(450);
   await page.locator('[data-yes-no="referral:no"]').click();
-  await page.locator('[data-crisis-continue="referral"]').click();
+  await page.locator('[data-exchange-primary="save-section:referral"]').click();
   await page.waitForTimeout(350);
-  const t1 = await page.evaluate(() => ({ current: document.querySelector('[data-node-state="current"]')?.dataset.node, emergency: !!document.querySelector('[data-node="note:emergency"]'), auto: document.querySelector('[data-choice][aria-checked="true"]')?.dataset.choice ?? null }));
-  check(t1.current === "outcome" && !t1.emergency && t1.auto === null, "after section 4 a Tier 2 note is complete — no section 5, and nothing to auto-tag", JSON.stringify(t1));
+  const t1 = await page.evaluate(() => ({ current: document.querySelector("[data-note-row][data-note-open]")?.dataset.noteRow, emergency: !!document.querySelector('[data-note-row="emergency"]'), auto: document.querySelector('[data-choice][aria-checked="true"]')?.dataset.choice ?? null }));
+  check(t1.current === "outcome" && !t1.emergency && t1.auto === null, "after section 4 a Tier 2 note goes to Outcome — no section 5, and nothing to auto-tag", JSON.stringify(t1));
   await ctx.close();
   const m = await open("/app/chat/t13", { chat: "escalation-tier2" });
   const mx = await xs(m.page);

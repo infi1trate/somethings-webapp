@@ -278,6 +278,11 @@ export interface EscalationState {
   moments?: EscalationMoment[];
   /** S3: the outcome and debrief. */
   outcome?: EscalationOutcome;
+  /** ═══ AMENDMENTS (pack v6.1, B6) ═══ APPEND-ONLY. A saved crisis-note row
+   *  re-opened and saved again before the close: what it said BEFORE, and
+   *  when it changed. The note's fields hold the current answer; this log is
+   *  how a re-save never erases what was first recorded. */
+  noteAmendments?: NoteAmendment[];
   /** S4: the follow-up filed when the escalation closed. */
   followUp?: { dueAt: number; status: string | null };
   /** M4: when the mentor read the wrap-up, after which Care is steady. */
@@ -312,6 +317,19 @@ export interface EscalationOutcome {
   chosenAt?: number | null;
   /** When the debrief was saved: the outcome step is done. */
   savedAt: number | null;
+  /** ═══ THE REVIEW DOT'S BASIS (pack v6.1, B4) ═══ What the note suggested
+   *  (`autoOutcome`) when this outcome was saved. If the note now suggests
+   *  something else, the Outcome row is marked for review — never silently
+   *  edited. Absent on records from before v6.1, which are never flagged. */
+  basis?: string | null;
+}
+
+export interface NoteAmendment {
+  /** The row: a crisis-note section, "outcome" or "debrief". */
+  row: string;
+  at: number;
+  /** The row's fields as they were, before this save. */
+  before: Partial<CrisisNote> | Partial<EscalationOutcome>;
 }
 
 export interface EscalationMoment {

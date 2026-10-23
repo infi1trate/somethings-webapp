@@ -20,7 +20,9 @@ import { isSupervisorTier, staffActorFor } from "@/lib/record/permission-map";
 import { LIVE_ID } from "@/lib/record/subject";
 import { useMounted } from "@/lib/use-mounted";
 import { tierStateFor, type TierActor, type TierEvent, type TierState } from "@/lib/tiering/events";
-import { CLOSE_OUT_TIER, assessmentOf, crisisSections, isOpen, sectionDone } from "@/lib/tiering/escalation";
+import { CLOSE_OUT_TIER, assessmentOf, crisisSections, isOpen, sectionDone, type CrisisSectionId } from "@/lib/tiering/escalation";
+import { noteComplete, sectionFields } from "@/lib/tiering/note-rows";
+import { isAlertTier } from "@/lib/tiering/tiers";
 import { seedEscalationEvents, seedEscalationHistory, seedEscalations, seedTierEvents } from "@/lib/tiering/seed";
 import type { RaiseTarget, Tier } from "@/lib/tiering/tiers";
 
@@ -51,9 +53,11 @@ export interface Tiering {
   /** S1. Tier 1–2 continues to S2; Tier 3–4 is the standard tier update and
    *  closes the escalation (the crisis-note flow does not apply). */
   confirm: (teenId: string, tier: Tier, reason: string) => boolean;
-  saveCrisisNote: (teenId: string, patch: Partial<CrisisNote>) => void;
+  /** `section` names the row being saved, so a re-save of a completed one
+   *  is logged as an amendment (pack v6.1). */
+  saveCrisisNote: (teenId: string, patch: Partial<CrisisNote>, section?: CrisisSectionId) => void;
   /** The outcome node: which outcome, and whether it is still the auto-tag. */
-  chooseOutcome: (teenId: string, input: { id: string; autoTagged: boolean }) => void;
+  chooseOutcome: (teenId: string, input: { id: string; autoTagged: boolean; basis?: string | null }) => void;
   /** The debrief node, after the outcome: saving it completes the step. */
   saveDebrief: (teenId: string, input: { debrief: string; debriefIsDraft: boolean; plan: string; additional: string }) => void;
   /** A chat moment added to the escalation, with an optional note. Append-only. */
@@ -227,12 +231,12 @@ export function useTiering(now: number): Tiering {
         } else putEscalation({ ...e, confirmedTier: tier, confirmedAt: at, meta });
         return true;
       },
-      saveCrisisNote: (teenId, patch) => {
+      saveCrisisNote: (teenId, patch, section) => {
         const e = escalationFor(teenId);
         if (!isOpen(e)) return; // append-only once closed
         const at = Date.now();
         const next = { ...e.crisisNote, ...patch };
-        /* STAMP EACH SECTION ONCE, the first time it is complete — its node's
+        /* STAMP EACH SECTION ONCE, the first time it is complete — its row's
            time. An edit later re-saves the note, not the section's moment. */
         const sectionAt = { ...e.crisisNote?.sectionAt };
         for (const id of crisisSections(e.confirmedTier ?? 1)) {
@@ -241,19 +245,34 @@ export function useTiering(now: number): Tiering {
              its moment is the note's previous write, not now. */
           sectionAt[id] = sectionDone(e.crisisNote, id) ? (e.crisisNote?.updatedAt ?? at) : at;
         }
-        putEscalation({ ...e, crisisNote: { ...next, sectionAt, updatedAt: at } });
+        /* ═══ AN AMENDMENT IS APPENDED, NEVER OVERWRITTEN (pack v6.1) ═══ */
+        const amended = section && sectionDone(e.crisisNote, section) ? [{ row: section, at, before: sectionFields(e.crisisNote, section) }] : [];
+        putEscalation({ ...e, crisisNote: { ...next, sectionAt, updatedAt: at }, noteAmendments: [...(e.noteAmendments ?? []), ...amended] });
       },
-      /* ═══ OUTCOME, THEN DEBRIEF — two nodes (pack v3.0) ═══ Choosing writes
-         the outcome with no debrief yet; saving the debrief completes it. */
-      chooseOutcome: (teenId, { id, autoTagged }) => {
+      /* ═══ OUTCOME AND DEBRIEF ARE ROWS (pack v6.1) ═══ Either may be saved
+         first. Choosing an outcome keeps a saved debrief (it used to reset
+         `savedAt`, which un-did the debrief); a re-choice is an amendment. */
+      chooseOutcome: (teenId, { id, autoTagged, basis }) => {
         const e = escalationFor(teenId);
         if (!isOpen(e)) return;
-        putEscalation({ ...e, outcome: { id, autoTagged, debrief: e.outcome?.debrief ?? "", debriefIsDraft: e.outcome?.debriefIsDraft ?? true, plan: e.outcome?.plan ?? "", additional: e.outcome?.additional ?? "", chosenAt: Date.now(), savedAt: null } });
+        const at = Date.now();
+        const o = e.outcome;
+        const amended = o?.id ? [{ row: "outcome", at, before: { id: o.id, autoTagged: o.autoTagged, basis: o.basis, chosenAt: o.chosenAt } }] : [];
+        putEscalation({
+          ...e,
+          outcome: { debrief: "", debriefIsDraft: true, plan: "", additional: "", savedAt: null, ...o, id, autoTagged, basis: basis ?? null, chosenAt: at },
+          noteAmendments: [...(e.noteAmendments ?? []), ...amended],
+        });
       },
       saveDebrief: (teenId, input) => {
         const e = escalationFor(teenId);
-        if (!isOpen(e) || !e.outcome) return;
-        putEscalation({ ...e, outcome: { ...e.outcome, ...input, savedAt: Date.now() } });
+        if (!isOpen(e)) return;
+        const at = Date.now();
+        const o = e.outcome;
+        const amended = o?.savedAt ? [{ row: "debrief", at, before: { debrief: o.debrief, debriefIsDraft: o.debriefIsDraft, plan: o.plan, additional: o.additional, savedAt: o.savedAt } }] : [];
+        /* No outcome yet: the debrief is held on an outcome with no id, which
+           counts for nothing until one is chosen (`rowDone`). */
+        putEscalation({ ...e, outcome: { id: "", autoTagged: false, ...o, ...input, savedAt: at }, noteAmendments: [...(e.noteAmendments ?? []), ...amended] });
       },
       addMoment: (teenId, { message, senderName, note }) => {
         const e = escalationFor(teenId);
@@ -278,6 +297,9 @@ export function useTiering(now: number): Tiering {
       close: (teenId, { followUpDays, reason }) => {
         const e = escalationFor(teenId);
         if (!isOpen(e) || !reason.trim()) return false;
+        /* ═══ CLOSE IS GATED ON THE NOTE (blocked constant, pack v6.1) ═══
+           Enforced in the write, not only by the locked node. */
+        if (e.confirmedTier !== undefined && isAlertTier(e.confirmedTier) && !noteComplete(e, e.confirmedTier)) return false;
         const at = Date.now();
         const s = tierStateFor(eventsFor(teenId));
         /* THE STEP DOWN — CLOSE_OUT_TIER, a blocked constant (see its note). */
