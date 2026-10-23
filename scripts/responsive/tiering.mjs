@@ -163,8 +163,9 @@ console.log("\n── 2 · TierCard, five states, two hosts");
   await ctx.close();
   /* The same teen, the same store, on the chat host. */
   const c2 = await open("/app/chat/t13", { persona: "mentor", chat: "escalation-active" });
-  const chatPend = await c2.page.evaluate(() => document.querySelector("[data-tier-line] [data-requested-tier]")?.textContent);
-  check(chatPend === "Requested: Tier 1", "and the exchange's tier line says the same thing, from the same store", String(chatPend));
+  /* RETARGETED (pack v5.0, A1): the hero's headline is the request, in words. */
+  const chatPend = await c2.page.evaluate(() => document.querySelector("[data-tier-line] [data-hero-headline]")?.textContent);
+  check(chatPend === "Tier 1 requested", "and the hero says the same thing, from the same store", String(chatPend));
   await c2.ctx.close();
 }
 
@@ -379,7 +380,7 @@ let assessed;
   check(x0?.order.join() === "upcoming,upcoming,current,completed", "upcoming on top, then the current node, then completed below", x0?.order.join());
   /* RETARGETED (pack v4.0, Supersession 1): the future is one "Up next"
      path that reads FORWARDS — the next step, then the exit. */
-  check(x0?.upcoming.join() === "waiting,closed" && /Supervisor closes or steps down/.test(await page.evaluate(() => document.querySelector('[data-node="closed"] [data-node-condition]')?.textContent ?? "")), "the exit is always on the Up next path, with its condition", x0?.upcoming.join());
+  check(x0?.upcoming.join() === "waiting,closed" && /^Close & follow-up · after the note is complete$/.test(await page.evaluate(() => document.querySelector('[data-node="closed"] [data-node-condition]')?.textContent ?? "")), "the exit is always on the Up next path, with its condition", x0?.upcoming.join());
   check(x0?.live === "Now: Go through the assessment with Jordan", "the current node is announced in the header's live region", String(x0?.live));
   check(s0.active.join() === "q3" && s0.answered.join() === "q1,q2", "exactly one active question (Q3); Q1–Q2 collapsed above; Q4–Q6 not rendered", JSON.stringify({ a: s0.active, d: s0.answered }));
   /* Quotes normalised: the panel sets the question in typographic quotes. */
@@ -419,8 +420,11 @@ let assessed;
   /* RETARGETED (pack v4.0, Workstream D): the waiting node is "While you're
      with Jordan" — the holder line is the hero's — and while the mentor waits
      the one Support door is the module's Open Support, not the hero's. */
-  check(x1?.title === "While you’re with Jordan" && (await page.evaluate(() => /— Brandy has this/.test(document.querySelector("[data-tier-line]")?.textContent ?? ""))), "waiting is While you’re with Jordan; Brandy has this stays in the hero", String(x1?.title));
-  check(await page.evaluate(() => !document.querySelector("[data-timeline-support]") && !!document.querySelector("[data-waiting-open-support]")), "and the one Support door is the module's Open Support");
+  /* RETARGETED (pack v5.0, Supersessions 1–2): the holder's single home is
+     the waiting node's title, and the hero's ghost button is the one Support
+     door in every state. */
+  check(x1?.title === "Brandy has this. Stay with Jordan." && (await page.evaluate(() => !/has this/.test(document.querySelector("[data-care-hero]")?.textContent ?? ""))), "waiting says Brandy has this. Stay with Jordan. — and the hero does not", String(x1?.title));
+  check(await page.evaluate(() => /^Message Brandy in Support$/.test(document.querySelector('[data-timeline-support="mentor"]')?.textContent.trim() ?? "") && !document.querySelector("[data-waiting-open-support]")), "and the one Support door is the hero's ghost button");
   await page.screenshot({ path: `${OUT}/03-m3-stay.png` });
   assessed = await store(page);
   await ctx.close();
@@ -481,7 +485,7 @@ let closed;
   check(typeof ms === "number" && ms > 0 && !shown.ms && !shown.words && !shown.attr, "meta.timeToConfirmMs is on the record and nowhere in the DOM", `${ms}ms · ${JSON.stringify(shown)}`);
   const s2 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, line: document.querySelector("[data-tier-line-text]")?.textContent, lozenge: !!document.querySelector("[data-tier-line] .tier-settle [data-tier-lozenge]") }));
   const x2 = await xs(page);
-  check(s2.stage === "S2" && /^Tier 1 confirmed by .+ · \d/.test(s2.line ?? "") && s2.lozenge, "S2: the header's chip has settled into the Tier 1 lozenge, signed and timed", JSON.stringify(s2));
+  check(s2.stage === "S2" && /^Confirmed by .+ · \d/.test(s2.line ?? "") && s2.lozenge, "S2: the header's chip has settled into the Tier 1 lozenge, signed and timed", JSON.stringify(s2));
   check(x2?.current.join() === "note:subtype" && x2.upcoming.join() === "note:safety-plan,close", "the note assembles as nodes: Clinical subtype is current, the next section first on the path", JSON.stringify({ cur: x2?.current, up: x2?.upcoming }));
   /* ═══ NO GUIDANCE COMPOSER (Supersession 2) ═══ */
   const g = await page.evaluate(() => ({ composer: !!document.querySelector("[data-send-guidance], [data-guidance-composer]"), link: document.querySelector('[data-timeline-support="supervisor"]')?.textContent ?? null }));

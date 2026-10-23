@@ -1245,8 +1245,14 @@ export const useOnboardingStore = create<OnboardingState>()(
       /* The tier log and the escalation records are ONE store across both dev
          axes now, so switching either scenario drops what this session wrote
          against the old fixtures — the same reasoning as the chat switch. */
+      /* ═══ AND THE CHAT WRITES WITH THEM (pack v5.0, bug 1) ═══ Dropping the
+         escalation records while KEEPING the thread's events resurrected the
+         fixture's open escalation under a stale "closed the escalation" chip
+         — close it again and the thread carried two (measured: 3:05 and 5:05,
+         no raise between). The chat switch and Reset already clear all of
+         these together; this switch was the one asymmetric reset. */
       setMonitoringScenarioId: (id) =>
-        set({ monitoringScenarioId: id, tierEvents: [], escalationHistory: [], escalations: {} }),
+        set({ monitoringScenarioId: id, tierEvents: [], escalationHistory: [], escalations: {}, chatEvents: {}, chatMessages: {}, chatNotes: {}, chatArtifacts: {} }),
       /* Switching scenario drops everything keyed to the old fixtures — the same
          reasoning as `setActivityScenarioId` clearing its read overlay. An
          escalation on Jordan's thread means nothing once the roster's threads have

@@ -83,6 +83,21 @@ function openInSupport(id: string): void {
   setSupportOpen(true);
 }
 
+/** ═══ ONE OPEN AND ONE CLOSE PER ESCALATION (pack v5.0, bug 1) ═══ The
+ *  store fix stops new duplicates; this read-time guard keeps a browser that
+ *  already persisted one from showing it. The FIRST of each wins — the close
+ *  that actually happened. */
+function oncePerEscalation(events: ChatEvent[]): ChatEvent[] {
+  const seen = new Set<string>();
+  return events.filter((e) => {
+    if (e.kind !== "escalation-opened" && e.kind !== "escalation-resolved") return true;
+    const key = `${e.kind}:${e.artifactId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function ChatPage({
   /** ═══ THE OPEN THREAD IS A ROUTE SEGMENT NOW, NOT A QUERY OR A STATE ═══
    *
@@ -252,10 +267,10 @@ export function ChatPage({
      `[artifacts]`, and it is correct by inspection. */
   const events = useMemo<ChatEvent[]>(() => {
     if (!thread) return [];
-    return [
+    return oncePerEscalation([
       ...(data?.events[thread.id] ?? []),
       ...(mounted ? (writtenEvents[thread.id] ?? []) : []),
-    ];
+    ]);
   }, [thread, data, mounted, writtenEvents]);
 
   const artifacts = useMemo<SentArtifact[]>(() => {
@@ -1033,6 +1048,8 @@ export function ChatPage({
                   }
                   presence={presence}
                   echo={supervisorEcho}
+                  /* ═══ CLINICAL DIAGNOSIS IS NOT THE MENTOR'S (pack v5.0, S5) ═══ */
+                  showDiagnosis={persona === "lead-mentor" || isSupervisorTier(persona)}
                   emergency={emergencyInfo}
                   brief={careBrief}
                   teenLines={teenLines}

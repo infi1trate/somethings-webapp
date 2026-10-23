@@ -64,7 +64,10 @@ export interface TimelineNode {
   section?: CrisisSectionId;
   /** For a moment node. */
   momentId?: string;
-  /** Upcoming only: the condition, in words. TODO-COPY. */
+  /** Upcoming only: WHEN it comes, as an "after …" clause. The step's NAME
+   *  is the view's, from one label set (pack v5.0, A3): the path row and the
+   *  locked rows used to name the same step twice ("Brandy takes over" /
+   *  "Your supervisor takes it from here"). TODO-COPY. */
   condition?: string;
 }
 
@@ -100,8 +103,8 @@ export function timelineNodes(e: EscalationState, state: TierState, lens: Lens):
   if (lens === "mentor") {
     const needs = needsAssessment(workingTier(e, state));
     if (needs) push({ id: "assessment", kind: "assessment" }, a.submittedAt !== null, a.submittedAt);
-    push({ id: "waiting", kind: "waiting", condition: needs ? "Your supervisor takes it from here · after you submit" : undefined }, closed, null);
-    push({ id: "closed", kind: "closed", condition: "Supervisor closes or steps down · after the note is complete" }, false, null);
+    push({ id: "waiting", kind: "waiting", condition: needs ? "after you submit" : undefined }, closed, null);
+    push({ id: "closed", kind: "closed", condition: "after the note is complete" }, false, null);
     // The waiting node has no completion time of its own — it ends at the close.
     for (const d of done) if (d.kind === "waiting") d.at = e.resolvedAt;
   } else {
@@ -112,7 +115,7 @@ export function timelineNodes(e: EscalationState, state: TierState, lens: Lens):
       if (needsAssessment(target)) {
         push({ id: "assessment", kind: "assessment" }, a.submittedAt !== null, a.submittedAt);
       }
-      push({ id: "confirm", kind: "confirm", condition: "Confirm the tier · after the assessment arrives" }, e.confirmedTier !== undefined, e.confirmedAt ?? null);
+      push({ id: "confirm", kind: "confirm", condition: "after the assessment arrives" }, e.confirmedTier !== undefined, e.confirmedAt ?? null);
       const t = noteTier(e);
       /* Before a Tier 1–2 confirmation the note's length is not known — the
          requested tier stands in for it, so the exit line is honest either way. */
@@ -121,11 +124,11 @@ export function timelineNodes(e: EscalationState, state: TierState, lens: Lens):
         /* The condition names the step before it, so it stays true as the
            note fills in. TODO-COPY. */
         const after = i === 0 ? "the tier is confirmed" : CRISIS_SECTION_LABEL[sections[i - 1]].toLowerCase();
-        push({ id: `note:${id}`, kind: "note", section: id, condition: `${CRISIS_SECTION_LABEL[id]} · after ${after}` }, sectionDone(e.crisisNote, id), e.crisisNote?.sectionAt?.[id] ?? e.crisisNote?.updatedAt ?? null);
+        push({ id: `note:${id}`, kind: "note", section: id, condition: `after ${after}` }, sectionDone(e.crisisNote, id), e.crisisNote?.sectionAt?.[id] ?? e.crisisNote?.updatedAt ?? null);
       });
-      push({ id: "outcome", kind: "outcome", condition: "Record the outcome · after the note is complete" }, !!e.outcome, e.outcome?.chosenAt ?? e.outcome?.savedAt ?? null);
-      push({ id: "debrief", kind: "debrief", condition: "Write the debrief · after the outcome" }, !!e.outcome?.savedAt, e.outcome?.savedAt ?? null);
-      push({ id: "close", kind: "close", condition: "Close and schedule the follow-up · after the debrief" }, closed, e.resolvedAt);
+      push({ id: "outcome", kind: "outcome", condition: "after the note is complete" }, !!e.outcome, e.outcome?.chosenAt ?? e.outcome?.savedAt ?? null);
+      push({ id: "debrief", kind: "debrief", condition: "after the outcome" }, !!e.outcome?.savedAt, e.outcome?.savedAt ?? null);
+      push({ id: "close", kind: "close", condition: "after the debrief" }, closed, e.resolvedAt);
     }
   }
 
