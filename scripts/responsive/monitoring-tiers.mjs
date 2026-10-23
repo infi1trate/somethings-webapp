@@ -221,7 +221,10 @@ const AVATAR = "[data-tier-ring] > span";
   /* ═══ MONITORING v2 (Part B) ═══ WAS "a raised hairline surface". Keylines are down: the one
      keyline is the LIVE lane's, so the empty lane is a canvas tint inside the
      raised container. */
-  check(empty.text === "Nothing in crisis" && empty.bg === canvas && /^0px/.test(empty.border) && empty.color === tertiary && !empty.live, "Monitor: a quiet canvas tint, no keyline, 'Nothing in crisis' in tertiary", JSON.stringify(empty));
+  /* RETARGETED (Monitoring v3, §3): the canvas tint was invisible in the
+     cards view (canvas on canvas). The same lane in both views now: a 1px
+     dashed border-default contour, no fill, 15 text-secondary. */
+  check(empty.text === "Nothing in crisis" && empty.bg === "rgba(0, 0, 0, 0)" && /^1px/.test(empty.border) && !empty.live, "Monitor: a dashed contour, no fill, 'Nothing in crisis'", JSON.stringify(empty));
   await setMode(page, "alert");
   const live = await page.evaluate(() => {
     const r = document.querySelector("[data-t1-live]");
@@ -606,7 +609,7 @@ for (const layout of ["list", "cards"]) {
     const b = g.querySelector("[data-tier4-toggle]");
     const r = b.getBoundingClientRect();
     const hdr = g.querySelector("h3").closest("div").parentElement.getBoundingClientRect();
-    return { text: b.textContent.trim(), exp: b.getAttribute("aria-expanded"), ff: getComputedStyle(b).fontFamily, bg: getComputedStyle(b).backgroundColor, h: Math.round(r.height), w: Math.round(r.width), rowW: Math.round((g.querySelector("[data-monitoring-row]") ?? g).getBoundingClientRect().width), rightGap: Math.round(hdr.right - r.right), count: g.querySelector("h3 .font-mono")?.textContent, controls: !!document.getElementById(b.getAttribute("aria-controls")) };
+    return { text: b.textContent.trim(), exp: b.getAttribute("aria-expanded"), ff: getComputedStyle(b).fontFamily, bg: getComputedStyle(b).backgroundColor, h: Math.round(r.height), w: Math.round(r.width), rowW: Math.round((g.querySelector("[data-monitoring-row]") ?? g).getBoundingClientRect().width), rightGap: Math.round(hdr.right - r.right), count: g.querySelector("h3 [data-tier-count]")?.textContent, controls: !!document.getElementById(b.getAttribute("aria-controls")) };
   });
   const preview = layout === "list" ? 2 : 3;
   check((await rendered()) === preview, `collapsed: a ${preview}-${layout === "list" ? "row" : "card"} preview`, `${await rendered()}`);

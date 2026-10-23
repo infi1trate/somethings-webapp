@@ -19,7 +19,8 @@
 // ═══ MONO RETREATS ═══ Mono is for numerals and timestamps only; secondary
 // lines are the sans at 13px.
 
-import { ClipboardList, Flag, ShieldAlert } from "lucide-react";
+import { useId, useState } from "react";
+import { ClipboardList, Flag, Info, ShieldAlert } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { TIER_CADENCE, TIER_NAME, type Tier } from "@/lib/monitoring/tiers";
 import { cn } from "@/lib/utils";
@@ -83,10 +84,13 @@ export function TierTag({ tier }: { tier: Tier }) {
 export { TierLozenge } from "@/components/ui/tier-lozenge";
 export { BarSparkline as Sparkline } from "@/components/ui/bar-sparkline";
 
-/** ═══ A TIER GROUP'S HEADER ═══ A real `h3`, so the tiers are navigable by
- *  heading: the 8px dot (tinted for 1–2, `border-strong` for 3–4), the name
- *  14/20, the count in mono, and the cadence on the SAME line after a middle
- *  dot, 13/18 tertiary — not a second line. */
+/** ═══ A TIER GROUP'S HEADER — ONE LINE (Monitoring v3, §3) ═══ A real `h3`,
+ *  so the tiers are navigable by heading: the 8px dot (tinted for Tiers 1–2
+ *  ONLY, `border-strong` otherwise), "Tier 2 · High risk" at 17/24 in Avantt
+ *  — the pack's "semibold" cannot render in Lausanne (one shipped weight;
+ *  AGENTS.md), so emphasis is the face — and the count at 15, text-tertiary,
+ *  tabular. NOTHING ELSE ON THE LINE: the cadence moved behind an ⓘ, its
+ *  sentence in a tooltip the button is described by. 32px above, 16 below. */
 export function TierGroupHeader({
   tier,
   count,
@@ -99,24 +103,66 @@ export function TierGroupHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div data-tier-header={tier} className="flex items-center justify-between gap-3 pt-6 pb-2">
-      <h3 id={id} className="m-0 flex min-w-0 flex-wrap items-baseline gap-x-2 text-[14px] leading-[20px] font-normal">
-        <span
-          aria-hidden
-          className="size-2 shrink-0 self-center rounded-full"
-          style={{ background: tier === 1 ? "var(--t1)" : tier === 2 ? "var(--t2)" : "var(--border-strong)" }}
-        />
-        <span className="font-display font-bold text-[var(--text-primary)]">
-          Tier {tier} · {TIER_NAME[tier]}
-        </span>
-        <span className="font-mono text-[13px] tabular-nums text-[var(--text-secondary)]">{count}</span>
-        <span data-tier-cadence className="text-[13px] leading-[18px] font-normal text-[var(--text-tertiary)]">
-          <span aria-hidden>· </span>
-          {TIER_CADENCE[tier]}
-        </span>
-      </h3>
+    <div data-tier-header={tier} className="flex items-center justify-between gap-3 pt-8 pb-4">
+      <div className="flex min-w-0 items-center gap-2">
+        <h3 id={id} className="m-0 flex min-w-0 items-center gap-2 font-normal">
+          <span
+            aria-hidden
+            data-tier-dot
+            className="size-2 shrink-0 rounded-full"
+            style={{ background: tier === 1 ? "var(--t1)" : tier === 2 ? "var(--t2)" : "var(--border-strong)" }}
+          />
+          <span data-tier-name className="font-display text-[17px] leading-[24px] font-bold whitespace-nowrap text-[var(--text-primary)]">
+            Tier {tier} · {TIER_NAME[tier]}
+          </span>
+          <span data-tier-count className="text-[15px] leading-[24px] tabular-nums text-[var(--text-tertiary)]">
+            {count}
+          </span>
+        </h3>
+        <CadenceInfo tier={tier} />
+      </div>
       {action}
     </div>
+  );
+}
+
+/** ═══ THE CADENCE, ON DEMAND ═══ A 20px ⓘ in text-tertiary; its tooltip is
+ *  the cadence sentence, shown on hover AND on focus, wired by
+ *  `aria-describedby`, and dismissible with Esc without moving the pointer
+ *  (WCAG 1.4.13). The tooltip stays in the DOM, so the description is always
+ *  there to be read. */
+function CadenceInfo({ tier }: { tier: Tier }) {
+  const tipId = useId();
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="relative inline-flex" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <button
+        type="button"
+        data-tier-cadence-info={tier}
+        aria-label={`Tier ${tier} cadence`}
+        aria-describedby={tipId}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setOpen(false);
+        }}
+        className="relative inline-flex size-5 items-center justify-center rounded-full text-[var(--text-tertiary)] before:absolute before:-inset-3 before:content-[''] hover:text-[var(--text-secondary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+      >
+        <Info aria-hidden className="size-4" strokeWidth={1.75} />
+      </button>
+      <span
+        id={tipId}
+        role="tooltip"
+        data-tier-cadence
+        data-open={open || undefined}
+        className={cn(
+          "pointer-events-none absolute top-full left-1/2 z-20 mt-2 w-max max-w-64 -translate-x-1/2 rounded-[10px] bg-[var(--surface-raised)] px-3 py-2 text-[13px] leading-[18px] text-[var(--text-primary)] shadow-[var(--el-soft)] ring-1 ring-[color:var(--border-subtle)]",
+          open ? "visible opacity-100" : "invisible opacity-0"
+        )}
+      >
+        {TIER_CADENCE[tier]}
+      </span>
+    </span>
   );
 }
 

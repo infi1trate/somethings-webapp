@@ -94,9 +94,12 @@ export function Tier1Lane({ teens }: { teens: MonitoringTeen[] }) {
     <section aria-labelledby="tier-1-heading" data-tier-group={1}>
       <TierGroupHeader tier={1} count={live.length} id="tier-1-heading" />
       {live.length === 0 ? (
+        /* ═══ THE SAME EMPTY LANE IN BOTH VIEWS (Monitoring v3, §3) ═══ A 1px
+           dashed contour, 20px radius, centred, NO FILL — the canvas fill was
+           invisible on the cards view's canvas (canvas on canvas). */
         <div
           data-t1-empty
-          className="flex min-h-16 items-center rounded-[14px] bg-[var(--surface-canvas)] px-4 text-[14px] leading-[20px] text-[var(--text-tertiary)]"
+          className="flex min-h-16 items-center justify-center rounded-[20px] border border-dashed border-[color:var(--border-default)] px-4 text-[15px] leading-[20px] text-[var(--text-secondary)]"
         >
           {/* TODO-COPY */}
           Nothing in crisis

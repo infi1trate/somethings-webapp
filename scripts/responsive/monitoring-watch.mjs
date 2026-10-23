@@ -116,20 +116,23 @@ console.log("\n── 2 · tier groups as section rows; the lane first");
     [...document.querySelectorAll("[data-tier-header]")].map((h) => {
       const h3 = h.querySelector("h3");
       const dot = h3.querySelector("span[aria-hidden]");
-      const name = h3.querySelector(".font-display");
-      const cad = h3.querySelector("[data-tier-cadence]");
+      const name = h3.querySelector("[data-tier-name]");
+      /* (Monitoring v3, §3) The cadence left the line for an ⓘ tooltip. */
+      const tip = h.querySelector("[data-tier-cadence]");
       return {
         tier: h.dataset.tierHeader,
-        oneLine: Math.round(h3.getBoundingClientRect().height) <= 24 || Math.abs(cad.getBoundingClientRect().top - name.getBoundingClientRect().top) <= 3,
-        cadFs: getComputedStyle(cad).fontSize, cadW: getComputedStyle(cad).fontWeight, cadText: cad.textContent,
+        oneLine: Math.round(h3.getBoundingClientRect().height) <= 24,
+        cadInH3: !!h3.querySelector("[data-tier-cadence]"), tipRole: tip?.getAttribute("role"),
         dot: Math.round(dot.getBoundingClientRect().width), nameFs: getComputedStyle(name).fontSize,
-        count: getComputedStyle(h3.querySelector(".font-mono")).fontFamily,
+        count: getComputedStyle(h3.querySelector("[data-tier-count]")).fontFamily,
       };
     })
   );
   check(g.length === 4 && g[0].tier === "1", "four section rows, Tier 1 first — the lane is its only row", g.map((x) => x.tier).join(","));
-  check(g.every((x) => x.oneLine && x.cadFs === "13px" && x.cadW === "400" && /^· /.test(x.cadText)), "the cadence on the same line, after a middle dot, 13px regular", JSON.stringify(g.map((x) => x.oneLine)));
-  check(g.every((x) => x.dot === 8 && x.nameFs === "14px" && /mono/i.test(x.count)), "an 8px dot, the name 14, the count in mono", JSON.stringify(g[0]));
+  /* RETARGETED (Monitoring v3, §3): one line, nothing but dot · name ·
+     count; the cadence is the ⓘ's tooltip; the name 17, the count sans. */
+  check(g.every((x) => x.oneLine && !x.cadInH3 && x.tipRole === "tooltip"), "one line; the cadence is a tooltip, not on the line", JSON.stringify(g.map((x) => [x.oneLine, x.cadInH3])));
+  check(g.every((x) => x.dot === 8 && x.nameFs === "17px" && !/mono/i.test(x.count)), "an 8px dot, the name 17, the count in the sans", JSON.stringify(g[0]));
   await ctx.close();
 }
 
@@ -158,6 +161,10 @@ console.log("\n── 4 · hover lifts; the whole row is the link; reduced motio
 {
   const { ctx, page } = await open();
   const row = page.locator('[data-monitoring-row="t21"]');
+  /* (Monitoring v3) The header grew to Care Reviews' — bring the row into
+     view before hovering it by coordinates. */
+  await row.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(150);
   const before = await row.evaluate((r) => ({ t: getComputedStyle(r).transform, chev: getComputedStyle(r.querySelector("[data-row-chevron]")).opacity, cursor: getComputedStyle(r).cursor, transition: getComputedStyle(r).transitionDuration }));
   /* Hover the MENTOR cell — not the name — and wait out the transition. By
      coordinates: the row's stretched link covers every cell (that is the
@@ -176,6 +183,8 @@ console.log("\n── 4 · hover lifts; the whole row is the link; reduced motio
 
   const rm = await open({ reducedMotion: "reduce" });
   const r2 = rm.page.locator('[data-monitoring-row="t21"]');
+  await r2.scrollIntoViewIfNeeded();
+  await rm.page.waitForTimeout(150);
   const bb = await r2.locator('[role="cell"]').nth(1).boundingBox();
   await rm.page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
   await rm.page.waitForTimeout(300);
