@@ -492,6 +492,8 @@ mentor's Clinical diagnosis cell, the tier cell's sentences.
   for supervisor and lead mentor only. The tier cell is lozenge · ⓘ (the
   description, the dwell rule, the mentor's step-down request) · a slim "Day
   N of 14" line · one outline action; a pending request is one status line.
+  **SUPERSEDED IN PART by v7.0:** the card is the `CareHero` now, and the
+  mentor's Zone 2 is the Mentorship — the tier cell and the gate are as here.
 - **One label set for the future:** the timeline carries "after …" clauses;
   the view names each step once. No arrow chains on any escalation surface —
   the path is "A, then B", movements say "moved to", lozenge pairs say "to".
@@ -514,6 +516,42 @@ mentor's Clinical diagnosis cell, the tier cell's sentences.
   `monitoringData()` fixtures, so it can disagree with the new tiering-store
   list above it; `monitoring-tiers` hard-codes a weekday ("closed Tue") that
   drifts with the date.
+
+### Care Hero (micro-pack v7.0, feat/care-v7)
+
+Answered 2026-10-23 ("go monitoring s6 first, then v7, then v6.1"; the Phase 0
+defaults stood). Stacked on v5. **Supersedes v5's Teen Status card (marked in
+place above) and the Profile tab's Matched row.**
+
+- **Three zones, two configurations** (`rail/care-hero.tsx`). Zone 1, the
+  identity strip — initials avatar, name, age, pronouns, "View their
+  profile →" — in both lenses and every state. Zone 2 anchors: Clinical
+  diagnosis for supervisor and lead; THE MENTORSHIP for a mentor (tenure as
+  the headline, then facts). Zone 3 is v5's tier cell, unchanged. An open
+  escalation's hero replaces Zones 2–3; the strip stays, so the page never
+  loses its subject.
+- **The role gate is at the source:** `care.tsx` never computes the
+  mentorship for a supervisor, and a mentor's DOM holds no diagnosis, ICD
+  code or care-record link (probe).
+- **Facts only, never a characterisation** (a blocked constant). The
+  Mentorship meta is "Last spoke {when} · {n} check-ins this window", then
+  "Supervised by {name}" on its own line — the pack's one line overran the
+  cell and stranded a "·" (measured), so the split is deliberate.
+- **Tenure has one home**, in the mentee table's own phrasing (`relLength`,
+  via `lib/record/mentorship-vitals.ts`) — two roundings of one fact is the
+  failure the chat page's old note warned about. The Profile tab's Matched
+  row is gone. It settles once on the day it ticks over.
+- **The sanctioned repetition is the strip** (name and pronouns repeat the
+  chat header — the strip is the document title of a surface also reached
+  from Monitoring and the record). "Last spoke" near the list's last-activity
+  time is the second, named exception.
+- **`?rail=profile`** opens the Profile tab, derived like `?care=overview`,
+  never pinned. The supervisor link opens their Support thread when one
+  exists, else the name is plain text.
+- **Fixture rows are TODO-DATA:** `VITALS` carries age and check-ins per
+  record teen; the avatar is a placeholder (no teen photography by design).
+- **Deferred:** the Profile ↔ Care avatar crossfade — Profile has no avatar
+  to hand off to, and adding one for the motion alone is decoration.
 
 ### Monitoring asserts only what it can compute (arch-mon)
 

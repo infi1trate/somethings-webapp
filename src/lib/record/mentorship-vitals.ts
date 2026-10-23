@@ -57,7 +57,10 @@ export interface MentorshipVitals {
  *  — two roundings of one fact is how "5 months" and "171 days" end up on two
  *  surfaces (chat-page's note on the retired Matched row). */
 const DAY = 86_400_000;
-const tenureAt = (d: number) => relLength(-d * DAY, 0);
+export const tenureAt = (d: number) => relLength(-d * DAY, 0);
+
+/** Did the tenure's phrase change today? ("13 days" → "2 weeks"). */
+export const tickedOver = (d: number) => d > 1 && tenureAt(d) !== tenureAt(d - 1);
 
 const ago = (days: number) => (days <= 0 ? "today" : days === 1 ? "yesterday" : `${days}d ago`);
 
@@ -77,7 +80,7 @@ export function mentorshipVitals(teenId: string): MentorshipVitals | null {
   return {
     days,
     tenure,
-    tickedToday: days > 1 && length !== tenureAt(days - 1),
+    tickedToday: tickedOver(days),
     lastSpoke: sides.length ? ago(Math.min(...sides)) : null,
     checkIns30d: VITALS[teenId]?.checkIns30d ?? null,
     supervisor: lead ? { id: lead.id, name: lead.name } : null,
