@@ -56,6 +56,7 @@ import type {
   ChatEvent,
   ChatMessage,
   ContextRef,
+  MessageOrigin,
   Note,
   SentArtifact,
   SentArtifactItem,
@@ -365,6 +366,8 @@ export function ChatPage({
   /** ═══ SUPPORT BESIDE THE HUB ═══ Open, the list collapses and the
    *  conversation and the hub split the canvas card 50/50; closed, the list
    *  returns (300 · flex · 360). The hub never unmounts either way. */
+  /** The teen whose tier cell is arriving after a close (one beat). */
+  const [arrived, setArrived] = useState<string | null>(null);
   const supportOpen = useSupportOpen();
   const supportThreadId = useSupportThread();
   const beside = supportOpen && !!thread;
@@ -383,9 +386,13 @@ export function ChatPage({
   /* A first name when there is a name; the whole fallback when there is not
      (measured: an unnamed mentor read "The is in this chat"). */
   const otherFirst = otherParty === LIVE_ID && !liveMentor?.name ? "The mentor" : otherName.split(" ")[0];
+  /* ═══ THE SUPERVISOR'S ECHO (pack v4.0, D2) ═══ Their latest Support
+     message to this mentor, for the waiting node. Read, never copied. */
+  const echoMessage = !observer && escalation ? supportThread(escalation.supervisorId, persona, scenarioId, now)?.messages.filter((m) => !m.mine).at(-1) : undefined;
+  const supervisorEcho = echoMessage ? { text: echoMessage.text, at: echoMessage.at } : undefined;
   const presence =
     supportOpen && otherParty && supportThreadId === otherParty && otherName
-      ? /* TODO-COPY */ `${otherFirst} is in this chat`
+      ? /* The NAME only — the Care hero says "{name} is here" (pack v4.0). */ otherFirst
       : undefined;
   /* ═══ PINNED FOR A SUPERVISOR ═══ While an escalation is open on what a
      supervisor is watching, the observed mentor is pinned at the top of their
@@ -431,7 +438,7 @@ export function ChatPage({
   };
   /** Text the assessment wants put in the composer. A one-shot value the composer
    *  consumes — see the Composer's `insert` prop. */
-  const [insert, setInsert] = useState<{ text: string; nonce: number } | null>(null);
+  const [insert, setInsert] = useState<{ text: string; nonce: number; origin?: MessageOrigin } | null>(null);
 
   /** Which tier dialog is up: a supervisor's update, a mentor's request. */
   const [tierDialog, setTierDialog] = useState<"update" | "step-down" | null>(null);
@@ -820,6 +827,13 @@ export function ChatPage({
                 nameActor={nameActor}
                 escalationAlert={!!escalation && isAlertTier(workingTier(escalation, tiering.stateFor(thread.id)))}
                 addedMoments={escalation ? Object.fromEntries((escalation.moments ?? []).map((m) => [m.messageId, m.note])) : undefined}
+                /* The corner glyph on a sent assessment question opens the
+                   assessment: Care, Overview, scrolled to its node. */
+                onOpenAssessment={() => {
+                  setRailTab("care");
+                  setCareTab("overview");
+                  window.requestAnimationFrame(() => document.querySelector('[data-node="assessment"]')?.scrollIntoView({ block: "nearest" }));
+                }}
                 /* ═══ SEND GOES SOMEWHERE (pack v3.0, Phase 0's confirmed bug) ═══
                    An observer has no composer, so no sender. */
                 onSend={
@@ -827,7 +841,12 @@ export function ChatPage({
                     ? undefined
                     : (text) => {
                         const at = Date.now();
-                        appendChatMessage({ id: `sent-${thread.id}-${at}`, threadId: thread.id, at, sender: "mentor", kind: "text", text });
+                        /* ═══ THE ORIGIN TAG (pack v4.0, F2) ═══ A line sent
+                           from "Ask in chat" is tagged with its question —
+                           while it still carries the question's words. Edited
+                           into something else, it is the mentor's own line. */
+                        const origin = insert?.origin && text.includes(insert.text.slice(0, 24)) ? insert.origin : undefined;
+                        appendChatMessage({ id: `sent-${thread.id}-${at}`, threadId: thread.id, at, sender: "mentor", kind: "text", text, ...(origin ? { origin } : {}) });
                       }
                 }
                 phone={teen?.phone ?? null}
@@ -997,7 +1016,7 @@ export function ChatPage({
                   onStartRaise={() => raiseEscalation(null)}
                   onCancelRaise={() => setRaise(null)}
                   onConfirmRaise={confirmRaise}
-                  onUseWording={(text) => setInsert((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1 }))}
+                  onUseWording={(text, origin) => setInsert((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1, origin }))}
                   tab={careTab}
                   onTab={setCareTab}
                   dot={escalation ? (isAlertTier(workingTier(escalation, tiering.stateFor(thread.id))) ? "alert" : "neutral") : null}
@@ -1013,6 +1032,7 @@ export function ChatPage({
                     otherParty && (observer ? pinMentor : canOpenInSupport(otherParty)) ? () => openInSupport(otherParty) : undefined
                   }
                   presence={presence}
+                  echo={supervisorEcho}
                   emergency={emergencyInfo}
                   brief={careBrief}
                   teenLines={teenLines}
@@ -1020,7 +1040,15 @@ export function ChatPage({
                   /* Closing (or leaving the wrap) ends the escalation the
                      default tab was following — pin Care so the person who
                      just acted sees the steady state and its history. */
-                  onSettled={() => setRailTab("care")}
+                  onSettled={() => {
+                    setRailTab("care");
+                    /* ═══ THE ARRIVAL (Supersession 6) ═══ The panel settles
+                       on Overview and the tier cell warms once. */
+                    setCareTab("overview");
+                    setArrived(thread.id);
+                    window.setTimeout(() => setArrived(null), 1600);
+                  }}
+                  highlightTier={arrived === thread.id}
                 />
               }
               assist={assist}
@@ -1028,7 +1056,6 @@ export function ChatPage({
               now={now}
               tab={railTab}
               onTabChange={setRailTab}
-              presence={presence}
               mode={railMode}
               onModeChange={setRailMode}
               onSendActivity={sendActivity}

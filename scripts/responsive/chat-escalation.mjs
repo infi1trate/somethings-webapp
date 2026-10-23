@@ -172,7 +172,8 @@ console.log("\n── the rail @ escalation-active");
      answering with a suggestion panel. */
   /* SUPERSEDED: "the escalation tab is first". Care is PERSISTENT and FIXED
      after Context — tabs never reorder — and it is what opens. */
-  check(rail.labels[1]?.startsWith("Care"), "Care is the tab after Context", rail.labels.join(" | "));
+  /* RETARGETED (pack v4.0, Supersession 3): Care is first, the labelled control. */
+  check(rail.labels[0]?.startsWith("Care"), "Care is the first tab", rail.labels.join(" | "));
   check(rail.selected?.startsWith("Care"), "and selected on open", String(rail.selected));
   check(rail.assessmentOpen, "the assessment is what it shows");
   check(rail.progress === "2 of 6", "with a count of what is answered", String(rail.progress));
@@ -476,7 +477,7 @@ console.log("\n── closing @ escalation-active");
   await p.locator('[data-care-tab="history"]').click();
   await p.waitForTimeout(200);
   const story = await p.evaluate(`document.querySelector("[data-escalation-story]")?.innerText.replace(/\\s+/g, " ") ?? ""`);
-  check(/tier update/.test(story), "and History keeps the account as one story", story.slice(0, 100));
+  check(/Tier update/i.test(story), "and History keeps the account as one story", story.slice(0, 100));
 
   // And it stays closed.
   await p.reload({ waitUntil: "networkidle" });

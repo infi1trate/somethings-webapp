@@ -122,7 +122,9 @@ for (const chat of ["fresh-match", "active-mentorship", "activities-in-flight", 
   await page.goto(`${BASE}/app/chat/t18`, { waitUntil: "networkidle" });
   await page.waitForTimeout(800);
   const tabs2 = await page.evaluate(() => [...document.querySelectorAll('[role="tablist"][aria-label="Conversation tools"] [role="tab"]')].map((t) => t.dataset.railTab));
-  check(tabs[1] === "care" && tabs2[1] === "care" && list > 0, `${chat}: Care after Context, on the focus thread and on another teen`, `${tabs.join(",")} | ${tabs2.join(",")}`);
+  /* RETARGETED (pack v4.0, Supersession 3): Care is the labelled control at
+     the LEFT end of the row, first, behind a divider. */
+  check(tabs[0] === "care" && tabs2[0] === "care" && list > 0, `${chat}: Care first, on the focus thread and on another teen`, `${tabs.join(",")} | ${tabs2.join(",")}`);
   await ctx.close();
 }
 
@@ -174,8 +176,8 @@ console.log("\n── 4 · the Care tabs");
   const { ctx, page } = await open("/app/chat/t14");
   await careTab(page).click();
   await page.waitForTimeout(300);
-  const tabs = await page.evaluate(() => ({ labels: [...document.querySelectorAll("[data-care-tab]")].map((c) => c.textContent), first: document.querySelector("[data-care-panel]")?.firstElementChild?.matches("[data-care-tabs]"), sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
-  check(tabs.labels.join("|") === "Overview|Safety plan|Emergency info|Resources|History" && tabs.first && tabs.sel === "overview", "Overview · Safety plan · Emergency info · Resources · History, at the top, on Overview", JSON.stringify(tabs));
+  const tabs = await page.evaluate(() => ({ labels: [...document.querySelectorAll("[data-care-tab]")].map((c) => c.textContent), first: (() => { const p = document.querySelector("[data-care-panel]"); return !!p?.children[0]?.matches("[data-care-hero]") && !!p?.children[1]?.querySelector("[data-care-tabs]"); })(), sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
+  check(tabs.labels.join("|") === "Overview|Safety plan|Emergency info|Resources|History" && tabs.first && tabs.sel === "overview", "Overview · Safety plan · Emergency info · Resources · History, right under the hero (pack v4.0), on Overview", JSON.stringify(tabs));
   const sub = await page.evaluate(() => document.querySelectorAll("[data-care-sub]").length);
   check(sub === 0, "and the mid-panel sub-chips are gone", `${sub}`);
   await page.locator('[data-care-tab="overview"]').focus();
@@ -375,7 +377,9 @@ let assessed;
   const x0 = await xs(page);
   check(x0?.lens === "mentor" && x0.stage === "M2" && x0.current.join() === "assessment" && !x0.baton, "mid-assessment: the assessment is the one current node — no baton banner", JSON.stringify(x0));
   check(x0?.order.join() === "upcoming,upcoming,current,completed", "upcoming on top, then the current node, then completed below", x0?.order.join());
-  check(x0?.upcoming.join() === "closed,waiting" && /Supervisor closes or steps down/.test(await page.evaluate(() => document.querySelector('[data-node="closed"] [data-node-condition]')?.textContent ?? "")), "the exit is always visible, ghosted, with its condition", x0?.upcoming.join());
+  /* RETARGETED (pack v4.0, Supersession 1): the future is one "Up next"
+     path that reads FORWARDS — the next step, then the exit. */
+  check(x0?.upcoming.join() === "waiting,closed" && /Supervisor closes or steps down/.test(await page.evaluate(() => document.querySelector('[data-node="closed"] [data-node-condition]')?.textContent ?? "")), "the exit is always on the Up next path, with its condition", x0?.upcoming.join());
   check(x0?.live === "Now: Go through the assessment with Jordan", "the current node is announced in the header's live region", String(x0?.live));
   check(s0.active.join() === "q3" && s0.answered.join() === "q1,q2", "exactly one active question (Q3); Q1–Q2 collapsed above; Q4–Q6 not rendered", JSON.stringify({ a: s0.active, d: s0.answered }));
   /* Quotes normalised: the panel sets the question in typographic quotes. */
@@ -412,8 +416,11 @@ let assessed;
   const x1 = await xs(page);
   const chip = await page.evaluate(() => document.querySelector('[data-node="assessment"] [data-risk-chip]')?.textContent);
   check(x1?.stage === "M3" && x1.current.join() === "waiting" && x1.done.includes("assessment") && chip === "High risk", "Submit: the assessment settles into a completed node with its risk chip; waiting is current", JSON.stringify({ ...x1, chip }));
-  check(x1?.title === "Brandy has this. Stay with Jordan." && !(await page.evaluate(() => !!document.querySelector('[data-node="waiting"] [data-node-card] > :not([data-node-title])'))), "waiting says the pack's line and nothing else", String(x1?.title));
-  check(await page.evaluate(() => /Reply in Support/.test(document.querySelector('[data-timeline-support="mentor"]')?.textContent ?? "")), "and Reply in Support lives in the header");
+  /* RETARGETED (pack v4.0, Workstream D): the waiting node is "While you're
+     with Jordan" — the holder line is the hero's — and while the mentor waits
+     the one Support door is the module's Open Support, not the hero's. */
+  check(x1?.title === "While you’re with Jordan" && (await page.evaluate(() => /— Brandy has this/.test(document.querySelector("[data-tier-line]")?.textContent ?? ""))), "waiting is While you’re with Jordan; Brandy has this stays in the hero", String(x1?.title));
+  check(await page.evaluate(() => !document.querySelector("[data-timeline-support]") && !!document.querySelector("[data-waiting-open-support]")), "and the one Support door is the module's Open Support");
   await page.screenshot({ path: `${OUT}/03-m3-stay.png` });
   assessed = await store(page);
   await ctx.close();
@@ -428,7 +435,7 @@ let closed;
   const z0 = await xs(z.page);
   const prog = await z.page.evaluate(() => ({ text: document.querySelector("[data-s0-progress]")?.textContent, questions: document.querySelectorAll("[data-node-state='current'] [data-assessment-active], [data-node-state='current'] [data-s1-answer]").length }));
   check(z0?.stage === "S0" && z0.current.join() === "assessment" && prog.text === "2 of 6 answered" && prog.questions === 0, "assessment in progress: the current node is a count — no live question sprawl", JSON.stringify({ z0, prog }));
-  check(z0?.upcoming.join() === "close,confirm", "and Confirm waits, ghosted, with the exit above it", z0?.upcoming.join());
+  check(z0?.upcoming.join() === "confirm,close", "and Confirm waits on the Up next path, before the exit", z0?.upcoming.join());
   await z.ctx.close();
 
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active", extra: { escalations: assessed.escalations, tierEvents: assessed.tierEvents } });
@@ -447,7 +454,7 @@ let closed;
     reason: document.querySelector('[data-exchange-field="confirm-reason"]')?.value,
     line: document.querySelector("[data-tier-line-text]")?.textContent,
   }));
-  check(s1.checked === "1" && s1.tabStops === 1 && s1.label === "Confirm Tier 1" && !!s1.reason && s1.line === "Awaiting confirmation on tiering", "the request is pre-selected, one tab stop, a prefilled reason", JSON.stringify(s1));
+  check(s1.checked === "1" && s1.tabStops === 1 && s1.label === "Confirm Tier 1" && !!s1.reason && s1.line === "Awaiting confirmation", "the request is pre-selected, one tab stop, a prefilled reason", JSON.stringify(s1));
   /* ═══ NEUTRAL UNTIL CONFIRMED (blocked constant) ═══ */
   const neutral = await alertHits(page, "[data-s1]");
   check(neutral.length === 0, "the tier picker and Confirm are neutral — no alert colour before the confirmation", neutral.slice(0, 3).join(", "));
@@ -475,7 +482,7 @@ let closed;
   const s2 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, line: document.querySelector("[data-tier-line-text]")?.textContent, lozenge: !!document.querySelector("[data-tier-line] .tier-settle [data-tier-lozenge]") }));
   const x2 = await xs(page);
   check(s2.stage === "S2" && /^Tier 1 confirmed by .+ · \d/.test(s2.line ?? "") && s2.lozenge, "S2: the header's chip has settled into the Tier 1 lozenge, signed and timed", JSON.stringify(s2));
-  check(x2?.current.join() === "note:subtype" && x2.upcoming.join() === "close,note:safety-plan", "the note assembles as nodes: Clinical subtype is current, the next section a ghost", JSON.stringify({ cur: x2?.current, up: x2?.upcoming }));
+  check(x2?.current.join() === "note:subtype" && x2.upcoming.join() === "note:safety-plan,close", "the note assembles as nodes: Clinical subtype is current, the next section first on the path", JSON.stringify({ cur: x2?.current, up: x2?.upcoming }));
   /* ═══ NO GUIDANCE COMPOSER (Supersession 2) ═══ */
   const g = await page.evaluate(() => ({ composer: !!document.querySelector("[data-send-guidance], [data-guidance-composer]"), link: document.querySelector('[data-timeline-support="supervisor"]')?.textContent ?? null }));
   check(!g.composer && /^Message .+ in Support/.test(g.link ?? ""), "no guidance composer — a quiet Message {mentor} in Support link instead", JSON.stringify(g));
@@ -560,7 +567,7 @@ console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 e
   /* MEASURED: the closed summary once named "Your supervisor" — the name was
      read off the OPEN escalation, and there is none once it closes. */
   const named = await page.evaluate(() => ({ next: document.querySelector("[data-wrap-next]")?.textContent ?? "", meta: document.querySelector("[data-timeline-meta]")?.textContent ?? "" }));
-  check(/^Brandy checks in/.test(named.next) && /Brandy notified/.test(named.meta), "and it names the supervisor, Brandy — never \u201cYour supervisor\u201d", JSON.stringify(named));
+  check(/* "notified" is the banner's alone now (pack v4.0, B2). */ /^Brandy checks in/.test(named.next) && !/Your supervisor|notified/.test(named.meta), "and it names the supervisor, Brandy — never \u201cYour supervisor\u201d", JSON.stringify(named));
   await page.screenshot({ path: `${OUT}/05-m4-wrap.png` });
   await page.locator('[data-exchange-primary="back-to-care"]').click();
   await page.waitForTimeout(400);
@@ -571,8 +578,11 @@ console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 e
   await page.locator('[data-care-tab="history"]').click();
   await page.waitForTimeout(200);
   const story = await page.evaluate(() => document.querySelector("[data-escalation-story]")?.innerText.replace(/\s+/g, " "));
-  check(/Raised .+→ assessed \(high risk\) → Tier 1 confirmed → mobile crisis responded → stepped down to Tier 3/.test(story ?? ""), "History tells the whole escalation in one line", story?.slice(0, 120));
-  await page.locator("[data-escalation-story] > button").click();
+  /* RETARGETED (pack v4.0, Workstream E): the arrow chain is retired — a
+     lozenge title row and ONE interpuncted stage line. */
+  const stages = await page.evaluate(() => document.querySelector("[data-escalation-story] [data-story-stages]")?.textContent ?? "");
+  check(/Escalation · closed/.test(story ?? "") && stages === "Assessed · High risk · Tier 1 confirmed · Mobile crisis responded · Stepped down to Tier 3" && !/→/.test(story ?? ""), "History tells the whole escalation in one interpuncted line — no arrows", stages);
+  await page.locator("[data-escalation-story] button[aria-expanded]").first().click();
   await page.waitForTimeout(150);
   const entries = await page.evaluate(() => [...document.querySelectorAll("[data-story-entries] [data-audit-lozenge]")].map((l) => l.textContent));
   check(["Raised", "Assessed", "Confirmed", "Crisis note", "Outcome", "Closed", "Stepped down", "Follow-up"].every((k) => entries.includes(k)) && !entries.includes("Guidance"), "expanded: every entry, each with its lozenge — and no Guidance", entries.join(" · "));
@@ -704,7 +714,7 @@ for (const [persona, expect] of [["mentor", ["escalate", "request-step-down"]], 
 {
   const { ctx, page } = await open("/admin/person/t21?tab=care", { persona: "supervisor" });
   const h = await page.evaluate(() => ({ section: !!document.querySelector("[data-record-tier-history]"), story: document.querySelector("[data-record-tier-history] [data-escalation-story]")?.innerText.replace(/\s+/g, " ") }));
-  check(h.section && /assessed \(.+\) → Tier 1 confirmed → .+ → stepped down to Tier 2/.test(h.story ?? ""), "closed-with-history: the record carries Imani's Friday crisis as one story", h.story?.slice(0, 120));
+  check(h.section && /Assessed · .+ · Tier 1 confirmed · .+ · Stepped down to Tier 2/.test(h.story ?? "") && !/→/.test(h.story ?? ""), "closed-with-history: the record carries Imani's Friday crisis as one story — the same card", h.story?.slice(0, 160));
   await page.screenshot({ path: `${OUT}/05-record-care-history.png` });
   await ctx.close();
 }

@@ -23,15 +23,19 @@
 // (coaching is the Support thread — Supersession 2), and the pinned
 // Emergency information button (Supersession 5).
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { ArrowRight, Check, ChevronDown, Lock, Sparkles } from "lucide-react";
+import { announceClose } from "@/components/chat/escalation/close-toast";
+import { Quote } from "@/components/chat/escalation/quote";
+import { WaitingModule, type SupervisorEcho } from "@/components/chat/escalation/waiting-module";
 import { RequestedChip } from "@/components/tiering/requested-chip";
 import { TierLozenge } from "@/components/ui/tier-lozenge";
-import type { EscalationState } from "@/lib/chat/types";
+import type { EscalationState, MessageOrigin } from "@/lib/chat/types";
 import { REFERRAL_TYPE } from "@/lib/record/people-demo";
 import {
   ASSESSMENT_QUESTIONS,
   CLINICAL_SUBTYPES,
+  CLOSE_OUT_TIER,
   CLOSE_OUT_TIER_COPY,
   CRISIS_SECTION_LABEL,
   CRISIS_TAGS,
@@ -58,7 +62,7 @@ import {
 } from "@/lib/tiering/escalation";
 import { assessmentProgress, orderNodes, timelineNodes, type Lens, type TimelineNode } from "@/lib/tiering/timeline";
 import type { Tiering } from "@/lib/tiering/use-tiering";
-import { PLATFORM, TIER_NAME, type Tier } from "@/lib/tiering/tiers";
+import { PLATFORM, TIER_NAME, isAlertTier, type Tier } from "@/lib/tiering/tiers";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -278,28 +282,14 @@ function noteSummary(note: CrisisNote, id: CrisisSectionId): string {
 
 /** ═══ A NOTE OR A MESSAGE IS ALWAYS QUOTE-FRAMED (Workstream E3) ═══ With
  *  attribution and time, so raw text can never read as a UI header. */
-function Quote({ text, who, at, note, slot }: { text: string; who: string; at: number; note?: string; slot: string }) {
-  return (
-    <figure data-quote={slot} className="rounded-[var(--radius-inset)] border-l-2 border-[color:var(--border-default)] bg-[var(--surface-s1)] py-2 pr-3 pl-3">
-      <blockquote className="text-[var(--text-primary)]" style={BODY}>
-        &ldquo;{text}&rdquo;
-      </blockquote>
-      <figcaption className="mt-1 tabular-nums text-[var(--text-muted)]" style={LABEL}>
-        {who}, {TIME.format(at)}
-      </figcaption>
-      {note && (
-        <p className="mt-1.5 text-[var(--text-secondary)]" style={LABEL}>
-          {/* TODO-COPY */}
-          Note: {note}
-        </p>
-      )}
-    </figure>
-  );
-}
+// ── THE HERO — one home for tier, responsibility and the Support link ──────
 
-// ── THE HEADER — absorbs every status fragment; nothing below restates it ──
-
-function TimelineHeader({
+/** ═══ ESCALATION HERO (pack v4.0, Workstream B) ═══ Above the Care tabs,
+ *  persistent across them, both lenses. ONE line of headline — the tier (or
+ *  the request), then who holds it — ONE quiet meta line (opened · the
+ *  confirmation state · who else is here), and ONE link. It does NOT say when
+ *  the supervisor was notified: the banner is that fact's single home. */
+export function EscalationHero({
   e,
   tiering,
   teenId,
@@ -308,7 +298,6 @@ function TimelineHeader({
   mentorName,
   presence,
   onSupport,
-  live,
 }: {
   e: EscalationState;
   tiering: Tiering;
@@ -316,24 +305,32 @@ function TimelineHeader({
   lens: Lens;
   supervisorName: string;
   mentorName: string;
+  /** The other party's first name, when they are in Support with you. */
   presence?: string;
   onSupport?: () => void;
-  live: string;
 }) {
   const target = escalationTarget(e);
   const confirmed = e.confirmedTier !== undefined;
+  const closed = e.resolvedAt !== null;
   const nowTier = tiering.stateFor(teenId).tier;
   const who = (() => {
     const ev = [...tiering.eventsFor(teenId)].reverse().find((x) => x.escalationId === e.id && (x.kind === "confirmed" || x.kind === "placed" || x.kind === "stepped-down"));
     return ev ? tiering.nameOf(ev.actor) : null;
   })();
+  /* TODO-COPY, every fragment. */
+  const holder = closed ? "closed" : lens === "mentor" ? `${supervisorName} has this` : `with ${mentorName}`;
+  const state = closed
+    ? /* The movement, not a stale confirmation (measured in v2). */
+      `Closed ${TIME.format(e.resolvedAt!)}${confirmed && nowTier !== null && nowTier !== e.confirmedTier ? ` · Tier ${e.confirmedTier} → Tier ${nowTier} ${TIER_NAME[nowTier]}` : ""}`
+    : target === PLATFORM
+      ? /* The chip already says "Platform concern" — one home. */
+        "In review"
+      : confirmed
+        ? `Tier ${e.confirmedTier} confirmed${who ? ` by ${who}` : ""}${e.confirmedAt ? ` · ${TIME.format(e.confirmedAt)}` : ""}`
+        : "Awaiting confirmation";
   return (
-    <header data-timeline-header className="space-y-1.5">
-      <div data-tier-line className="flex flex-wrap items-center gap-2">
-        <h3 className="text-[var(--text-primary)]" style={TITLE}>
-          {/* TODO-COPY */}
-          Escalation
-        </h3>
+    <header data-care-hero="escalation" data-timeline-header className="space-y-1.5">
+      <p data-tier-line className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {target === PLATFORM ? (
           <span className="inline-flex h-6 items-center rounded-full border border-[color:var(--border-default)] px-2.5 text-[var(--text-secondary)]" style={LABEL}>
             Platform concern
@@ -346,27 +343,30 @@ function TimelineHeader({
         ) : (
           <RequestedChip tier={target} />
         )}
-      </div>
-      <p data-timeline-meta className="tabular-nums text-[var(--text-secondary)]" style={LABEL}>
-        {/* TODO-COPY */}
-        Opened {TIME.format(e.openedAt)} · {supervisorName} notified
-        {presence ? ` · ${presence}` : ""}
+        <span data-hero-holder className="text-[var(--text-primary)]" style={TITLE}>
+          <span aria-hidden>— </span>
+          {holder}
+        </span>
       </p>
-      {target !== PLATFORM && (
-        <p data-tier-line-text className="tabular-nums text-[var(--text-secondary)]" style={LABEL}>
-          {/* TODO-COPY */}
-          {e.resolvedAt !== null
-            ? /* CLOSED: the movement, not the confirmation — a Tier 1 line beside
-                 "moves to Tier 3" read as a contradiction (measured in v2). */
-              `Closed ${TIME.format(e.resolvedAt)}${confirmed && nowTier !== null && nowTier !== e.confirmedTier ? ` · Tier ${e.confirmedTier} → Tier ${nowTier} ${TIER_NAME[nowTier]}` : ""}`
-            : confirmed
-              ? `Tier ${e.confirmedTier} confirmed${who ? ` by ${who}` : ""}${e.confirmedAt ? ` · ${TIME.format(e.confirmedAt)}` : ""}`
-              : "Awaiting confirmation on tiering"}
-        </p>
-      )}
-      {onSupport && e.resolvedAt === null && (
-        /* ═══ THE ONE REMNANT OF GUIDANCE (Supersession 2) ═══ Coaching
-           happens in the Support thread; this is the quiet way there. */
+      <p data-timeline-meta className="flex flex-wrap items-center gap-x-1.5 tabular-nums text-[var(--text-secondary)]" style={LABEL}>
+        <span>Opened {TIME.format(e.openedAt)}</span>
+        <span aria-hidden>·</span>
+        {/* A Platform concern has no tier line: it is a category, not a tier. */}
+        <span data-tier-line-text={target === PLATFORM ? undefined : ""}>{state}</span>
+        {presence && (
+          /* ═══ PRESENCE LIVES HERE ONLY (B3) ═══ A dot and a name. */
+          <>
+            <span aria-hidden>·</span>
+            <span data-hero-presence className="inline-flex items-center gap-1.5">
+              <span aria-hidden className="size-1.5 rounded-full bg-[var(--status-online)]" />
+              {presence} is here
+            </span>
+          </>
+        )}
+      </p>
+      {/* ONE SUPPORT DOOR: while the mentor waits, it is the waiting
+          module's "Open Support" (Workstream D), not the hero's. */}
+      {onSupport && !closed && !(lens === "mentor" && mentorStage(e, tiering.stateFor(teenId)) === "M3") && (
         <button
           type="button"
           data-timeline-support={lens}
@@ -375,16 +375,58 @@ function TimelineHeader({
           style={LABEL}
         >
           {/* TODO-COPY */}
-          {lens === "supervisor" ? `Message ${mentorName} in Support` : "Reply in Support"} <ArrowRight aria-hidden className="size-3.5" />
+          Message {lens === "supervisor" ? mentorName : supervisorName} in Support <ArrowRight aria-hidden className="size-3.5" />
         </button>
       )}
-      {/* ═══ THE CURRENT NODE, ANNOUNCED ═══ A polite region that names the
-          step whenever it changes — the timeline's equivalent of the retired
-          baton's live line, without the banner. */}
-      <p data-timeline-live role="status" aria-live="polite" className="sr-only">
-        {live}
-      </p>
     </header>
+  );
+}
+
+// ── UP NEXT — the future as one collapsed path ─────────────────────────────
+
+/** ═══ ONE ROW, COLLAPSED BY DEFAULT (pack v4.0, Supersession 1) ═══
+ *  "Up next: Confirm tier → Close", with the lock. Expanding lists each step
+ *  with its condition. The steps stay in the DOM while collapsed (`hidden`),
+ *  so the record of what comes next is still there for assistive tech on
+ *  expand and for the probes that read it. */
+function UpNext({ steps, stepName }: { steps: TimelineNode[]; stepName: (n: TimelineNode) => string }) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  /* Steps arrive exit-first (live-first order); the path reads forwards. */
+  const path = [...steps].reverse();
+  return (
+    <li data-up-next className="relative grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 pb-4">
+      <span aria-hidden className="absolute top-6 bottom-0 left-[11.5px] w-px border-l border-dashed border-[color:var(--border-subtle)]" />
+      <div className="pt-0.5">
+        <NodeGlyph state="upcoming" />
+      </div>
+      <div className="min-w-0">
+        <button
+          type="button"
+          data-up-next-toggle
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen((o) => !o)}
+          className={cn("flex min-h-7 max-w-full items-center gap-1.5 rounded-sm text-left text-[var(--text-muted)] hover:text-[var(--text-secondary)]", RING)}
+          style={LABEL}
+        >
+          {/* TODO-COPY */}
+          <span data-up-next-path className="min-w-0 break-words">
+            Up next: {path.map(stepName).join(" → ")}
+          </span>
+          <ChevronDown aria-hidden className={cn("size-3.5 shrink-0 transition-transform motion-reduce:transition-none", open && "rotate-180")} />
+        </button>
+        <ol id={panelId} hidden={!open} data-up-next-steps className="mt-1.5 space-y-1">
+          {path.map((n) => (
+            <li key={n.id} data-node={n.id} data-node-kind={n.kind} data-node-state="upcoming">
+              <p data-node-condition className="text-[var(--text-muted)]" style={LABEL}>
+                {n.condition ?? stepName(n)}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </li>
   );
 }
 
@@ -396,13 +438,20 @@ function TimelineHeader({
  *  the whole spine at once. */
 const OPENED_AT = Date.now();
 
-function NodeGlyph({ state, fresh = false }: { state: TimelineNode["state"]; fresh?: boolean }) {
+/* ═══ THE NODE GRAMMAR (pack v4.0, Workstream C) ═══ One size, three marks:
+   completed   a filled check on surface-s2 — the quietest mark
+   current     the ink ring: PULSING for an action that is yours, BREATHING
+               (a 6s opacity cycle) for a step that is someone else's
+   upcoming    a dashed lock, on the collapsed "Up next" path row only */
+const GLYPH = "relative z-[1] flex size-6 items-center justify-center rounded-full";
+
+function NodeGlyph({ state, fresh = false, variant = "action" }: { state: TimelineNode["state"]; fresh?: boolean; variant?: NodeVariant }) {
   if (state === "completed")
     return (
       /* ═══ THE HANDOFF (make it magical 1) ═══ The node that just completed
          checks and settles — one beat — while the next node takes the pulse.
          `tier-settle` is off under reduced motion. */
-      <span aria-hidden data-node-fresh={fresh || undefined} className={cn("relative z-[1] flex size-6 items-center justify-center rounded-full bg-[var(--surface-s2)] text-[var(--text-primary)]", fresh && "tier-settle")}>
+      <span aria-hidden data-node-fresh={fresh || undefined} className={cn(GLYPH, "bg-[var(--surface-s2)] text-[var(--text-secondary)]", fresh && "tier-settle")}>
         <Check className="size-3.5" />
       </span>
     );
@@ -411,18 +460,32 @@ function NodeGlyph({ state, fresh = false }: { state: TimelineNode["state"]; fre
        banner, the escalation dot and Tier 1–2 lozenges (Workstream F3).
        Reduced motion: a static emphasised ring (`.node-pulse`). */
     return (
-      <span aria-hidden data-node-pulse className="node-pulse relative z-[1] flex size-6 items-center justify-center rounded-full border-2 border-[color:var(--text-primary)] bg-[var(--surface-card)]">
-        <span className="size-2 rounded-full bg-[var(--text-primary)]" />
-      </span>
+      variant === "waiting" ? (
+        /* ═══ THE BREATH (make it magical 1) ═══ Waiting is not "act now":
+           no outward pulse, the dot breathes instead. Off under reduced
+           motion, where the ring alone says "live". */
+        <span aria-hidden data-node-breath className={cn(GLYPH, "border-2 border-[color:var(--text-primary)] bg-[var(--surface-card)]")}>
+          <span className="node-breath size-2 rounded-full bg-[var(--text-primary)]" />
+        </span>
+      ) : (
+        <span aria-hidden data-node-pulse className={cn(GLYPH, "node-pulse border-2 border-[color:var(--text-primary)] bg-[var(--surface-card)]")}>
+          <span className="size-2 rounded-full bg-[var(--text-primary)]" />
+        </span>
+      )
     );
   return (
-    <span aria-hidden className="relative z-[1] flex size-6 items-center justify-center rounded-full border border-dashed border-[color:var(--border-default)] bg-[var(--surface-card)] text-[var(--text-muted)]">
+    <span aria-hidden className={cn(GLYPH, "border border-dashed border-[color:var(--border-default)] bg-[var(--surface-card)] text-[var(--text-muted)]")}>
       <Lock className="size-3" />
     </span>
   );
 }
 
+type NodeVariant = "action" | "waiting";
+
 function Node({
+  accent = "neutral",
+  variant = "action",
+  sub,
   node,
   title,
   detail,
@@ -442,6 +505,12 @@ function Node({
   /** Completed: what expanding reveals. */
   expand?: React.ReactNode;
   last: boolean;
+  /** Current: the card's accent ring — the alert family for Tiers 1–2 only. */
+  accent?: "alert" | "neutral";
+  /** Current: an action that is this lens's, or a step that is someone else's. */
+  variant?: NodeVariant;
+  /** Completed: a second, muted line — wraps, never truncates. */
+  sub?: string;
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -450,15 +519,25 @@ function Node({
       {/* THE SPINE: a hairline from this node to the next. */}
       {!last && <span aria-hidden className="absolute top-6 bottom-0 left-[11.5px] w-px bg-[var(--border-subtle)]" />}
       <div className="pt-0.5">
-        <NodeGlyph state={node.state} fresh={fresh} />
+        <NodeGlyph state={node.state} fresh={fresh} variant={variant} />
       </div>
       <div className={cn("min-w-0", last ? "pb-0" : "pb-4")}>
-        {node.state === "upcoming" ? (
-          <p data-node-condition className="pt-1 text-[var(--text-muted)]" style={LABEL}>
-            {node.condition ?? title}
-          </p>
-        ) : node.state === "current" ? (
-          <div data-node-card className="space-y-3">
+        {/* Upcoming nodes render in the "Up next" row (UpNext), not here. */}
+        {node.state === "current" ? (
+          /* ═══ THE ONE EMPHASIS (pack v4.0, Workstream A) ═══ The current
+             step is the panel's single strongest element: the raised surface
+             over the panel's s1, the soft elevation, and an accent ring —
+             alert-family for Tiers 1–2, neutral otherwise. Nothing else on the
+             panel is raised AND ringed. */
+          <div
+            data-node-card
+            data-node-accent={accent}
+            data-node-variant={variant}
+            className={cn(
+              "space-y-3 rounded-[16px] bg-[var(--surface-raised)] p-4 shadow-[var(--el-soft)] ring-1",
+              accent === "alert" ? "ring-[color:var(--alert-critical-border)]" : "ring-[color:var(--border-default)]"
+            )}
+          >
             <p data-node-title className="pt-0.5 text-[var(--text-primary)]" style={TITLE}>
               {title}
             </p>
@@ -476,14 +555,17 @@ function Node({
                   aria-expanded={open}
                   aria-controls={panelId}
                   onClick={() => setOpen((o) => !o)}
-                  className={cn("flex min-w-0 items-center gap-1.5 rounded-sm text-left text-[var(--text-primary)]", detail ? "shrink-0" : "flex-1", RING)}
+                  className={cn("flex min-w-0 items-center gap-1.5 rounded-sm text-left text-[var(--text-secondary)] hover:text-[var(--text-primary)]", detail ? "max-w-full" : "flex-1", RING)}
                   style={BODY}
                 >
-                  <span className="min-w-0 truncate">{title}</span>
+                  {/* ═══ NEVER TRUNCATED MID-SENTENCE (Workstream C) ═══ A
+                      completed line is a short label that wraps; the long
+                      text is what expanding reveals. */}
+                  <span data-node-label className="min-w-0 break-words">{title}</span>
                   <ChevronDown aria-hidden className={cn("size-3.5 shrink-0 text-[var(--icon-secondary)] transition-transform motion-reduce:transition-none", open && "rotate-180")} />
                 </button>
               ) : (
-                <span className="min-w-0 flex-1 truncate text-[var(--text-primary)]" style={BODY}>
+                <span data-node-label className="min-w-0 flex-1 break-words text-[var(--text-secondary)]" style={BODY}>
                   {title}
                 </span>
               )}
@@ -494,6 +576,11 @@ function Node({
                 </span>
               )}
             </div>
+            {sub && (
+              <p data-node-sub className="break-words text-[var(--text-muted)]" style={LABEL}>
+                {sub}
+              </p>
+            )}
             {expand && open && (
               <div id={panelId} data-node-expanded className="mt-2">
                 {expand}
@@ -508,7 +595,7 @@ function Node({
 
 // ── THE ASSESSMENT (mentor's current node) ─────────────────────────────────
 
-function AssessmentCard({ e, name, onAnswer, onUseWording, tiering, teenId }: { e: EscalationState; name: string; onAnswer: (id: string, v: "yes" | "no") => void; onUseWording: (t: string) => void; tiering: Tiering; teenId: string }) {
+function AssessmentCard({ e, name, onAnswer, onUseWording, tiering, teenId }: { e: EscalationState; name: string; onAnswer: (id: string, v: "yes" | "no") => void; onUseWording: (t: string, origin?: MessageOrigin) => void; tiering: Tiering; teenId: string }) {
   const answers = assessmentOf(e).answers;
   const steps = askedSteps(answers);
   const active = activeStep(answers);
@@ -521,62 +608,85 @@ function AssessmentCard({ e, name, onAnswer, onUseWording, tiering, teenId }: { 
         {answered.length > 0 && (
           <ol data-assessment-answered className="space-y-1">
             {answered.map((s) => (
-              <li key={s.id} data-answered={s.id} className="flex items-center gap-2 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-1.5" style={LABEL}>
-                <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">{s.followUpOf ? `↳ ${s.text}` : s.text}</span>
-                <span className="shrink-0 text-[var(--text-primary)]">{answers[s.id].value === "yes" ? "Yes" : "No"}</span>
-              </li>
+              <AnsweredRow key={s.id} step={s} value={answers[s.id].value} slot="data-answered" />
             ))}
           </ol>
         )}
         {active && (
-          <div data-assessment-active={active.id} className="rounded-[var(--radius-inset)] border border-[color:var(--border-default)] bg-[var(--surface-card)] px-3 py-3">
-            {/* ═══ THE NEXT QUESTION IS ANNOUNCED ═══ Answering keeps focus on
-                the same Yes/No (React reuses the buttons); this polite, atomic
-                region reads the new question once. */}
-            <div data-question-live aria-live="polite" aria-atomic="true">
-              <p className="text-[var(--text-muted)]" style={LABEL}>
-                {active.followUpOf ? "Follow-up" : `Question ${ASSESSMENT_QUESTIONS.findIndex((q) => q.id === active.id) + 1}`}
-              </p>
-              <p className="mt-1 text-[var(--text-primary)]" style={TITLE}>
-                &ldquo;{active.text}&rdquo;
-              </p>
-              {active.example && (
-                <p className="mt-1 text-[var(--text-secondary)]" style={LABEL}>
-                  {active.example}
+          /* ═══ TWO ZONES (pack v4.0, Supersession 2) ═══
+             1  ASK {TEEN}      the question, verbatim, and "Ask in chat" — it
+                               goes into the message box, editable, never sent
+             2  {TEEN}'S ANSWER  Yes / No, on a sunken well: subordinate to
+                               the asking, and never disabled — a mentor may
+                               already have the answer.
+             One surface with a divider, not a card inside the node card. */
+          <div data-assessment-active={active.id} className="space-y-3">
+            <section data-zone="ask" aria-labelledby={`${active.id}-ask`} className="space-y-1.5">
+              {/* ═══ THE NEXT QUESTION IS ANNOUNCED ═══ Answering keeps focus
+                  on the same Yes/No (React reuses the buttons); this polite,
+                  atomic region reads the new question once. */}
+              <div data-question-live aria-live="polite" aria-atomic="true" className="space-y-1">
+                <p id={`${active.id}-ask`} data-zone-label className="text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase">
+                  {/* TODO-COPY */}
+                  Ask {name}
+                  <span className="sr-only">
+                    {" · "}
+                    {active.followUpOf ? "Follow-up" : `Question ${ASSESSMENT_QUESTIONS.findIndex((q) => q.id === active.id) + 1} of ${ASSESSMENT_QUESTIONS.length}`}
+                  </span>
                 </p>
-              )}
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[var(--text-primary)]" style={TITLE}>
+                  &ldquo;{active.text}&rdquo;
+                </p>
+                {active.example && (
+                  <p className="text-[var(--text-secondary)]" style={LABEL}>
+                    {active.example}
+                  </p>
+                )}
+              </div>
               <button
                 type="button"
                 data-assessment-wording={active.id}
-                onClick={() => onUseWording(active.text)}
-                className={cn("inline-flex min-h-9 items-center rounded-full border border-dashed border-[color:var(--border-contour)] px-3 text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]", RING)}
-                style={LABEL}
+                onClick={() => onUseWording(active.text, { kind: "assessment", questionId: active.id })}
+                className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3.5 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
+                style={BODY}
               >
                 {/* TODO-COPY */}
-                Put in message box
+                Ask in chat <ArrowRight aria-hidden className="size-3.5" />
               </button>
-              {/* ═══ ANSWERS ARE ACTIONS, NOT A SELECTION ═══ Two buttons in a
-                  labelled group: as radios, an arrow key would answer a
-                  clinical question by accident. */}
-              <div role="group" aria-label={`${name}'s answer`} className="flex gap-1.5">
-                {(["yes", "no"] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    data-yes-no={`${active.id}:${v}`}
-                    onClick={() => onAnswer(active.id, v)}
-                    className={cn("inline-flex min-h-9 min-w-14 items-center justify-center rounded-full border border-[color:var(--border-default)] px-3 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
-                    style={BODY}
-                  >
-                    {v === "yes" ? "Yes" : "No"}
-                  </button>
-                ))}
+            </section>
+            <section data-zone="answer" aria-labelledby={`${active.id}-answer`} className="space-y-2 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p id={`${active.id}-answer`} data-zone-label className="text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase">
+                    {/* TODO-COPY */}
+                    {name}&rsquo;s answer
+                  </p>
+                  <p data-zone-hint className="text-[var(--text-secondary)]" style={LABEL}>
+                    {/* TODO-COPY — the pack's line. */}
+                    Record what {name} tells you.
+                  </p>
+                </div>
+                {/* ═══ ANSWERS ARE ACTIONS, NOT A SELECTION ═══ Two buttons in
+                    a labelled group: as radios, an arrow key would answer a
+                    clinical question by accident. */}
+                <div role="group" aria-label={`${name}'s answer`} className="flex gap-1.5">
+                  {(["yes", "no"] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      data-yes-no={`${active.id}:${v}`}
+                      onClick={() => onAnswer(active.id, v)}
+                      className={cn("inline-flex min-h-9 min-w-14 items-center justify-center rounded-full border border-[color:var(--border-default)] bg-[var(--surface-raised)] px-3 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
+                      style={BODY}
+                    >
+                      {v === "yes" ? "Yes" : "No"}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            </section>
             {/* ═══ THE PROGRESS LINE, FOLDED INTO THE CARD (Workstream D) ═══ */}
-            <p data-assessment-progress className="mt-3 border-t border-[color:var(--border-subtle)] pt-2 tabular-nums text-[var(--text-muted)]" style={LABEL}>
+            <p data-assessment-progress className="border-t border-[color:var(--border-subtle)] pt-2 tabular-nums text-[var(--text-muted)]" style={LABEL}>
               {/* TODO-COPY — the pack's line. */}
               {answeredCount(answers)} of {ASSESSMENT_QUESTIONS.length} answered · your supervisor sees each answer as you give it
             </p>
@@ -609,17 +719,47 @@ function AssessmentCard({ e, name, onAnswer, onUseWording, tiering, teenId }: { 
   );
 }
 
+/** ═══ AN ANSWERED ROW (pack v4.0, Workstream C) ═══ A short label — what
+ *  the question assesses — and the answer, on one line; expanding shows the
+ *  question VERBATIM. Never a truncated question: "Have you wished you were
+ *  dead o…" was the defect. Both lenses render this one row. */
+function AnsweredRow({ step, value, slot }: { step: ReturnType<typeof askedSteps>[number]; value: "yes" | "no"; slot: "data-answered" | "data-s1-answer" }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  /* TODO-COPY */
+  const label = step.followUpOf ? "↳ Within the past 3 months" : step.assesses;
+  return (
+    <li {...{ [slot]: step.id }} className="rounded-[var(--radius-inset)] bg-[var(--surface-s1)]" style={LABEL}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((o) => !o)}
+        className={cn("flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-inset)] px-3 py-1.5 text-left", RING)}
+      >
+        <span data-answer-label className="min-w-0 flex-1 break-words text-[var(--text-secondary)]">{label}</span>
+        <span className="shrink-0 text-[var(--text-primary)]">{value === "yes" ? "Yes" : "No"}</span>
+        <ChevronDown aria-hidden className={cn("size-3.5 shrink-0 text-[var(--icon-secondary)] transition-transform motion-reduce:transition-none", open && "rotate-180")} />
+      </button>
+      {open && (
+        <p id={id} data-answer-verbatim className="px-3 pb-2 text-[var(--text-primary)]">
+          &ldquo;{step.text}&rdquo;
+        </p>
+      )}
+    </li>
+  );
+}
+
 function AnswersList({ e }: { e: EscalationState }) {
   const a = assessmentOf(e);
   const steps = askedSteps(a.answers).filter((s) => a.answers[s.id]);
   return (
     <div className="space-y-1.5">
-      {steps.map((s) => (
-        <div key={s.id} data-s1-answer={s.id} className="flex items-center gap-2 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-1.5" style={LABEL}>
-          <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">{s.followUpOf ? "↳ Within the past 3 months" : s.assesses}</span>
-          <span className="text-[var(--text-primary)]">{a.answers[s.id].value === "yes" ? "Yes" : "No"}</span>
-        </div>
-      ))}
+      <ol className="space-y-1">
+        {steps.map((s) => (
+          <AnsweredRow key={s.id} step={s} value={a.answers[s.id].value} slot="data-s1-answer" />
+        ))}
+      </ol>
       {e.mentorSummary && <Quote slot="mentor-summary" text={e.mentorSummary} who="Mentor's summary" at={a.submittedAt ?? e.openedAt} />}
     </div>
   );
@@ -683,7 +823,10 @@ function ConfirmCard({ e, name, tiering, teenId, onSettled }: { e: EscalationSta
         onClick={() => {
           setTried(true);
           if (tier === null || !reason.trim()) return;
-          if (tiering.confirm(teenId, tier, reason) && tier >= 3) onSettled?.();
+          if (tiering.confirm(teenId, tier, reason) && tier >= 3) {
+            announceClose(e.id, name, tier);
+            onSettled?.();
+          }
         }}
       >
         {/* TODO-COPY */}
@@ -693,7 +836,7 @@ function ConfirmCard({ e, name, tiering, teenId, onSettled }: { e: EscalationSta
   );
 }
 
-function ReviewCard({ tiering, teenId, onSettled }: { tiering: Tiering; teenId: string; onSettled?: () => void }) {
+function ReviewCard({ e, name, tiering, teenId, onSettled }: { e: EscalationState; name: string; tiering: Tiering; teenId: string; onSettled?: () => void }) {
   const [reason, setReason] = useState("");
   const [tried, setTried] = useState(false);
   return (
@@ -705,6 +848,7 @@ function ReviewCard({ tiering, teenId, onSettled }: { tiering: Tiering; teenId: 
           setTried(true);
           if (!reason.trim()) return;
           tiering.closeReviewed(teenId, reason);
+          announceClose(e.id, name, null);
           onSettled?.();
         }}
       >
@@ -957,7 +1101,10 @@ function CloseCard({ e, name, tiering, teenId, onSettled }: { e: EscalationState
       <Primary
         slot="close-escalation"
         onClick={() => {
-          if (tiering.close(teenId, { followUpDays: days, reason: `Crisis note filed. ${outcome}`.trim() })) onSettled?.();
+          if (tiering.close(teenId, { followUpDays: days, reason: `Crisis note filed. ${outcome}`.trim() })) {
+            announceClose(e.id, name, CLOSE_OUT_TIER);
+            onSettled?.();
+          }
         }}
       >
         {/* TODO-COPY */}
@@ -987,12 +1134,13 @@ export function EscalationExchange({
   tiering,
   supervisorName,
   mentorName,
-  presence,
   onUseWording,
-  onReplyInSupport,
   teenLines,
   mentorLines,
   onSettled,
+  supportOpen = false,
+  onSupport,
+  echo,
 }: {
   e: EscalationState;
   teenId: string;
@@ -1002,16 +1150,18 @@ export function EscalationExchange({
   supervisorName: string;
   /** How the supervisor lens names the mentor, for the Support link. */
   mentorName: string;
-  presence?: string;
-  onUseWording: (text: string) => void;
-  /** Opens the Support thread with the other party (Supersession 2). */
-  onReplyInSupport?: () => void;
+  onUseWording: (text: string, origin?: MessageOrigin) => void;
   teenLines: string[];
   mentorLines: string[];
   /** ═══ THE HOST KEEPS CARE IN FRONT ═══ Called when this panel ends its
    *  own escalation (a close, an S1 exit, Mark reviewed) or the mentor
    *  leaves the wrap. */
   onSettled?: () => void;
+  /** Support is open on the other party (the waiting module drops its door). */
+  supportOpen?: boolean;
+  onSupport?: () => void;
+  /** The supervisor's latest Support message, for the mentor's waiting node. */
+  echo?: SupervisorEcho;
 }) {
   const state = tiering.stateFor(teenId);
   const tier = workingTier(e, state);
@@ -1020,6 +1170,13 @@ export function EscalationExchange({
   const stage = lens === "mentor" ? mentorStage(e, state) : supervisorStage(e);
   const nodes = orderNodes(timelineNodes(e, state, lens));
   const open = e.resolvedAt === null;
+  /* ═══ THE MENTOR'S CLOSE TOAST (Workstream F1) ═══ The same toast the
+     supervisor saw, once, the first time this lens shows the closed summary.
+     An effect because "shown" is the event; it writes no React state. */
+  const closedTier = lens === "mentor" && stage === "M4" ? state.tier : undefined;
+  useEffect(() => {
+    if (closedTier !== undefined) announceClose(e.id, name, closedTier);
+  }, [closedTier, e.id, name]);
   const target = escalationTarget(e);
   const saveNote = (patch: Partial<CrisisNote>) => tiering.saveCrisisNote(teenId, patch);
 
@@ -1030,20 +1187,21 @@ export function EscalationExchange({
         return target === PLATFORM ? "Raised · Platform concern" : `Raised · Tier ${target} requested`;
       case "moment": {
         const m = e.moments?.find((x) => x.id === n.momentId);
-        return m ? `Added from the chat · “${m.quote.text}”` : "Added from the chat";
+        /* The quote is what expanding reveals — never cut mid-sentence here. */
+        return m ? `Added from the chat · ${m.quote.senderName}` : "Added from the chat";
       }
       case "assessment":
         if (n.state === "current") return lens === "mentor" ? `Go through the assessment with ${name}` : "Assessment in progress";
         return lens === "mentor" ? "Assessment sent" : "Assessment received";
       case "waiting":
-        /* TODO-COPY — the pack's line, as the node's title; nothing else. */
-        return n.state === "current" ? `${supervisorName} has this. Stay with ${name}.` : `${supervisorName} took it from here`;
+        /* TODO-COPY. The holder ("Brandy has this") is the hero's line. */
+        return n.state === "current" ? `While you’re with ${name}` : `${supervisorName} took it from here`;
       case "review":
         return "Review the report";
       case "confirm":
         return n.state === "current" ? `Confirm ${name}'s tier` : `Tier ${e.confirmedTier} confirmed`;
       case "note":
-        return n.state === "current" ? CRISIS_SECTION_LABEL[n.section!] : `${CRISIS_SECTION_LABEL[n.section!]} · ${noteSummary(e.crisisNote ?? {}, n.section!)}`;
+        return CRISIS_SECTION_LABEL[n.section!];
       case "outcome":
         return n.state === "current" ? "Record the outcome" : `Outcome · ${OUTCOMES.find((o) => o.id === e.outcome?.id)?.label ?? ""}`;
       case "debrief":
@@ -1067,11 +1225,20 @@ export function EscalationExchange({
           </p>
         );
       case "waiting":
-        /* NOTHING ELSE (Workstream D): the title says it, and "Reply in
-           Support" is the header's. */
-        return null;
+        /* ═══ THE WAITING MODULE (pack v4.0, Workstream D) ═══ */
+        return (
+          <WaitingModule
+            name={name}
+            supervisorName={supervisorName}
+            supportOpen={supportOpen}
+            onSupport={onSupport}
+            echo={echo}
+            teenLines={teenLines}
+            onUseWording={onUseWording}
+          />
+        );
       case "review":
-        return <ReviewCard tiering={tiering} teenId={teenId} onSettled={onSettled} />;
+        return <ReviewCard e={e} name={name} tiering={tiering} teenId={teenId} onSettled={onSettled} />;
       case "confirm":
         return <ConfirmCard e={e} name={name} tiering={tiering} teenId={teenId} onSettled={onSettled} />;
       case "note":
@@ -1173,16 +1340,64 @@ export function EscalationExchange({
   };
 
   const current = nodes.find((n) => n.state === "current");
+  /* ═══ THE FUTURE IS ONE ROW (pack v4.0, Supersession 1) ═══ The upcoming
+     nodes fold into the collapsed "Up next" path at the top; the rest of the
+     spine is the current node and what is done. */
+  const upcoming = nodes.filter((n) => n.state === "upcoming");
+  const rest = nodes.filter((n) => n.state !== "upcoming");
+  /* ═══ ACTION OR WAITING (Workstream C) ═══ Waiting is a current step that
+     belongs to the other lens: the mentor while the supervisor has it, the
+     supervisor while the mentor assesses (S0). */
+  const variantOf = (n: TimelineNode): NodeVariant =>
+    n.state === "current" && (n.kind === "waiting" || (n.kind === "assessment" && lens === "supervisor")) ? "waiting" : "action";
+  const subOf = (n: TimelineNode): string | undefined =>
+    n.kind === "note" && n.state === "completed" ? noteSummary(e.crisisNote ?? {}, n.section!) || undefined : undefined;
+  /* The path's short step names. TODO-COPY. */
+  const stepName = (n: TimelineNode): string => {
+    switch (n.kind) {
+      case "waiting":
+        return `${supervisorName} takes over`;
+      case "confirm":
+        return "Confirm tier";
+      case "note":
+        return CRISIS_SECTION_LABEL[n.section!];
+      case "outcome":
+        return "Outcome";
+      case "debrief":
+        return "Debrief";
+      case "close":
+      case "closed":
+        return "Close";
+      default:
+        return titleOf(n);
+    }
+  };
   /* At most ONE settling node: the latest completion, if it happened here. */
   const freshId = nodes.filter((n) => n.state === "completed" && n.at !== null && n.at >= OPENED_AT).sort((x, y) => (y.at ?? 0) - (x.at ?? 0))[0]?.id;
   const live = current ? `Now: ${titleOf(current)}` : "";
 
   return (
     <section data-exchange data-lens={lens} data-stage={stage} data-tier={String(tier)} aria-label="Escalation" className="space-y-4">
-      <TimelineHeader e={e} tiering={tiering} teenId={teenId} lens={lens} supervisorName={supervisorName} mentorName={mentorName} presence={presence} onSupport={onReplyInSupport} live={live} />
-      <ol data-timeline aria-label="Escalation timeline" className="border-t border-[color:var(--border-subtle)] pt-4">
-        {nodes.map((n, i) => (
-          <Node key={n.id} node={n} fresh={n.id === freshId} title={titleOf(n)} detail={detailOf(n)} expand={n.state === "completed" ? expandOf(n) : undefined} last={i === nodes.length - 1}>
+      {/* The hero above the Care tabs carries the tier, the holder and the
+          Support link (pack v4.0); the timeline keeps the announcement. */}
+      <p data-timeline-live role="status" aria-live="polite" className="sr-only">
+        {live}
+      </p>
+      <ol data-timeline aria-label="Escalation timeline">
+        {upcoming.length > 0 && <UpNext steps={upcoming} stepName={stepName} />}
+        {rest.map((n, i) => (
+          <Node
+            key={n.id}
+            accent={isAlertTier(tier) ? "alert" : "neutral"}
+            variant={variantOf(n)}
+            node={n}
+            fresh={n.id === freshId}
+            title={titleOf(n)}
+            sub={subOf(n)}
+            detail={detailOf(n)}
+            expand={n.state === "completed" ? expandOf(n) : undefined}
+            last={i === rest.length - 1}
+          >
             {n.state === "current" ? cardOf(n) : undefined}
           </Node>
         ))}

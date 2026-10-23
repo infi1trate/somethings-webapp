@@ -113,6 +113,7 @@ export function RecordTierHistory({ teenId, firstName }: { teenId: string; first
       nameOf={tiering.nameOf}
       mentorName={tiering.liveMentorName || "The mentor"}
       emptyName={firstName}
+      now={now}
     />
   );
 }

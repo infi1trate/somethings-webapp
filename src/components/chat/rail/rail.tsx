@@ -136,6 +136,50 @@ function RailTabs({
   const tab = (t: RailTab) => {
     const Icon = RAIL_TAB_ICON[t];
     const selected = t === active;
+    /* ═══ THE CARE CONTROL: A LABELLED TAB, NEVER A BUTTON (pack v4.0) ═══
+       Heart and the word "Care", a pill that reads as a tab — the selected
+       state is the same sunken fill the icon tabs use; unselected it is quiet
+       ink with no border, so it never looks like a call to action. */
+    if (t === "care") {
+      return (
+        <button
+          key={t}
+          ref={(el) => {
+            refs.current[t] = el;
+          }}
+          type="button"
+          role="tab"
+          data-rail-tab={t}
+          data-care-control
+          aria-selected={selected}
+          aria-controls={selected ? controls : undefined}
+          tabIndex={selected ? 0 : -1}
+          onClick={() => onChange(t)}
+          onKeyDown={(e) => onKey(e, t)}
+          className={cn(
+            "relative flex h-10 shrink-0 items-center gap-2 rounded-full px-3.5 transition-colors",
+            selected ? "bg-[var(--surface-sunken-strong)] text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+            TAB_RING
+          )}
+          style={{ font: "var(--type-body)" }}
+        >
+          <Icon aria-hidden className="size-5" strokeWidth={1.75} />
+          {/* TODO-COPY */}
+          {RAIL_TAB_LABEL[t]}
+          <span className="sr-only">{careDot ? ", escalation open" : ""}</span>
+          {careDot && (
+            <span
+              aria-hidden
+              data-care-dot={careDot}
+              className={cn(
+                "absolute top-1 left-7 size-2.5 rounded-full ring-2 ring-[var(--surface-card)]",
+                careDot === "alert" ? "bg-[var(--alert-critical-accent)]" : "bg-[var(--text-primary)]"
+              )}
+            />
+          )}
+        </button>
+      );
+    }
     return (
       <button
         key={t}
@@ -162,21 +206,7 @@ function RailTabs({
         <Icon aria-hidden className="size-5" strokeWidth={1.75} />
         {/* The word, as text rather than `aria-label`: the same accessible
             name, and anything reading the tab's text still finds it. */}
-        <span className="sr-only">
-          {RAIL_TAB_LABEL[t]}
-          {/* TODO-COPY */}
-          {t === "care" && careDot ? ", escalation open" : ""}
-        </span>
-        {t === "care" && careDot && (
-          <span
-            aria-hidden
-            data-care-dot={careDot}
-            className={cn(
-              "absolute right-0.5 top-0.5 size-2.5 rounded-full ring-2 ring-[var(--surface-card)]",
-              careDot === "alert" ? "bg-[var(--alert-critical-accent)]" : "bg-[var(--text-primary)]"
-            )}
-          />
-        )}
+        <span className="sr-only">{RAIL_TAB_LABEL[t]}</span>
       </button>
     );
   };
@@ -185,8 +215,14 @@ function RailTabs({
      reorder. */
   return (
     /* TODO-COPY. Names the region, not the widget. */
-    <div role="tablist" aria-label="Conversation tools" className="flex w-full items-center justify-end gap-2">
-      {tabs.map(tab)}
+    <div role="tablist" aria-label="Conversation tools" className="flex w-full items-center gap-2">
+      {tabs.includes("care") && (
+        <>
+          {tab("care")}
+          <span aria-hidden data-rail-divider className="mx-1 h-6 w-px shrink-0 bg-[var(--border-subtle)]" />
+        </>
+      )}
+      <div className="ml-auto flex items-center gap-2">{tabs.filter((t) => t !== "care").map(tab)}</div>
     </div>
   );
 }
@@ -215,7 +251,11 @@ function RailTabs({
  *  the state it belongs to is itself exceptional and loudly announced by the banner
  *  above; a permanently-present Escalation tab would be a permanent invitation. */
 export function tabsFor(kind: ChatThread["kind"]): RailTab[] {
-  return kind === "teen" ? ["assist", "care", "profile", "toolkit", "timeline"] : ["assist", "timeline"];
+  /* ═══ CARE FIRST, LABELLED (pack v4.0, Supersession 3) ═══ The Care
+     control moved to the left end, set apart by a divider and carrying its
+     word; the other four stay icon tabs. Keyboard order follows: Care, then
+     the four. */
+  return kind === "teen" ? ["care", "assist", "profile", "toolkit", "timeline"] : ["assist", "timeline"];
 }
 
 /** ═══ WHAT THE TIMELINE PANEL IS SHOWING ═══
@@ -248,7 +288,6 @@ export function Rail({
   onOpenEvent,
   nameActor,
   onOpenReference,
-  presence,
   className,
 }: {
   thread: ChatThread;
@@ -281,8 +320,6 @@ export function Rail({
   onOpenEvent?: (event: ChatEvent) => void;
   nameActor?: (actorId: string) => string;
   onOpenReference: (ref: ContextRef) => void;
-  /** "Brandy is in this chat" — see the header. */
-  presence?: string;
   className?: string;
 }) {
   const tabs = tabsFor(thread.kind);
@@ -315,18 +352,9 @@ export function Rail({
       <div data-rail-header className="flex h-16 shrink-0 items-center border-b border-[color:var(--border-subtle)] px-4">
         <RailTabs tabs={tabs} active={active} onChange={onTabChange} controls={`${panelId}-panel`} careDot={careDot} />
       </div>
-      {/* ═══ WHO ELSE IS HERE (support-beside-hub) ═══ When the open support
-          thread is with the other party to this escalation, one thin line
-          says so, so the two panes read as linked. */}
-      {presence && (
-        <p
-          data-rail-presence
-          className="flex shrink-0 items-center gap-2 border-b border-[color:var(--border-subtle)] px-4 py-2 text-[12px] leading-[16px] text-[var(--text-secondary)]"
-        >
-          <span aria-hidden className="size-2 shrink-0 rounded-full bg-[var(--status-online)]" />
-          {presence}
-        </p>
-      )}
+      {/* ═══ PRESENCE MOVED INTO THE CARE HERO (pack v4.0, Workstream B3) ═══
+          It was a thin line here, above every tab; it is a dot and a name in
+          the hero's meta now — the one home for who else is here. */}
 
       <div
         id={`${panelId}-panel`}
@@ -334,7 +362,11 @@ export function Rail({
         tabIndex={-1}
         // THE FLEXIBLE ROW. The tab bar is `shrink-0`; this absorbs the rest and
         // hands it to the panel, whose own middle row is what scrolls.
-        className="min-h-0 flex-1"
+        /* ═══ THE CARE PANEL IS ITS OWN INSTRUMENT (pack v4.0, A1) ═══ One
+           tonal step below the chat (surface-s1 under the thread's card
+           white); cards on it are the lightest surface. */
+        data-care-surface={active === "care" || undefined}
+        className={cn("min-h-0 flex-1", active === "care" && "bg-[var(--surface-s1)]")}
       >
         <PanelShell>
           {/* ═══ PHASE 1 SCAFFOLDS ═══

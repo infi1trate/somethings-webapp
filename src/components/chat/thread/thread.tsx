@@ -136,6 +136,7 @@ export function Thread({
   onSend,
   onAddToEscalation,
   addedMoments,
+  onOpenAssessment,
   nameActor,
   escalationAlert = false,
   /** For the kebab's dialer link. Null on a thread with no number on file. */
@@ -179,6 +180,8 @@ export function Thread({
   onAddToEscalation?: (message: ChatMessage) => void;
   /** Messages already on the escalation's timeline: id → the mentor's note. */
   addedMoments?: Record<string, string>;
+  /** A sent assessment question's corner glyph opens the assessment (F2). */
+  onOpenAssessment?: () => void;
   /** ═══ WHO DID IT, BY ACTOR ID (pack v3.0, E1) ═══ `lib/chat/actor-name`. */
   nameActor?: (actorId: string) => string;
   /** The open escalation is Tier 1–2: its raise chip is in the alert family. */
@@ -443,6 +446,7 @@ export function Thread({
                          the mentor can attach this message to its timeline. */
                       onAddToEscalation={onAddToEscalation && escalation ? () => onAddToEscalation(entry.message) : undefined}
                       addedToEscalation={addedMoments?.[entry.message.id]}
+                      onOpenAssessment={onOpenAssessment}
                     />
                   ) : (
                     <EventChip
