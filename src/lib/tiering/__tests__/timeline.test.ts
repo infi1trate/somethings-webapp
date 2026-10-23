@@ -74,31 +74,30 @@ describe("exactly one current node per lens", () => {
 });
 
 describe("what is current, step by step", () => {
-  const cur = (e: EscalationState, lens: Lens) => {
-    const c = currentNode(timelineNodes(e, state(), lens));
-    return c?.section ? `${c.kind}:${c.section}` : c?.kind;
-  };
+  const cur = (e: EscalationState, lens: Lens) => currentNode(timelineNodes(e, state(), lens))?.kind;
   it("mentor: assessment → waiting", () => {
     expect(ARC.map(([, e]) => cur(e, "mentor"))).toEqual(["assessment", "assessment", "waiting", "waiting", "waiting", "waiting", "waiting", "waiting"]);
   });
-  it("supervisor: assessment in progress → confirm → the note, section by section → outcome → debrief → close", () => {
-    expect(ARC.map(([, e]) => cur(e, "supervisor"))).toEqual([
-      "assessment",
-      "assessment",
-      "confirm",
-      "note:subtype",
-      "note:resources",
-      "outcome",
-      "debrief",
-      "close",
-    ]);
+  /* ═══ ONE NOTE NODE (pack v6.1, Supersession 2) ═══ v3.0's node per
+     section, then Outcome, then Debrief, is reversed: one Crisis note node is
+     current from the confirmation until every row — Outcome and Debrief
+     included — is done. */
+  it("supervisor: assessment in progress → confirm → the crisis note, until every row is done → close", () => {
+    expect(ARC.map(([, e]) => cur(e, "supervisor"))).toEqual(["assessment", "assessment", "confirm", "note", "note", "note", "note", "close"]);
   });
-  it("a Tier 2 note has no emergency section; a Tier 1 note does", () => {
-    const t2 = base({ requested: 2, safetyCheck: submitted, confirmedTier: 2, confirmedAt: T0 + 9 * MIN });
-    const sections = (e: EscalationState) => timelineNodes(e, state(), "supervisor").filter((n) => n.kind === "note").map((n) => n.section);
-    expect(sections(t2)).not.toContain("emergency");
-    const t1 = base({ safetyCheck: submitted, confirmedTier: 1, confirmedAt: T0 + 9 * MIN, crisisNote: { ...fullNote, contact: undefined, services: undefined } });
-    expect(timelineNodes(t1, state(), "supervisor").find((n) => n.state === "current")?.section).toBe("emergency");
+  it("the note is one node — no per-section, outcome or debrief nodes survive", () => {
+    for (const [, e] of ARC) {
+      const kinds = timelineNodes(e, state(), "supervisor").map((n) => n.kind as string);
+      // Before the confirmation it may be trimmed from the path (next + exit).
+      expect(kinds.filter((k) => k === "note").length).toBe(e.confirmedTier ? 1 : kinds.includes("note") ? 1 : 0);
+      expect(kinds).not.toContain("outcome");
+      expect(kinds).not.toContain("debrief");
+    }
+  });
+  it("the note completes at its last row's moment", () => {
+    const done = timelineNodes(ARC[7][1], state(), "supervisor").find((n) => n.kind === "note");
+    expect(done?.state).toBe("completed");
+    expect(done?.at).toBe(T0 + 25 * MIN);
   });
 });
 
