@@ -140,12 +140,15 @@ const AVATAR = "[data-tier-ring] > span";
   const { ctx, page } = await open(1512, { dpr: 2 });
   const t = await page.evaluate(() => {
     const h = document.querySelector("[data-monitoring] h1");
-    const sub = document.querySelector("[data-monitoring-subline]");
+    /* (Monitoring v3, §1) The shared PageHeader's purpose line. */
+    const sub = document.querySelector('[data-monitoring] [data-anno-ref="page-purpose"]');
     const s = (e) => getComputedStyle(e);
     return { h: h?.textContent.trim(), hfs: s(h).fontSize, hlh: s(h).lineHeight, hff: s(h).fontFamily, sub: sub?.textContent.trim(), subff: s(sub).fontFamily };
   });
-  check(t.h === "Monitoring" && t.hfs === "24px" && t.hlh === "32px" && /avantt/i.test(t.hff), "Monitoring, in the heading face at 24/32", `${t.hfs}/${t.hlh} · ${t.hff.split(",")[0]}`);
-  check(/^\w{3}, \w{3} \d+ · \d+ on watch · 2 supervisors on shift$/.test(t.sub ?? "") && /mono/i.test(t.subff), "the mono sub-line: date · on watch · supervisors on shift", t.sub);
+  /* RETARGETED (Monitoring v3, §1): Care Reviews' header — 32/40 Avantt, and
+     the date line in the sans, regular, text-secondary. */
+  check(t.h === "Monitoring" && t.hfs === "32px" && t.hlh === "40px" && /avantt/i.test(t.hff), "Monitoring, in the heading face at Care Reviews' 32/40", `${t.hfs}/${t.hlh} · ${t.hff.split(",")[0]}`);
+  check(/^[A-Z][a-z]+day [A-Z][a-z]+ \d{1,2}, \d{4} · \d+ on watch · 2 supervisors on shift$/.test(t.sub ?? "") && !/mono/i.test(t.subff), "the sans date line: “Friday October 23, 2026 · N on watch · 2 supervisors on shift”", t.sub);
 
   const hero = await page.evaluate(() => {
     const bar = document.querySelector("[data-hero-metrics]");
@@ -391,15 +394,18 @@ const ENGINE = `(() => {
       const s = getComputedStyle(b);
       return { v: b.dataset.layoutToggle, w: Math.round(r.width), h: Math.round(r.height), pressed: b.getAttribute("aria-pressed"), label: b.getAttribute("aria-label"), bg: s.backgroundColor, shadow: s.boxShadow };
     });
-    return { role: g.getAttribute("role"), radius: gs.borderRadius, border: gs.borderTopWidth, right: Math.round(g.getBoundingClientRect().right), titleRow: Math.round(document.querySelector("[data-monitoring] h1").parentElement.parentElement.getBoundingClientRect().right), bs };
+    return { role: g.getAttribute("role"), radius: gs.borderRadius, border: gs.borderTopWidth, bg: gs.backgroundColor, h: Math.round(g.getBoundingClientRect().height), right: Math.round(g.getBoundingClientRect().right), titleRow: Math.round(document.querySelector("[data-page-toolbar]").getBoundingClientRect().right), bs };
   });
-  const [raised, elev1] = [await tok(page, "--surface-raised", "bg"), await tok(page, "--elevation-1", "shadow")];
-  check(tg.role === "group" && tg.radius === "10px" && tg.border === "1px" && Math.abs(tg.right - tg.titleRow) <= 1, "a bordered 10px group, right-aligned in the title row", JSON.stringify({ r: tg.radius, right: tg.right, row: tg.titleRow }));
-  check(tg.bs.length === 2 && tg.bs.every((b) => b.w === 36 && b.h === 32 && b.label), "two 36×32 named icon buttons", tg.bs.map((b) => `${b.label} ${b.w}×${b.h}`).join(" · "));
+  /* RETARGETED (Monitoring v3, §1): the pill control's language — an s2
+     track, 44 tall like the row, the pressed view raised on card white with
+     the tile shadow — right-aligned in the toolbar. */
+  const [raised, elev1, s2] = [await tok(page, "--surface-card", "bg"), await tok(page, "--shadow-tile", "shadow"), await tok(page, "--surface-s2", "bg")];
+  check(tg.role === "group" && tg.bg === s2 && tg.h === 44 && Math.abs(tg.right - tg.titleRow) <= 1, "a 44px pill track, right-aligned in the toolbar", JSON.stringify({ bg: tg.bg, h: tg.h, right: tg.right, row: tg.titleRow }));
+  check(tg.bs.length === 2 && tg.bs.every((b) => b.w === 44 && b.h === 36 && b.label), "two 44×36 named icon segments", tg.bs.map((b) => `${b.label} ${b.w}×${b.h}`).join(" · "));
   const on = tg.bs.find((b) => b.pressed === "true");
   /* MONITORING v2: WAS "list pressed by default". Cards are the primary view
      for a new session; the list is one tap away and persists. */
-  check(on?.v === "cards" && on.bg === raised && wears(on.shadow, elev1) && tg.bs.find((b) => b.v === "list").pressed === "false", "cards pressed by default for a new session: raised, Elevation 1, aria-pressed", JSON.stringify(on));
+  check(on?.v === "cards" && on.bg === raised && wears(on.shadow, elev1) && tg.bs.find((b) => b.v === "list").pressed === "false", "cards pressed by default for a new session: raised, the tile shadow, aria-pressed", JSON.stringify(on));
   check(!!(await page.$("[data-monitoring-cards]")) && !(await page.$("[data-monitoring-list]")), "and the cards are what a new session sees");
 
   const c = await page.evaluate(() => {
@@ -452,7 +458,8 @@ const ENGINE = `(() => {
   check(leo?.days === "48" && leo.dfs === "28px" && leo.dlh === "32px" && !/mono/i.test(leo.dfam) && leo.label === "engaged · of 151 on platform" && leo.lfs === "13px", "the primary metric: 48 in the 28/32 heading face, 'engaged · of 151 on platform' beneath — Imani's record tenure", JSON.stringify(leo && { d: leo.days, fs: leo.dfs, l: leo.label }));
   check(cs.every((x) => x.spark.w === 96 && x.spark.h === 24 && x.spark.right && Math.abs(x.spark.bottomVsNumeral) <= 8), "the 96×24 sparkline on the right, on the numeral's baseline", JSON.stringify(leo?.spark));
   check(cs.every((x) => x.signals.map((g) => g.label).join() === "Risk flags,Escalations,Surveys" && x.signals.every((g) => g.lfs === "12px" && g.num === "15px") && new Set(x.signals.map((g) => g.w)).size === 1), "three signals in equal columns: label 12 above, the number 15", JSON.stringify(leo?.signals));
-  check(leo?.signals[0].detail === "7d" && leo.signals[1].detail === "closed Tue" && leo.signals[2].detail === "PHQ-9 · Fri", "each signal's detail beneath it: 7d · closed Tue · PHQ-9 · Fri", JSON.stringify(leo?.signals.map((g) => g.detail)));
+  check(leo?.signals[0].detail === "7d" && /* The weekday is relative to the fixture's clock — it drifted from "Tue"
+     as the calendar moved (Monitoring v3). The claim is the form. */ /^closed (Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/.test(leo.signals[1].detail) && leo.signals[2].detail === "PHQ-9 · Fri", "each signal's detail beneath it: 7d · closed {weekday} · PHQ-9 · Fri", JSON.stringify(leo?.signals.map((g) => g.detail)));
   check(leo?.tit?.text === "Time in tier Day 3 of 7" && leo.tit.track === 3 && cs.filter((x) => x.tier === 4).every((x) => !x.tit), "time in tier: one line over a 3px track — omitted on Tier 4", JSON.stringify(leo?.tit));
   const ravi = cs.find((x) => x.id === "t22");
   const sunkenPill = await tok(page, "--surface-sunken", "bg");

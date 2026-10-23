@@ -80,12 +80,12 @@ export interface HeroRange {
   closed: number;
 }
 
-export function HeroMetrics({ m, range }: { m: MonitoringMetrics; range?: HeroRange }) {
+export function HeroMetrics({ m, range, className }: { m: MonitoringMetrics; range?: HeroRange; className?: string }) {
   return (
     <section
       aria-label="Monitoring summary"
       data-hero-metrics
-      className="grid grid-cols-5 gap-px overflow-hidden rounded-[20px] bg-[var(--border-subtle)] shadow-[var(--el-soft)] @max-[880px]/canvas:grid-cols-3 @max-[520px]/canvas:grid-cols-2"
+      className={cn(className, "grid grid-cols-5 gap-px overflow-hidden rounded-[20px] bg-[var(--border-subtle)] shadow-[var(--el-soft)] @max-[880px]/canvas:grid-cols-3 @max-[520px]/canvas:grid-cols-2")}
     >
       {/* TODO-COPY, every label and detail line. */}
       <Cell crisis value={m.inCrisis} label="In crisis" detail="Tier 1 · live" />
