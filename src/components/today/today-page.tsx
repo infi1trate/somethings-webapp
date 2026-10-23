@@ -51,6 +51,8 @@
 // judgement in one place.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { TodayEscalations } from "@/components/today/today-escalations";
+import { useEscalationNotices } from "@/lib/tiering/use-notices";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 /* ═══ `X` AND `PageHeader` ARE RETIRED BY L.2 AND L.3, NOT DELETED ═══
@@ -825,6 +827,8 @@ export function TodayPage() {
   const pinnedClock = devClockAt(devClockKey);
   const now = pinnedClock ?? data?.clockOverride ?? mountedAt;
 
+  /* The tiering store's agenda — the bell's derivation, read the same way. */
+  const escalationAgenda = useEscalationNotices().agenda;
   const devLoadState = useOnboardingStore((st) => st.devLoadState);
   /** Per-region retries, which WIN over the plan once a reader has used one —
    *  the same arrangement every other surface has, and the reason the plan is a
@@ -1172,6 +1176,10 @@ export function TodayPage() {
           require: destinations are the primary orientation layer and the
           RECOMMENDATION sits beneath them. A recommendation above the thing it
           recommends is a page that argues before it reports. */}
+      {/* ═══ ESCALATIONS FIRST, WHEN THERE ARE ANY (pack v5.0, C) ═══ Above
+          the destinations: an escalation awaiting confirmation outranks a
+          map of the work. Absent when the agenda is empty. */}
+      {mounted && <TodayEscalations items={escalationAgenda} />}
       {stateOf("sequence") === "loading" ? (
         <RegionSkeleton h={308} />
       ) : stateOf("sequence") === "error" ? (

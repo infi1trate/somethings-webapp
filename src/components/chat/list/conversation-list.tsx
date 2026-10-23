@@ -46,7 +46,7 @@
 // cannot be learned.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ConversationRow } from "@/components/chat/list/conversation-row";
+import { ConversationRow, type RowEscalation } from "@/components/chat/list/conversation-row";
 import type { ChatThread, ThreadId } from "@/lib/chat/types";
 import { touchTarget } from "@/lib/touch-target";
 import { cn } from "@/lib/utils";
@@ -119,6 +119,7 @@ export function ConversationList({
   selectedId,
   onSelect,
   className,
+  escalations,
 }: {
   threads: ChatThread[];
   /** THREADED THROUGH from the page's mount-fixed clock rather than read here.
@@ -128,6 +129,8 @@ export function ConversationList({
   selectedId: ThreadId | null;
   onSelect: (id: ThreadId) => void;
   className?: string;
+  /** Open escalations by thread (pack v5.0, C1). */
+  escalations?: Record<string, RowEscalation>;
 }) {
   /* Lazy initialisers, so the read happens once at mount rather than on every
      render — and so a remount picks up where the last one left off. */
@@ -339,6 +342,7 @@ export function ConversationList({
                 <ConversationRow
                   thread={t}
                   now={now}
+                  escalation={escalations?.[t.id]}
                   selected={t.id === selectedId}
                   /* ═══ RECORD ON DEPARTURE, NOT ONLY ON SCROLL ═══
                      Opening a thread is the one exit that always comes back

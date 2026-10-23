@@ -16,6 +16,12 @@
 //      0, 3 and 6 answers); the answered group collapsed; amend in place
 //   7  Supersession 4: the review ledger — the live risk chip, short-label
 //      rows, no full question text by default, amend recomputes the risk
+//   Phase 3
+//   8  C1: the chat list's shield — alert ink on Tiers 1–2 only, in words,
+//      beside the unread disc, gone once resolved; contrast measured
+//   9  C2–C3: the notification matrix through the bell and Today, actor-
+//      correct; the deep link lands on Care Overview and traces the ring
+//  10  C4: Monitoring's live stage line
 //
 // Exit codes: 0 all passed · 1 a check failed.
 
@@ -339,6 +345,122 @@ console.log("\n── 6 · question first, in a fixed place");
   const r1 = await led();
   check(r1.risk === "Assessment suggests: Low risk" && r1.rows.length === 6 && !r1.rows.some((x) => x.startsWith("q6b")), "amending in review recomputes the risk live, and drops Q6's follow-up", JSON.stringify(r1));
   await page.screenshot({ path: `${OUT}/06-review-ledger.png`, clip: await page.locator('[data-slot="chat-rail"]').boundingBox() });
+  await ctx.close();
+}
+
+// ── 8 · C1: THE LIST'S SHIELD ──────────────────────────────────────────────
+console.log("\n── 8 · the chat list's shield");
+const lum = (rgb) => { const [r, g, b] = rgb.match(/\d+/g).slice(0, 3).map((v) => { v = v / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+const shields = (page) =>
+  page.evaluate(() => [...document.querySelectorAll('[data-slot="conversation-list"] [data-anno-ref^="conversation-row:"]')].map((r) => {
+    const s = r.querySelector("[data-row-escalation]");
+    let bg = r; while (bg && getComputedStyle(bg).backgroundColor === "rgba(0, 0, 0, 0)") bg = bg.parentElement;
+    return { id: r.dataset.annoRef.split(":")[1], tier: s?.dataset.rowEscalation ?? null, color: s ? getComputedStyle(s).color : null, bg: getComputedStyle(bg ?? document.body).backgroundColor, label: r.getAttribute("aria-label"), fresh: !!s?.classList.contains("shield-arrive"), unread: !!r.querySelector("[class*='rounded-full'][aria-hidden].tabular-nums") };
+  }));
+const tok = (page, v) => page.evaluate((v) => { const e = document.createElement("span"); e.style.color = `var(${v})`; document.body.appendChild(e); const c = getComputedStyle(e).color; e.remove(); return c; }, v);
+for (const theme of ["light", "dark"]) {
+  const ctx = await b.newContext({ viewport: { width: 1512, height: 1000 } });
+  await ctx.addInitScript(([k, v, t]) => { if (!sessionStorage.getItem("seeded")) { localStorage.setItem(k, JSON.stringify(v)); localStorage.setItem("somethings.theme", t); sessionStorage.setItem("seeded", "1"); } }, [KEY, { state: { persona: "mentor", chatScenarioId: "escalation-active" }, version: VERSION }, theme]);
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/app/chat/t14`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1200);
+  const r = await shields(page);
+  const jordan = r.find((x) => x.id === "t13");
+  const others = r.filter((x) => x.id !== "t13" && x.tier);
+  const t1ink = await tok(page, "--t1-ink");
+  check(jordan?.tier === "1" && jordan.color === t1ink && /escalation open, Tier 1/.test(jordan.label ?? "") && others.length === 0, `${theme}: Jordan's row wears the shield in the Tier 1 ink, said in words; no other row does`, JSON.stringify({ j: jordan, others: others.length }));
+  const cr = jordan ? ratio(jordan.color, jordan.bg) : 0;
+  check(cr >= 3, `${theme}: the shield measures ≥3:1 on its row`, `${cr.toFixed(2)}:1`);
+  if (theme === "light") {
+    /* A Tier 3 raise on Sam: neutral, and it arrives with its one pulse. */
+    await careOpen(page);
+    await page.locator('[data-tier-action="escalate"]').click();
+    await page.locator('[data-raise-option="3"]').click();
+    await page.locator("[data-raise-note]").fill("Probe: Tier 3.");
+    await page.locator("[data-raise-confirm]").click();
+    await page.waitForTimeout(500);
+    const r3 = (await shields(page)).find((x) => x.id === "t14");
+    const sec = await tok(page, "--text-secondary");
+    check(r3?.tier === "3" && r3.color === sec && r3.fresh, "a Tier 3 raise: a NEUTRAL shield — alert ink is Tiers 1–2 only — arriving with one pulse", JSON.stringify(r3));
+    await page.screenshot({ path: `${OUT}/07-list-shields.png`, clip: { x: 0, y: 0, width: 760, height: 600 } });
+  }
+  await ctx.close();
+}
+
+// ── 9 · C2–C3: THE BELL, TODAY, THE DEEP LINK ──────────────────────────────
+console.log("\n── 9 · notifications");
+const bell = async (page) => {
+  /* The desktop bar's bell — the mobile one is in the DOM, hidden. */
+  const btn = page.locator("[data-activity-bell]:visible").first();
+  const before = await btn.getAttribute("aria-label");
+  await btn.click();
+  await page.waitForTimeout(400);
+  const n = await page.evaluate(() => [...document.querySelectorAll("[data-escalation-notices] [data-notice]")].map((x) => ({ kind: x.dataset.notice, text: x.querySelector("[data-notice-link]")?.textContent.trim(), href: x.querySelector("[data-notice-link]")?.getAttribute("href"), unread: x.dataset.noticeUnread === "true", support: !!x.querySelector("[data-notice-support]") })));
+  return { before, n };
+};
+let assessedState;
+{
+  /* The mentor submits; the supervisor's bell, Today and Monitoring. */
+  const { ctx, page } = await open("/app/chat/t13", { chat: "escalation-active" });
+  const mb = await bell(page);
+  check(!mb.n.some((x) => x.kind === "opened" || x.kind === "assessed"), "the mentor's bell never says they raised or assessed it", mb.n.map((x) => x.kind).join());
+  await page.keyboard.press("Escape");
+  for (let i = 0; i < 8; i++) { const no = page.locator('[data-yes-no$=":no"]').first(); if (!(await no.count())) break; await no.click(); await page.waitForTimeout(100); }
+  await page.locator('[data-exchange-field="mentor-summary"]').fill("Probe: talking, no plan.");
+  await page.locator('[data-exchange-primary="submit-assessment"]').click();
+  await page.waitForTimeout(300);
+  assessedState = await store(page);
+  await ctx.close();
+}
+{
+  const { ctx, page } = await open("/app/today", { persona: "supervisor", chat: "escalation-active", extra: { escalations: assessedState.escalations, tierEvents: assessedState.tierEvents } });
+  const today = await page.evaluate(() => [...document.querySelectorAll("[data-today-escalations] [data-today-escalation]")].map((x) => ({ kind: x.dataset.todayEscalation, urgent: x.dataset.urgent === "true", text: x.innerText.replace(/\s+/g, " ").trim(), href: x.querySelector("a")?.getAttribute("href") })));
+  check(today[0]?.urgent && /^Jordan · Tier 1 requested Awaiting confirmation Needs you now$/.test(today[0].text) && today[0].href === "/app/chat/t13?care=overview", "Today: the opened escalation is the urgent item, its stage beneath, deep-linked", JSON.stringify(today[0]));
+  await page.screenshot({ path: `${OUT}/08-today.png`, fullPage: false });
+  const sb = await bell(page);
+  const kinds = sb.n.map((x) => x.kind);
+  check(/Activity, \d+ unread/.test(sb.before ?? "") && kinds.includes("opened") && kinds.includes("assessed") && !kinds.includes("confirmed"), "the supervisor's bell: opened and assessed — and the badge counts them", `${sb.before} · ${kinds.join()}`);
+  const assessed = sb.n.find((x) => x.kind === "assessed");
+  check(/ sent Jordan’s assessment$/.test(assessed?.text ?? "") && assessed.unread && !assessed.support, "actor-correct: the mentor sent the assessment; unread on first look; no Open Support for a supervisor", JSON.stringify(assessed));
+  await page.screenshot({ path: `${OUT}/09-bell-supervisor.png` });
+  await page.keyboard.press("Escape");
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(900);
+  const again = await bell(page);
+  check(again.n.every((x) => !x.unread), "opening the bell is the read: on the next look none is unread", JSON.stringify(again.n.map((x) => x.unread)));
+  /* The deep link: Care, Overview, the current node traced. */
+  await page.locator('[data-notice="assessed"] [data-notice-link][href^="/app/chat/t13"]').click();
+  await page.waitForURL(/\/app\/chat\/t13/);
+  await page.waitForTimeout(1200);
+  const land = await page.evaluate(() => ({ rail: document.querySelector('[data-rail-tab][aria-selected="true"]')?.dataset.railTab, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, state: document.querySelector("[data-care-panel]")?.dataset.careState, trace: !!document.querySelector('[data-node-state="current"] [data-node-trace]') }));
+  check(land.rail === "care" && land.tab === "overview" && land.state === "active" && land.trace, "the notification opens the conversation on Care Overview, and the current node traces its ring", JSON.stringify(land));
+  /* Monitoring's stage line, on the same record. */
+  await page.goto(`${BASE}/app/monitoring`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1000);
+  const stage = await page.evaluate(() => [...document.querySelectorAll("[data-teen-stage]")].map((x) => x.textContent.replace(/^·\s*/, "").trim()));
+  check(stage.includes("Awaiting confirmation"), "Monitoring: the teen's live stage as one quiet line", stage.join(" | "));
+  /* Confirm Tier 1 — the mentor's bell hears it. */
+  await page.goto(`${BASE}/app/chat/t13`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1000);
+  await careOpen(page);
+  await page.locator('[data-exchange-primary="confirm-tier"]').click();
+  await page.waitForTimeout(400);
+  assessedState = await store(page);
+  await ctx.close();
+}
+{
+  const { ctx, page } = await open("/app/chat/t14", { chat: "escalation-active", extra: { escalations: assessedState.escalations, tierEvents: assessedState.tierEvents, noticesSeenAt: {} } });
+  const mb = await bell(page);
+  const conf = mb.n.find((x) => x.kind === "confirmed" && /Jordan/.test(x.text ?? ""));
+  check(conf && /^.+ confirmed Tier 1 for Jordan$/.test(conf.text) && conf.support && conf.href === "/app/chat/t13?care=overview", "the mentor's bell: “… confirmed Tier 1 for Jordan”, with Open Support, deep-linked", JSON.stringify(conf));
+  const sups = mb.n.filter((x) => x.kind === "support");
+  check(sups.length === 1 && / messaged you in Support$/.test(sups[0].text ?? "") && sups[0].href.startsWith("/app/chat/t13"), "and the supervisor's Support message, ONCE — on the open escalation only", JSON.stringify(sups));
+  await page.screenshot({ path: `${OUT}/10-bell-mentor.png` });
+  await page.locator('[data-notice="confirmed"]', { has: page.locator('[href^="/app/chat/t13"]') }).locator("[data-notice-support]").click();
+  await page.waitForTimeout(500);
+  const sup = await page.evaluate(() => ({ open: !!document.querySelector("#support-panel"), popover: !!document.querySelector("[data-escalation-notices]") }));
+  check(sup.open && !sup.popover, "Open Support opens the supervisor's thread in the panel, and closes the bell", JSON.stringify(sup));
   await ctx.close();
 }
 

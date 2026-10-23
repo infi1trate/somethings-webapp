@@ -60,7 +60,9 @@ function flagTone(t: MonitoringTeen): "t1" | "t2" | null {
 export const dayOf = (t: MonitoringTeen) => (t.timeInTier ? `Day ${t.timeInTier.day} of ${t.timeInTier.minimum}` : null);
 
 function Row({ teen }: { teen: MonitoringTeen }) {
-  const second = [teen.reviewReason, dayOf(teen)].filter(Boolean).join(" · ");
+  /* The live stage, when there is one, is the row's reason (pack v5.0, C4) —
+     "Confirm Tier 1" and "Awaiting confirmation" are one fact. */
+  const second = [teen.stage ?? teen.reviewReason, dayOf(teen)].filter(Boolean).join(" · ");
   const detail = tierDetailInk(teen.tier);
   const tint = teen.tier <= 2;
   const link = monitoringEntryHref(teen);

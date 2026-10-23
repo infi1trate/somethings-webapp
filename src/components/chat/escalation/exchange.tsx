@@ -488,6 +488,7 @@ function NodeGlyph({ state, fresh = false, variant = "action" }: { state: Timeli
 type NodeVariant = "action" | "waiting";
 
 function Node({
+  trace = false,
   accent = "neutral",
   variant = "action",
   sub,
@@ -516,6 +517,9 @@ function Node({
   variant?: NodeVariant;
   /** Completed: a second, muted line — wraps, never truncates. */
   sub?: string;
+  /** ═══ THE TRACE (pack v5.0, make it magical 3) ═══ Arriving from a
+   *  notification, the current card draws its accent ring once. */
+  trace?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -538,8 +542,10 @@ function Node({
             data-node-card
             data-node-accent={accent}
             data-node-variant={variant}
+            data-node-trace={trace || undefined}
             className={cn(
               "space-y-3 rounded-[16px] bg-[var(--surface-raised)] p-4 shadow-[var(--el-soft)] ring-1",
+              trace && "ring-trace",
               accent === "alert" ? "ring-[color:var(--alert-critical-border)]" : "ring-[color:var(--border-default)]"
             )}
           >
@@ -1216,6 +1222,7 @@ export function EscalationExchange({
   mentorLines,
   onSettled,
   echo,
+  arrived = false,
 }: {
   e: EscalationState;
   teenId: string;
@@ -1232,6 +1239,8 @@ export function EscalationExchange({
    *  own escalation (a close, an S1 exit, Mark reviewed) or the mentor
    *  leaves the wrap. */
   onSettled?: () => void;
+  /** Arrived from a notification: the current card traces its ring once. */
+  arrived?: boolean;
   /** The supervisor's latest Support message, for the mentor's waiting node. */
   echo?: SupervisorEcho;
 }) {
@@ -1462,6 +1471,7 @@ export function EscalationExchange({
             key={n.id}
             accent={isAlertTier(tier) ? "alert" : "neutral"}
             variant={variantOf(n)}
+            trace={arrived && n.state === "current"}
             node={n}
             fresh={n.id === freshId}
             title={titleOf(n)}

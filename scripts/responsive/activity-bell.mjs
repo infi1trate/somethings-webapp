@@ -127,13 +127,15 @@ const open = async (persona, width, path, extra = {}, dpr = 1) => {
     { id: "a1", type: "profile_changes_requested", fieldIds: ["bio"], createdAt: now - 3600_000, read: false },
     { id: "a2", type: "profile_update_live", fieldIds: ["bio"], createdAt: now - 86400_000, read: false },
   ];
-  const { ctx, page } = await open("mentor", 1512, "/app", { activity }, 2);
+  /* (pack v5.0) Escalation notices join this badge; this check is about the
+     PROFILE notices, so the escalation ones are marked seen. */
+  const { ctx, page } = await open("mentor", 1512, "/app", { activity, noticesSeenAt: { mentor: now + 60_000 } }, 2);
   const bell = page.locator('[data-anno-ref="console-topbar"] [data-activity-bell]');
   const label0 = await bell.getAttribute("aria-label");
   check(label0 === "Activity, 2 unread", "the badge counts the mentor's unread notices", label0);
   await bell.click();
   await page.waitForTimeout(500);
-  const items = await page.locator("[data-activity-popover] li a").count();
+  const items = await page.locator("[data-activity-popover] li a:not([data-notice-link])").count();
   check(items === 2, "the dropdown lists the notices", `${items}`);
   await page.screenshot({ path: `${OUT}/08-bell-mentor-1512.png` });
   await page.keyboard.press("Escape");

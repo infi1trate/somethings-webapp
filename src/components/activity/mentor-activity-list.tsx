@@ -63,9 +63,10 @@ export function useMentorActivity(): ActivityItem[] {
     : [];
 }
 
-export function MentorActivityList({ onNavigate }: { onNavigate?: () => void }) {
+export function MentorActivityList({ onNavigate, quietWhenEmpty = false }: { onNavigate?: () => void; /** Something else in the bell is showing (pack v5.0): no empty state under it. */ quietWhenEmpty?: boolean }) {
   const items = useMentorActivity();
   if (items.length === 0) {
+    if (quietWhenEmpty) return null;
     return (
       <p className="px-4 py-8 text-center text-[14px] leading-[20px] text-[var(--text-secondary)]">
         {/* TODO-COPY */}

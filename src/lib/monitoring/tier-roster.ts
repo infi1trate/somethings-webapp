@@ -22,6 +22,7 @@
 
 import type { EscalationState } from "@/lib/chat/types";
 import { DEMO_PEOPLE, DEMO_TEENS } from "@/lib/record/people-demo";
+import { stageLine } from "@/lib/tiering/notifications";
 import { LIVE_ID } from "@/lib/record/subject";
 import { escalationTarget, isOpen } from "@/lib/tiering/escalation";
 import { dayInTier, type TierState } from "@/lib/tiering/events";
@@ -49,6 +50,10 @@ export interface MonitoringTeen {
   timeInTier?: { day: number; minimum: number };
   reviewReason?: string;
   presence?: string;
+  /** ═══ THE LIVE STAGE (pack v5.0, C4) ═══ An open escalation's one quiet
+   *  line — "Awaiting confirmation" · "Assessment in · 3 of 6" · "Note in
+   *  progress" — from `stageLine`, the notices' own derivation. */
+  stage?: string;
 }
 
 /** The board's per-teen signals, on the record teen of matching tenure. */
@@ -182,6 +187,7 @@ export function tierRoster({ stateFor, escalationsFor, liveMentorName, now }: Ro
       surveys: sig?.surveys ?? { count: 1, lastInstrument: "PHQ-9", lastDate: "Sep" },
       timeInTier: tier === current && day !== null && minimum && current !== 4 && current !== 1 ? { day, minimum } : undefined,
       reviewReason: state.pending ? `Confirm Tier ${state.pending.tier}` : sig?.reviewReason,
+      stage: stageLine(open) ?? undefined,
       presence:
         sig?.presence === "in-session"
           ? open

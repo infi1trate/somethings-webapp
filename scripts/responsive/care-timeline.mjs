@@ -57,6 +57,8 @@ const redCensus = (page) =>
       : el.closest("[data-overview-dot]") ? "overview dot"
       : el.closest("[data-tier-lozenge]") ? "T1–2 lozenge"
       : el.closest("[data-risk-chip]") ? "risk chip"
+      /* (pack v5.0, C1) The chat list's shield: alert ink on Tiers 1–2 only. */
+      : el.closest("[data-row-escalation]") ? "list shield"
       : el.closest('[data-slot="event-chip"]') ? "thread chip"
       : el.closest("[data-slot=\"chat-rail\"]") ? "rail · other"
       : el.closest('[data-anno-ref="app-rail"]') ? "nav"
@@ -171,7 +173,7 @@ for (const [label, st] of STATES) {
     check(expectTimeline ? x.cur.length === 1 : !x.exchange, `${lens} · ${label}: ${expectTimeline ? "exactly one current node" : "steady, no timeline"}`, x.cur.join(",") || "—");
     if (lens === "mentor" && !label.endsWith("closed")) {
       const red = await redCensus(page);
-      const allowed = new Set(["banner", "rail dot", "overview dot", "T1–2 lozenge", "thread chip"]);
+      const allowed = new Set(["banner", "rail dot", "overview dot", "T1–2 lozenge", "thread chip", "list shield"]);
       const stray = Object.keys(red).filter((k) => !allowed.has(k));
       check(stray.length === 0, `mentor · ${label}: red only in the banner, the dots, T1–2 lozenges (and the live raise chip)`, JSON.stringify(red));
     }
@@ -200,7 +202,7 @@ for (const [label, st] of STATES) {
       check(cur.length === 1, `${persona} · ${label}: exactly one current node`, cur.join(","));
       if (persona === "mentor") {
         const red = await redCensus(page);
-        const allowed = new Set(["banner", "rail dot", "overview dot", "T1–2 lozenge", "thread chip"]);
+        const allowed = new Set(["banner", "rail dot", "overview dot", "T1–2 lozenge", "thread chip", "list shield"]);
         const stray = Object.keys(red).filter((k) => !allowed.has(k));
         const tier3 = label.startsWith("Tier 3");
         check(stray.length === 0 && (!tier3 || Object.keys(red).length === 0), `mentor · ${label}: ${tier3 ? "no red at all" : "red only where the canon allows"}`, JSON.stringify(red));

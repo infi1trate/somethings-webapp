@@ -28,6 +28,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogBody, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ActivityLedger } from "@/components/activity/activity-ledger";
 import { MentorActivityList } from "@/components/activity/mentor-activity-list";
+import { EscalationNotices } from "@/components/tiering/escalation-notices";
+import { useEscalationNotices } from "@/lib/tiering/use-notices";
+import type { EscalationNotice } from "@/lib/tiering/notifications";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { isSupervisorTier } from "@/lib/record/permission-map";
 import { useMounted } from "@/lib/use-mounted";
@@ -54,25 +57,34 @@ function useActivityContent() {
   const persona = useOnboardingStore((s) => s.persona);
   const markActivityRead = useOnboardingStore((s) => s.markActivityRead);
   const ledger = mounted && isSupervisorTier(persona);
-  /* Opening is the read, as the page visit was (the page marked on mount). */
+  /* ═══ ESCALATION NOTICES (pack v5.0, Workstream C) ═══ Derived from the
+     tiering store; their unread count joins the badge, and opening the bell
+     is the read — as it is for the mentor's notices. The last look is held
+     from the moment of opening, so the rows still say which were new. */
+  const esc = useEscalationNotices();
+  const [lookedAt, setLookedAt] = useState(0);
   const onOpened = () => {
     if (!ledger) markActivityRead();
+    setLookedAt(esc.seenAt);
+    esc.markSeen();
   };
-  return { ledger, onOpened };
+  return { ledger, onOpened, notices: esc.notices, lookedAt, escUnread: esc.unread };
 }
 
-function Content({ ledger, close }: { ledger: boolean; close: () => void }) {
-  return ledger ? (
-    <ActivityLedger variant="popover" onRowNavigate={close} />
-  ) : (
-    <MentorActivityList onNavigate={close} />
+function Content({ ledger, close, notices, lookedAt }: { ledger: boolean; close: () => void; notices: EscalationNotice[]; lookedAt: number }) {
+  return (
+    <>
+      <EscalationNotices notices={notices} seenAt={lookedAt} onNavigate={close} />
+      {ledger ? <ActivityLedger variant="popover" onRowNavigate={close} /> : <MentorActivityList onNavigate={close} quietWhenEmpty={notices.length > 0} />}
+    </>
   );
 }
 
 /** The desktop bar's bell: 40×40, radius-lrg, the bar's outline. */
 export function ActivityBell({ unread }: { unread: number }) {
   const [open, setOpen] = useState(false);
-  const { ledger, onOpened } = useActivityContent();
+  const { ledger, onOpened, notices, lookedAt, escUnread } = useActivityContent();
+  const total = unread + escUnread;
   return (
     <Popover
       open={open}
@@ -86,7 +98,7 @@ export function ActivityBell({ unread }: { unread: number }) {
           type="button"
           data-activity-bell
           /* TODO-COPY */
-          aria-label={unread > 0 ? `Activity, ${unread} unread` : "Activity"}
+          aria-label={total > 0 ? `Activity, ${total} unread` : "Activity"}
           className={cn(
             "relative flex size-10 items-center justify-center rounded-[var(--radius-lrg)] border border-[color:var(--border-default)] transition-colors",
             open ? "bg-[var(--surface-raised)]" : "bg-transparent hover:bg-[var(--tint-hover)]",
@@ -94,7 +106,7 @@ export function ActivityBell({ unread }: { unread: number }) {
           )}
         >
           <Bell aria-hidden className="size-6 text-[var(--icon-secondary)]" strokeWidth={1.75} />
-          {unread > 0 && <Badge n={unread} />}
+          {total > 0 && <Badge n={total} />}
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -115,7 +127,7 @@ export function ActivityBell({ unread }: { unread: number }) {
           </h2>
         </div>
         <div className="max-h-[min(70vh,calc(var(--radix-popover-content-available-height)-56px))] min-h-0 overflow-y-auto px-3 pt-3 pb-2">
-          <Content ledger={ledger} close={() => setOpen(false)} />
+          <Content ledger={ledger} close={() => setOpen(false)} notices={notices} lookedAt={lookedAt} />
         </div>
       </PopoverContent>
     </Popover>
@@ -133,7 +145,8 @@ export function ActivityBellMobile({
   ringClass: string;
 }) {
   const [open, setOpen] = useState(false);
-  const { ledger, onOpened } = useActivityContent();
+  const { ledger, onOpened, notices, lookedAt, escUnread } = useActivityContent();
+  const total = unread + escUnread;
   return (
     <Dialog
       open={open}
@@ -146,11 +159,11 @@ export function ActivityBellMobile({
         <button
           type="button"
           data-activity-bell
-          aria-label={unread > 0 ? `Activity, ${unread} unread` : "Activity"}
+          aria-label={total > 0 ? `Activity, ${total} unread` : "Activity"}
           className={cn(circleClass, "relative", ringClass)}
         >
           <Bell className="size-6 text-[var(--text-primary)]" aria-hidden />
-          {unread > 0 && <Badge n={unread} />}
+          {total > 0 && <Badge n={total} />}
         </button>
       </DialogTrigger>
       <DialogContent variant="sheet" className="max-h-[85dvh]">
@@ -159,7 +172,7 @@ export function ActivityBellMobile({
           Activity
         </DialogTitle>
         <DialogBody className="px-3 pb-2">
-          <Content ledger={ledger} close={() => setOpen(false)} />
+          <Content ledger={ledger} close={() => setOpen(false)} notices={notices} lookedAt={lookedAt} />
         </DialogBody>
       </DialogContent>
     </Dialog>

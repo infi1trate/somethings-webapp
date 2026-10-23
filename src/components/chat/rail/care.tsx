@@ -220,6 +220,7 @@ export function CarePanel({
   highlightTier = false,
   echo,
   showDiagnosis = false,
+  arrivedForCare = false,
 }: {
   teenId: string;
   name: string;
@@ -257,6 +258,8 @@ export function CarePanel({
   echo?: SupervisorEcho;
   /** Supervisor or lead mentor (pack v5.0, Supersession 5). */
   showDiagnosis?: boolean;
+  /** Arrived from a notification's deep link (make it magical 3). */
+  arrivedForCare?: boolean;
 }) {
   const state = tiering.stateFor(teenId);
   const lens = observer ? "supervisor" : "mentor";
@@ -293,6 +296,7 @@ export function CarePanel({
         mentorLines={mentorLines}
         onSettled={onSettled}
         echo={echo}
+        arrived={arrivedForCare}
       />
     ) : (
       // ── STEADY: the two most recent History rows (pack v4.0, F3) ──────────

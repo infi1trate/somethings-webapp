@@ -30,15 +30,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { PanelRight, PanelRightClose, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { chatThreadHref } from "@/lib/record/chat";
 import { ConversationList } from "@/components/chat/list/conversation-list";
 import { Rail, type RailMode, type RailTab } from "@/components/chat/rail/rail";
-import { setSupportOpen, setSupportPinned, setSupportThread, useSupportOpen, useSupportThread } from "@/lib/support/panel";
+import { setSupportOpen, setSupportPinned, useSupportOpen, useSupportThread } from "@/lib/support/panel";
 import { isSupervisorTier } from "@/lib/record/permission-map";
 import { useLiveMentorRow } from "@/lib/record/use-live-mentor";
 import { DEMO_PEOPLE } from "@/lib/record/people-demo";
-import { markSupportRead } from "@/lib/support/outbox";
+import { openInSupport } from "@/lib/support/open";
 import { supportThread } from "@/lib/support/threads";
 import { EscalationBanner, Thread } from "@/components/chat/thread/thread";
 import { DetailSheet } from "@/components/chat/thread/detail-sheet";
@@ -67,7 +67,7 @@ import { StepDownRequestDialog, TierUpdateDialog } from "@/components/tiering/ti
 import { AddMomentDialog } from "@/components/chat/escalation/add-moment-dialog";
 import { actorName } from "@/lib/chat/actor-name";
 import { useTiering } from "@/lib/tiering/use-tiering";
-import { workingTier } from "@/lib/tiering/escalation";
+import { escalationTarget, workingTier } from "@/lib/tiering/escalation";
 import { isAlertTier, type RaiseTarget } from "@/lib/tiering/tiers";
 import { recordHrefFor } from "@/lib/record/subject";
 import { presentationFor } from "@/lib/record/care-demo";
@@ -75,13 +75,6 @@ import { careSummaryFor } from "@/lib/record/care-summary-doc";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
-
-/** Open a support contact's thread in the panel, read (SUP-5). */
-function openInSupport(id: string): void {
-  markSupportRead(id);
-  setSupportThread(id);
-  setSupportOpen(true);
-}
 
 /** ═══ ONE OPEN AND ONE CLOSE PER ESCALATION (pack v5.0, bug 1) ═══ The
  *  store fix stops new duplicates; this read-time guard keeps a browser that
@@ -363,10 +356,15 @@ export function ChatPage({
   const [pickedTab, setPickedTab] = useState<{ threadId: string; tab: RailTab } | null>(
     null
   );
+  /* ═══ THE NOTIFICATION'S DEEP LINK (pack v5.0, C3) ═══ `?care=overview`
+     makes Care the default here too — derived like the rest, so a reader who
+     then picks another tab is not pulled back. Overview is already the Care
+     panel's default tab. */
+  const arrivedForCare = useSearchParams().get("care") === "overview";
   const railTab: RailTab =
     pickedTab && pickedTab.threadId === thread?.id
       ? pickedTab.tab
-      : careEscalation
+      : careEscalation || arrivedForCare
         ? "care"
         : "assist";
   /* ═══ SUPERSEDED (support-beside-hub): THE HUB AND SUPPORT COEXIST ═══
@@ -381,6 +379,14 @@ export function ChatPage({
   /** ═══ SUPPORT BESIDE THE HUB ═══ Open, the list collapses and the
    *  conversation and the hub split the canvas card 50/50; closed, the list
    *  returns (300 · flex · 360). The hub never unmounts either way. */
+  /** ═══ THE LIST'S SHIELDS (pack v5.0, C1) ═══ Every teen thread with an
+   *  OPEN escalation, from the same store; resolved ones show nothing. */
+  const listEscalations = Object.fromEntries(
+    threads.flatMap((t) => {
+      const e = t.kind === "teen" ? tiering.openEscalationFor(t.id) : undefined;
+      return e ? [[t.id, { tier: e.confirmedTier ?? escalationTarget(e), fresh: e.openedAt > now }]] : [];
+    })
+  );
   /** The teen whose tier cell is arriving after a close (one beat). */
   const [arrived, setArrived] = useState<string | null>(null);
   const supportOpen = useSupportOpen();
@@ -734,6 +740,7 @@ export function ChatPage({
         {!listless && <ConversationList
           threads={threads}
           now={now}
+          escalations={listEscalations}
           selectedId={thread?.id ?? null}
           onSelect={(id) => {
             /* A NAVIGATION, NOT A SETSTATE. Below `md` this hands over the
@@ -1066,6 +1073,7 @@ export function ChatPage({
                     window.setTimeout(() => setArrived(null), 1600);
                   }}
                   highlightTier={arrived === thread.id}
+                  arrivedForCare={arrivedForCare}
                 />
               }
               assist={assist}

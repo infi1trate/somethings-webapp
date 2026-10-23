@@ -95,6 +95,12 @@ function Card({ teen, measure }: { teen: MonitoringTeen; measure?: (el: HTMLElem
             {teen.mentor}
             {teen.presence && <PresenceChip text={teen.presence} />}
           </p>
+          {/* The live stage (pack v5.0, C4), one quiet line. */}
+          {teen.stage && (
+            <p data-teen-stage className="m-0 mt-0.5 truncate text-[13px] leading-[18px] text-[var(--text-secondary)]">
+              {teen.stage}
+            </p>
+          )}
         </div>
         <TierTag tier={teen.tier} />
       </header>

@@ -365,6 +365,11 @@ interface OnboardingState {
   /** Escalations that were resolved and then superseded by a new one on the
    *  same thread — kept whole, so History can still tell the earlier story. */
   escalationHistory: ChatEscalation[];
+  /** ═══ THE BELL'S ESCALATION NOTICES, SEEN (pack v5.0, Workstream C) ═══
+   *  Per persona, because one browser plays every role in the prototype:
+   *  the notices are derived (`lib/tiering/notifications.ts`), only the last
+   *  look is stored. */
+  noticesSeenAt: Record<string, number>;
   /** ═══ APPEND, THROUGH THE GATE ═══ Refuses an event without a reason, and a
    *  tier-SETTING event from anyone but a supervisor (`appendable`). Returns
    *  whether it was written, so a caller cannot believe it was. */
@@ -396,6 +401,7 @@ interface OnboardingState {
    *  place as the assessment is worked through — the append-only log is where the
    *  HISTORY of it lives, and both exist. */
   putEscalation: (escalation: ChatEscalation) => void;
+  markNoticesSeen: (persona: string, at: number) => void;
   /** Clears the Tasks worklist's reviewed items. Lives here because the control
    *  is in the dev footer and the state is in the page — a counter is the smallest
    *  seam that does not make the page reach into the bar or the reverse. */
@@ -773,6 +779,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       tasksScenarioId: DEFAULT_TASK_SCENARIO_ID,
       monitoringScenarioId: null,
       chatScenarioId: DEFAULT_CHAT_SCENARIO_ID,
+      noticesSeenAt: {},
       escalations: {},
       chatEvents: {},
       chatMessages: {},
@@ -1277,6 +1284,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         })),
       putChatNote: (note) =>
         set((st) => ({ chatNotes: { ...st.chatNotes, [note.id]: note } })),
+      markNoticesSeen: (persona, at) => set((st) => ({ noticesSeenAt: { ...st.noticesSeenAt, [persona]: at } })),
       putEscalation: (escalation) =>
         set((st) => {
           const prev = st.escalations[escalation.threadId];
@@ -1709,7 +1717,10 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v55: `tierEvents` and `escalationHistory` (Tiering & Escalation pack),
       //      both arrays, both in `partialize`. Backfilled to [] — a session
       //      from before tiering has written no tier events, which is true.
-      version: 55,
+      // v56: `noticesSeenAt` (Care v5.0, Workstream C), a per-persona map in
+      //      `partialize`. Backfilled to {} — nothing seen, so every derived
+      //      notice reads as unread once, which is what a first look is.
+      version: 56,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -2200,6 +2211,9 @@ export const useOnboardingStore = create<OnboardingState>()(
         const st55 = persisted as { tierEvents?: unknown; escalationHistory?: unknown };
         if (!Array.isArray(st55.tierEvents)) st55.tierEvents = [];
         if (!Array.isArray(st55.escalationHistory)) st55.escalationHistory = [];
+        // v56: a map — {} is the right backfill.
+        const st56 = persisted as { noticesSeenAt?: unknown };
+        if (typeof st56.noticesSeenAt !== "object" || st56.noticesSeenAt === null) st56.noticesSeenAt = {};
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -2672,6 +2686,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         chatArtifacts: state.chatArtifacts,
         tierEvents: state.tierEvents,
         escalationHistory: state.escalationHistory,
+        noticesSeenAt: state.noticesSeenAt,
         devLoadState: state.devLoadState,
         /* bar-02. See the field's note on why this one must persist. */
         scenarioRecents: state.scenarioRecents,
