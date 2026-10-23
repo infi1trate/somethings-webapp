@@ -54,7 +54,8 @@ const redCensus = (page) =>
     const region = (el) =>
       el.closest('[data-slot="status-banner"]') ? "banner"
       : el.closest("[data-care-dot]") ? "rail dot"
-      : el.closest("[data-overview-dot]") ? "overview dot"
+      /* RETARGETED (pack v8.0): the dot is the Escalation review tab's. */
+      : el.closest("[data-review-dot]") ? "review dot"
       : el.closest("[data-tier-lozenge]") ? "T1–2 lozenge"
       : el.closest("[data-risk-chip]") ? "risk chip"
       /* (pack v5.0, C1) The chat list's shield: alert ink on Tiers 1–2 only. */
@@ -74,7 +75,7 @@ const redCensus = (page) =>
       if (s.visibility === "hidden" || s.display === "none") continue;
       if (![s.color, s.backgroundColor, s.borderTopColor, s.borderLeftColor].some(isRed)) continue;
       /* One per OBJECT: a lozenge's span and its text count once. */
-      const owner = el.closest("[data-tier-lozenge],[data-risk-chip],[data-care-dot],[data-overview-dot],[data-slot=\"event-chip\"],button,a,li") ?? el;
+      const owner = el.closest("[data-tier-lozenge],[data-risk-chip],[data-care-dot],[data-review-dot],[data-slot=\"event-chip\"],button,a,li") ?? el;
       if (seen.has(owner)) continue;
       seen.add(owner);
       const k = region(el);
@@ -174,12 +175,12 @@ for (const [label, st] of STATES) {
     const { ctx, page } = await open("/app/chat/t13", { persona, chat: "escalation-active", extra: { escalations: st.escalations, tierEvents: st.tierEvents, escalationHistory: st.escalationHistory, chatEvents: st.chatEvents } });
     const x = await page.evaluate(() => ({ cur: [...document.querySelectorAll('[data-node-state="current"]')].map((n) => n.dataset.node), exchange: !!document.querySelector("[data-exchange]") }));
     const lens = persona === "mentor" ? "mentor" : "supervisor";
-    /* The supervisor's closed record shows the steady state — no timeline. */
-    const expectTimeline = !(lens === "supervisor" && label.endsWith("closed"));
-    check(expectTimeline ? x.cur.length === 1 : !x.exchange, `${lens} · ${label}: ${expectTimeline ? "exactly one current node" : "steady, no timeline"}`, x.cur.join(",") || "—");
+    /* RETARGETED (pack v8.0): a closed record is the closed summary in BOTH
+       lenses now — one current node, the summary, until dismissed. */
+    check(x.cur.length === 1 && (!label.endsWith("closed") || x.cur[0] === "closed"), `${lens} · ${label}: exactly one current node${label.endsWith("closed") ? " — the closed summary" : ""}`, x.cur.join(",") || "—");
     if (lens === "mentor" && !label.endsWith("closed")) {
       const red = await redCensus(page);
-      const allowed = new Set(["banner", "rail dot", "overview dot", "T1–2 lozenge", "thread chip", "list shield"]);
+      const allowed = new Set(["banner", "rail dot", "review dot", "T1–2 lozenge", "thread chip", "list shield"]);
       const stray = Object.keys(red).filter((k) => !allowed.has(k));
       check(stray.length === 0, `mentor · ${label}: red only in the banner, the dots, T1–2 lozenges (and the live raise chip)`, JSON.stringify(red));
     }
@@ -208,7 +209,7 @@ for (const [label, st] of STATES) {
       check(cur.length === 1, `${persona} · ${label}: exactly one current node`, cur.join(","));
       if (persona === "mentor") {
         const red = await redCensus(page);
-        const allowed = new Set(["banner", "rail dot", "overview dot", "T1–2 lozenge", "thread chip", "list shield"]);
+        const allowed = new Set(["banner", "rail dot", "review dot", "T1–2 lozenge", "thread chip", "list shield"]);
         const stray = Object.keys(red).filter((k) => !allowed.has(k));
         const tier3 = label.startsWith("Tier 3");
         check(stray.length === 0 && (!tier3 || Object.keys(red).length === 0), `mentor · ${label}: ${tier3 ? "no red at all" : "red only where the canon allows"}`, JSON.stringify(red));
@@ -260,7 +261,7 @@ console.log("\n── 4 · keyboard: Care tabs, timeline traversal, the live ann
 {
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-tier2" });
   /* Tab order: the Care tablist is one stop, then the panel. */
-  await page.locator('[data-care-tab="overview"]').focus();
+  await page.locator('[data-care-tab="escalation"]').focus();
   const stops = [];
   for (let i = 0; i < 12; i++) {
     await page.keyboard.press("Tab");

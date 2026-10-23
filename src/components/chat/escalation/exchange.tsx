@@ -46,7 +46,7 @@ import { noteProgressOf, noteTierOf, orderNodes, timelineNodes, type Lens, type 
 import type { Tiering } from "@/lib/tiering/use-tiering";
 import { PLATFORM, TIER_NAME, isAlertTier, type Tier } from "@/lib/tiering/tiers";
 import { cn } from "@/lib/utils";
-import { AssessmentAccordion } from "@/components/chat/escalation/assessment-accordion";
+import { AssessmentDeck } from "@/components/chat/escalation/assessment-deck";
 import { BODY, Field, LABEL, Primary, RING, RiskChip, TITLE, onRadioKeys, rovingTab } from "@/components/chat/escalation/controls";
 import { CrisisNoteAccordion } from "@/components/chat/escalation/crisis-note-accordion";
 
@@ -569,6 +569,7 @@ export function EscalationExchange({
   teenLines,
   mentorLines,
   onSettled,
+  onDismiss,
   echo,
   arrived = false,
 }: {
@@ -587,6 +588,9 @@ export function EscalationExchange({
    *  own escalation (a close, an S1 exit, Mark reviewed) or the mentor
    *  leaves the wrap. */
   onSettled?: () => void;
+  /** ═══ DISMISS THE CLOSED SUMMARY (pack v8.0) ═══ The one action on the
+   *  closed summary, both lenses: the page records it and removes the tab. */
+  onDismiss?: () => void;
   /** Arrived from a notification: the current card traces its ring once. */
   arrived?: boolean;
   /** The supervisor's latest Support message, for the mentor's waiting node. */
@@ -636,7 +640,9 @@ export function EscalationExchange({
            progress; complete, it says so and expands to the summaries. */
         return n.state === "completed" ? "Crisis note complete" : progress ? `Crisis note · ${progress.done} of ${progress.total}` : "Crisis note";
       case "close":
-        return "Close and schedule the follow-up";
+        /* Done, it says what happened — a Tier 3 exit scheduled nothing
+           (pack v8.0: the supervisor's closed record is drawn now). */
+        return n.state === "completed" ? (e.followUp ? "Closed · follow-up scheduled" : "Closed") : "Close and schedule the follow-up";
       case "closed":
         return "Escalation closed";
     }
@@ -645,11 +651,11 @@ export function EscalationExchange({
   const cardOf = (n: TimelineNode): React.ReactNode => {
     switch (n.kind) {
       case "assessment":
-        /* ═══ ONE ACCORDION, BOTH LENSES (pack v6.1, Supersession 4) ═══ The
-           holder answers in it; the observing supervisor reads it filling in
-           live — the old "3 of 6" count is retired. */
+        /* ═══ ONE DECK, BOTH LENSES (pack v8.0, Supersession 1) ═══ The
+           holder answers on it; the observing supervisor reads its rail
+           filling in live. It replaces v6.1's accordion. */
         return lens === "mentor" ? (
-          <AssessmentAccordion
+          <AssessmentDeck
             e={e}
             name={name}
             mode="holder"
@@ -658,7 +664,7 @@ export function EscalationExchange({
             onSubmit={(summary) => tiering.submitAssessment(teenId, summary)}
           />
         ) : (
-          <AssessmentAccordion e={e} name={name} mode="observer" />
+          <AssessmentDeck e={e} name={name} mode="observer" />
         );
       case "waiting":
         /* ═══ THE WAITING MODULE (pack v4.0, Workstream D) ═══ */
@@ -714,9 +720,13 @@ export function EscalationExchange({
               <WrapRow label="What happens next" slot="next">
                 <span data-wrap-next className="text-[var(--text-secondary)]">
                   {/* TODO-COPY */}
-                  {e.followUp
-                    ? `${supervisorName} checks in with ${name} again. Keep talking with ${name} as you normally would.`
-                    : `Nothing more is needed from you on this one. Keep talking with ${name} as you normally would.`}
+                  {lens === "supervisor"
+                    ? e.followUp
+                      ? `You check in with ${name} again on the follow-up date. The full record is in History.`
+                      : `Nothing more is needed on this one. The full record is in History.`
+                    : e.followUp
+                      ? `${supervisorName} checks in with ${name} again. Keep talking with ${name} as you normally would.`
+                      : `Nothing more is needed from you on this one. Keep talking with ${name} as you normally would.`}
                 </span>
               </WrapRow>
               {e.followUp && (
@@ -727,15 +737,11 @@ export function EscalationExchange({
                 </WrapRow>
               )}
             </dl>
-            <Primary
-              slot="back-to-care"
-              onClick={() => {
-                tiering.seeWrap(teenId);
-                onSettled?.();
-              }}
-            >
+            {/* ═══ ONE DISMISS (pack v8.0) ═══ Both lenses; it removes the tab,
+                which leaves toward History, where the record now lives. */}
+            <Primary slot="dismiss-summary" onClick={() => onDismiss?.()}>
               {/* TODO-COPY */}
-              Back to Care
+              Dismiss
             </Primary>
           </div>
         );
@@ -757,7 +763,7 @@ export function EscalationExchange({
         return m ? <Quote slot="moment" text={m.quote.text} who={m.quote.senderName} at={m.quote.at} note={m.note || undefined} /> : null;
       }
       case "assessment":
-        return n.state === "completed" ? <AssessmentAccordion e={e} name={name} mode="readonly" summaryBy={lens === "mentor" ? "You" : "Mentor's summary"} /> : null;
+        return n.state === "completed" ? <AssessmentDeck e={e} name={name} mode="readonly" summaryBy={lens === "mentor" ? "You" : "Mentor's summary"} /> : null;
       case "confirm": {
         const ev = [...tiering.eventsFor(teenId)].reverse().find((x) => x.escalationId === e.id && (x.kind === "confirmed" || x.kind === "placed" || x.kind === "stepped-down"));
         return ev?.reason ? <p className="text-[var(--text-secondary)]" style={LABEL}>{ev.reason}</p> : null;

@@ -1,6 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // CARE HERO — MICRO-PACK v7.0 — the report's measurements
 //
+// ═══ RETARGETED BY PACK v8.0 ═══ The identity strip (Zone 1) and its
+// single-home exception are removed, and the escalation hero moved into the
+// Escalation review tab: the anchor cells are the panel header in every
+// state. Strip-only claims (name · age · pronouns, View their profile, the
+// long-name truncation, the strip's contrast rows) are retired here; v8's own
+// probe is `care-v8.mjs`.
+//
 //   1  the three zones in order, per role: identity strip · anchor cell
 //      (Mentorship for a mentor, Clinical diagnosis for a supervisor or lead)
 //      · risk tier
@@ -56,16 +63,18 @@ const careOpen = async (page) => {
     await page.waitForTimeout(300);
   }
 };
+/* ═══ RETARGETED (pack v8.0, Supersession 2) ═══ The identity strip is
+   removed: the anchor cells ARE the panel header, its first element in every
+   state, with nothing above them. */
 const hero = (page) =>
   page.evaluate(() => {
-    const root = document.querySelector("[data-care-hero-root]");
-    const card = root?.querySelector('[data-care-hero="steady"]');
+    const root = document.querySelector("[data-care-header]");
+    const card = root;
+    const panel = document.querySelector("[data-care-panel]");
     return {
-      rootFirst: document.querySelector("[data-care-panel]")?.firstElementChild === root,
-      zones: [...(root?.children ?? [])].map((c) => (c.matches("[data-care-identity]") ? "identity" : c.dataset.careHero ?? c.tagName)),
+      rootFirst: [...(panel?.children ?? [])].filter((c) => !c.matches("[data-care-tabs-live]"))[0] === root,
+      strip: !!document.querySelector("[data-care-identity]"),
       cells: [...(card?.querySelectorAll("[data-overline]") ?? [])].map((o) => o.textContent.trim()),
-      name: root?.querySelector("[data-identity-name]")?.textContent,
-      facts: root?.querySelector("[data-identity-facts]")?.textContent,
       headline: root?.querySelector("[data-anchor] [data-anchor-headline]")?.textContent.trim(),
       meta: root?.querySelector("[data-care-mentorship] [data-anchor-meta]")?.textContent.replace(/\s+/g, " ").trim(),
       sup: root?.querySelector('[data-vital="supervisor"]')?.textContent.replace(/\s+/g, " ").trim(),
@@ -75,12 +84,11 @@ const hero = (page) =>
 // ── 1–3 · THE MENTOR'S HERO ────────────────────────────────────────────────
 console.log("\n── 1–3 · the mentor's hero");
 {
-  const { ctx, page } = await open("/app/chat/t14?care=overview");
+  const { ctx, page } = await open("/app/chat/t14?care=escalation");
   await careOpen(page);
   const h = await hero(page);
-  check(h.rootFirst && h.zones.join() === "identity,steady", "Zone 1 the identity strip, then the card — the hero root leads the panel", h.zones.join());
+  check(h.rootFirst && !h.strip, "the anchor cells lead the panel — no identity strip above them (pack v8.0)", JSON.stringify({ first: h.rootFirst, strip: h.strip }));
   check(h.cells.join() === "The mentorship,Risk tier", "Zone 2 the Mentorship, Zone 3 Risk tier", h.cells.join());
-  check(h.name === "Sam Karim" && h.facts === "16 · he/him", "the strip: name · age · pronouns", `${h.name} | ${h.facts}`);
   check(/^\d+ (day|days|weeks|months) together$/.test(h.headline ?? ""), "the headline is the tenure", h.headline);
   check(/^Last spoke (today|yesterday|\d+d ago) · \d+ check-ins? this window$/.test(h.meta ?? ""), "the meta is exactly its template — facts, no characterisation", h.meta);
   check(h.sup === "Supervised by Brandy Forrestor", "the supervision line", h.sup);
@@ -91,17 +99,18 @@ console.log("\n── 1–3 · the mentor's hero");
   check(!gate.brief && !gate.words, "the role gate: no diagnosis, ICD code or care-record link anywhere in the mentor's DOM", JSON.stringify(gate));
   const tenureCount = await page.evaluate(() => (document.body.innerText.match(/\btogether\b/g) ?? []).length);
   check(tenureCount === 1, "single home: the tenure appears once on the page", String(tenureCount));
-  await page.locator("[data-care-hero-root]").screenshot({ path: `${OUT}/01-mentor-steady.png` });
+  await page.locator("[data-care-header]").screenshot({ path: `${OUT}/01-mentor-steady.png` });
 
-  // ── 5 · the links ──
-  await page.locator("[data-identity-profile]").click();
+  // ── 5 · the links ── RETARGETED (pack v8.0): Profile is the rail's person
+  // icon tab now; "View their profile" left with the strip.
+  await page.locator('[data-rail-tab="profile"]').first().click();
   await page.waitForTimeout(300);
   const prof = await page.evaluate(() => ({
     sel: document.querySelector('[data-rail-tab="profile"][aria-selected="true"]') !== null,
     panel: !!document.querySelector('[data-slot="profile"], [data-profile-empty]') || /hasn.t filled this in/.test(document.body.innerText),
     matched: [...document.querySelectorAll('[data-slot="profile"] *')].some((e) => e.childElementCount === 0 && e.textContent.trim() === "Matched"),
   }));
-  check(prof.sel && prof.panel, "View their profile → the Profile tab", JSON.stringify(prof));
+  check(prof.sel && prof.panel, "the person-icon tab opens the Profile", JSON.stringify(prof));
   check(!prof.matched, "single home: the Profile tab's Matched row is gone");
   await page.locator('[data-rail-tab="care"]').first().click();
   await page.waitForTimeout(300);
@@ -128,11 +137,11 @@ console.log("\n── 5 · ?rail=profile");
 // ── 1–2 · THE SUPERVISOR'S AND THE LEAD'S HERO ─────────────────────────────
 console.log("\n── 1–2 · the supervisor's and the lead's hero");
 for (const persona of ["supervisor", "lead-mentor"]) {
-  const { ctx, page } = await open("/app/chat/t21?care=overview", { persona });
+  const { ctx, page } = await open("/app/chat/t21?care=escalation", { persona });
   await careOpen(page);
   const h = await hero(page);
-  check(h.zones.join() === "identity,steady" && h.cells.join() === "Clinical diagnosis,Risk tier", `${persona}: identity · Clinical diagnosis · Risk tier`, `${h.zones.join()} | ${h.cells.join()}`);
-  const m = await page.evaluate(() => ({ mentorship: !!document.querySelector("[data-care-mentorship]"), together: /\btogether\b/.test(document.querySelector("[data-care-hero-root]").innerText) }));
+  check(h.rootFirst && !h.strip && h.cells.join() === "Clinical diagnosis,Risk tier", `${persona}: Clinical diagnosis · Risk tier, first in the panel`, `${h.rootFirst} | ${h.cells.join()}`);
+  const m = await page.evaluate(() => ({ mentorship: !!document.querySelector("[data-care-mentorship]"), together: /\btogether\b/.test(document.querySelector("[data-care-header]").innerText) }));
   check(!m.mentorship && !m.together, `${persona}: no Mentorship cell`, JSON.stringify(m));
   const icd = await page.evaluate(() => {
     const p = document.querySelector("[data-care-brief] [data-anchor-headline]");
@@ -146,39 +155,43 @@ for (const persona of ["supervisor", "lead-mentor"]) {
     return { chipLine: Math.abs(c.getBoundingClientRect().top - words.at(-1).top) < 12 };
   });
   check(icd?.chipLine, `${persona}: the ICD code rides the headline's last line, never alone`, JSON.stringify(icd));
-  if (persona === "supervisor") await page.locator("[data-care-hero-root]").screenshot({ path: `${OUT}/02-supervisor-steady.png` });
+  if (persona === "supervisor") await page.locator("[data-care-header]").screenshot({ path: `${OUT}/02-supervisor-steady.png` });
   await ctx.close();
 }
 
 // ── 6 · ESCALATION COEXISTENCE ─────────────────────────────────────────────
+/* RETARGETED (pack v8.0, Supersession 4): during an escalation the anchor
+   cells persist above the tabs — the escalation hero lives inside the
+   Escalation review tab, not in their place. */
 console.log("\n── 6 · escalation coexistence");
 for (const [persona, chat] of [["mentor", "escalation-active"], ["supervisor", "escalation-tier2"]]) {
   const { ctx, page } = await open("/app/chat/t13", { persona, chat });
   await careOpen(page);
   const h = await hero(page);
-  check(h.zones.join() === "identity,escalation", `${persona}: the strip, then the escalation hero — the steady card yields`, h.zones.join());
-  check(h.name === "Jordan Tate" && h.facts === "15 · they/them", `${persona}: the strip still names the subject`, `${h.name} | ${h.facts}`);
-  await page.locator('[data-care-tab="history"], #care-tab-history').first().click();
+  const inTab = await page.evaluate(() => !!document.querySelector('[data-care-tabpanel="escalation"] [data-care-hero="escalation"]'));
+  check(h.rootFirst && h.cells.length === 2 && inTab, `${persona}: the anchor cells hold the header; the escalation hero is inside the Escalation review tab`, JSON.stringify({ first: h.rootFirst, cells: h.cells, inTab }));
+  await page.locator('[data-care-tab="history"]').first().click();
   await page.waitForTimeout(250);
-  const kept = await page.evaluate(() => !!document.querySelector("[data-care-hero-root] [data-care-identity]"));
-  check(kept, `${persona}: the strip holds on another Care tab`);
-  await page.locator('[data-care-tab="overview"], #care-tab-overview').first().click();
+  check((await hero(page)).rootFirst, `${persona}: the header holds on another Care tab`);
+  await page.locator('[data-care-tab="escalation"]').first().click();
   await page.waitForTimeout(250);
-  await page.locator("[data-care-hero-root]").screenshot({ path: `${OUT}/03-${persona}-escalation.png` });
+  await page.locator("[data-care-panel]").screenshot({ path: `${OUT}/03-${persona}-escalation.png` });
   await ctx.close();
 }
 
 // ── 7 · KEYBOARD ORDER ─────────────────────────────────────────────────────
 console.log("\n── 7 · keyboard order");
 for (const [persona, teen, want] of [
-  ["mentor", "t14", ["profile", "support", "tier-info", "escalate"]],
-  ["supervisor", "t21", ["profile", "care-record", "tier-info", "update-tier"]],
+  /* RETARGETED (pack v8.0): the strip's profile link left; the header starts
+     at the anchor's own link. */
+  ["mentor", "t14", ["support", "tier-info", "escalate"]],
+  ["supervisor", "t21", ["care-record", "tier-info", "update-tier"]],
 ]) {
-  const { ctx, page } = await open(`/app/chat/${teen}?care=overview`, { persona });
+  const { ctx, page } = await open(`/app/chat/${teen}?care=escalation`, { persona });
   await careOpen(page);
-  await page.locator("[data-identity-profile]").focus();
+  await page.locator(persona === "mentor" ? "[data-mentorship-support]" : "[data-care-record]").focus();
   const order = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 3; i++) {
     order.push(
       await page.evaluate(() => {
         const a = document.activeElement;
@@ -199,7 +212,7 @@ for (const [persona, teen, want] of [
 console.log("\n── 8 · contrast");
 for (const theme of ["light", "dark"]) {
   for (const [persona, teen] of [["mentor", "t14"], ["supervisor", "t21"]]) {
-    const { ctx, page } = await open(`/app/chat/${teen}?care=overview`, { persona, theme });
+    const { ctx, page } = await open(`/app/chat/${teen}?care=escalation`, { persona, theme });
     await careOpen(page);
     const rows = await page.evaluate(() => {
       const lin = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
@@ -226,9 +239,6 @@ for (const theme of ["light", "dark"]) {
       const L = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
       const ratio = (a, b) => (Math.max(L(a), L(b)) + 0.05) / (Math.min(L(a), L(b)) + 0.05);
       const sample = {
-        "strip · name": "[data-identity-name]",
-        "strip · age, pronouns": "[data-identity-facts]",
-        "strip · View their profile": "[data-identity-profile]",
         "overline": "[data-care-hero='steady'] [data-overline]",
         "anchor headline": "[data-anchor] [data-anchor-headline]",
         "anchor meta": "[data-anchor] [data-anchor-meta]",
@@ -245,25 +255,20 @@ for (const theme of ["light", "dark"]) {
       });
     });
     for (const r of rows) check(r.r !== null && r.r >= 4.5, `${theme} · ${persona} · ${r.k}`, `${r.r}:1`);
-    if (theme === "dark" && persona === "mentor") await page.locator("[data-care-hero-root]").screenshot({ path: `${OUT}/04-mentor-dark.png` });
+    if (theme === "dark" && persona === "mentor") await page.locator("[data-care-header]").screenshot({ path: `${OUT}/04-mentor-dark.png` });
     await ctx.close();
   }
 }
 
 // ── 9 · NO OVERFLOW ────────────────────────────────────────────────────────
+/* RETARGETED (pack v8.0): the long-name truncation was the strip's; the
+   header itself must still never overflow. */
 console.log("\n── 9 · overflow");
 for (const width of [1280, 1512]) {
-  const { ctx, page } = await open("/app/chat/t14?care=overview", { width });
+  const { ctx, page } = await open("/app/chat/t14?care=escalation", { width });
   await careOpen(page);
-  const o = await page.evaluate(() => {
-    const r = document.querySelector("[data-care-hero-root]");
-    const s = r.querySelector("[data-care-identity]");
-    const n = s.querySelector("[data-identity-name]");
-    n.textContent = "Alexandria-Rosalind Montgomery-Okonkwo";
-    const strip = { over: s.scrollWidth > s.clientWidth + 1, link: s.querySelector("[data-identity-profile]").getBoundingClientRect().right <= s.getBoundingClientRect().right + 1, trunc: n.scrollWidth > n.clientWidth };
-    return { root: r.scrollWidth <= r.clientWidth + 1, ...strip };
-  });
-  check(o.root && !o.over && o.link && o.trunc, `${width}: no overflow; a long name truncates and the profile link stays whole`, JSON.stringify(o));
+  const o = await page.evaluate(() => { const r = document.querySelector("[data-care-header]"); return { header: r.scrollWidth <= r.clientWidth + 1 }; });
+  check(o.header, `${width}: the header does not overflow`, JSON.stringify(o));
   await ctx.close();
 }
 

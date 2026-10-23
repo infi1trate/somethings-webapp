@@ -66,7 +66,8 @@ export interface Tiering {
   close: (teenId: string, input: { followUpDays: number; reason: string }) => boolean;
   /** Platform safety: reviewed, closed, no tier event. */
   closeReviewed: (teenId: string, reason: string) => void;
-  seeWrap: (teenId: string) => void;
+  /** Dismiss the closed summary — per lens (pack v8.0). */
+  seeWrap: (teenId: string, lens?: "mentor" | "supervisor") => void;
 }
 
 let seq = 0;
@@ -315,10 +316,13 @@ export function useTiering(now: number): Tiering {
         putEscalation({ ...e, resolvedAt: at, meta: { ...e.meta, timeToConfirmMs: at - e.openedAt }, outcome: { id: "reviewed", autoTagged: false, debrief: reason.trim(), debriefIsDraft: false, plan: "", additional: "", savedAt: at } });
         closedInThread(teenId, e, at);
       },
-      seeWrap: (teenId) => {
+      seeWrap: (teenId, lens = "mentor") => {
         const e = escalationFor(teenId);
-        if (!e || e.resolvedAt === null || e.wrapSeenAt) return;
-        putEscalation({ ...e, wrapSeenAt: Date.now() });
+        if (!e || e.resolvedAt === null) return;
+        /* Written once, never moved (append-only). */
+        if (lens === "supervisor") {
+          if (!e.supervisorWrapSeenAt) putEscalation({ ...e, supervisorWrapSeenAt: Date.now() });
+        } else if (!e.wrapSeenAt) putEscalation({ ...e, wrapSeenAt: Date.now() });
       },
     };
   }, [fixtures, mounted, written, writtenEscalations, writtenHistory, persona, liveMentorName, isSupervisor, viewer, appendTierEvent, appendChatEvent, putEscalation]);

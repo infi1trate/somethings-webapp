@@ -10,7 +10,7 @@
 //   5  the tab bar: one row, underlined, sideways scroll, arrow keys
 //   6  the hero above the tabs, on every tab; "notified" is the banner's
 //      alone; presence is the hero's alone
-//   7  steady Overview: the two newest History rows and View history →
+//   7  RETIRED by pack v8.0 — Overview and its Recent preview are removed
 //   8  (Phase 2) the future is one collapsed "Up next" path row
 //   9  (Phase 2) Action vs Waiting current nodes: pulse vs a 6s breath
 //  10  (Phase 2) the truncation audit: nothing in the timeline ellipsised;
@@ -82,7 +82,10 @@ const measure = (page) =>
     const col = (v) => { const e = document.createElement("span"); e.style.color = `var(${v})`; document.body.appendChild(e); const c = getComputedStyle(e).color; e.remove(); return c; };
     const panel = document.querySelector("[data-care-panel]");
     const body = document.querySelector("[data-care-surface]");
-    const hero = panel?.querySelector("[data-care-hero]");
+    /* RETARGETED (pack v8.0): while an escalation is in, its hero is inside
+       the Escalation review tab; the steady header is always above the tabs. */
+    const hero = panel?.querySelector('[data-care-tabpanel="escalation"] [data-care-hero="escalation"]') ?? panel?.querySelector("[data-care-header]");
+    const header = panel?.querySelector("[data-care-header]");
     const bg = (el) => (el ? getComputedStyle(el).backgroundColor : null);
     /* Raised AND ringed: a raised fill and a box-shadow carrying a 1px spread ring. */
     const raised = tok("--surface-raised");
@@ -116,8 +119,11 @@ const measure = (page) =>
       heroBg: bg(hero), raised,
       /* RETARGETED (Care Hero v7.0): the hero sits inside the CareHero root,
          under the identity strip — the root is the panel's first child. */
-      heroFirst: panel?.firstElementChild?.matches("[data-care-hero-root]") && panel.firstElementChild.contains(hero) && hero.previousElementSibling?.matches("[data-care-identity]"),
-      tabsAfterHero: !!panel?.children[1]?.querySelector("[data-care-tabs]"),
+      /* RETARGETED (pack v8.0, Supersessions 2 and 4): no identity strip —
+         the anchor header is the panel's first element in every state, and
+         the tabs follow it. */
+      heroFirst: [...(panel?.children ?? [])].filter((c) => !c.matches("[data-care-tabs-live]"))[0] === header,
+      tabsAfterHero: !!header?.nextElementSibling?.querySelector("[data-care-tabs]") || !!header?.nextElementSibling?.matches("[data-care-tabs-bar]"),
       ringed: ringed.map((el) => el.dataset.nodeCard !== undefined ? `node:${el.dataset.nodeAccent}` : el.tagName),
       ringColor: ringed[0] ? getComputedStyle(ringed[0]).boxShadow : null,
       alertRing: tok("--alert-critical-border"), neutralRing: tok("--border-default"),
@@ -147,7 +153,7 @@ console.log("\n── 1 · steady: the Teen Status card");
 for (const [label, extra] of [["Tier 4", {}], ["Tier 2", T2]]) {
   const { ctx, page } = await open("/app/chat/t14", { extra });
   const m = await measure(page);
-  check(m.heroKind === "steady" && m.heroFirst && m.tabsAfterHero, `${label}: the Teen Status card is the hero, above the tabs`, JSON.stringify({ k: m.heroKind, f: m.heroFirst, t: m.tabsAfterHero }));
+  check(m.heroKind === "steady" && m.heroFirst && m.tabsAfterHero, `${label}: the anchor header leads the panel, above the tabs`, JSON.stringify({ k: m.heroKind, f: m.heroFirst, t: m.tabsAfterHero }));
   /* RETARGETED (Care Hero v7.0, superseding v5.0 Supersession 5): the
      mentor's card anchors on the Mentorship, then the Risk tier — and the
      diagnosis is still not in the DOM at all. */
@@ -156,24 +162,22 @@ for (const [label, extra] of [["Tier 4", {}], ["Tier 2", T2]]) {
   check(m.washed === 0, `${label}: no whole-card wash — the tint lives in the lozenge alone`, String(m.washed));
   check(m.ringed.length === 0, `${label}: steady has no current step, so nothing is raised AND ringed`, m.ringed.join());
   check(m.filled.length === 0, `${label}: steady holds no filled button (the tier actions are outlined)`, m.filled.join(" · "));
-  check(m.recent > 0 && m.recent <= 2, `${label}: Overview shows at most the two newest History rows`, String(m.recent));
-  if (label === "Tier 2") check(m.recent === 2, "with three on file, Overview shows exactly two", String(m.recent));
+  /* RETIRED (pack v8.0, Supersession 3): Overview and its Recent preview are
+     removed — History is the record. Steady lands on Emergency info. */
+  check(m.recent === 0 && (await page.evaluate(() => document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab)) === "emergency", `${label}: no Recent preview; steady opens on Emergency info`, String(m.recent));
   if (label === "Tier 4") {
     check(m.careFirst && m.careLabel === "Care" && m.divider, "the Care control is first, labelled, behind a divider", JSON.stringify({ f: m.careFirst, l: m.careLabel, d: m.divider }));
     check(m.tabTops === 1 && m.underline && m.unselUnderline && !m.pill, "the Care tabs: one row, the selected tab underlined 2px in the ink, no pills", JSON.stringify({ rows: m.tabTops, u: m.underline, pill: m.pill }));
     check(m.overflowX === "auto" && m.fade, "on overflow the row scrolls sideways under an edge fade", JSON.stringify({ o: m.overflowX, f: m.fade }));
     /* Keyboard: the arrows move selection along the one row. */
-    await page.locator('[data-care-tab="overview"]').focus();
+    await page.locator('[data-care-tab="emergency"]').focus();
     await page.keyboard.press("ArrowRight");
     await page.keyboard.press("End");
     const k = await page.evaluate(() => ({ sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, focus: document.activeElement?.dataset.careTab }));
     check(k.sel === "history" && k.focus === "history", "→ then End lands on History, selected and focused", JSON.stringify(k));
     const h = await measure(page);
     check(h.heroKind === "steady", "and the hero holds across tabs", String(h.heroKind));
-    await page.locator('[data-care-tab="overview"]').click();
-    await page.locator("[data-care-view-history]").click();
-    await page.waitForTimeout(200);
-    check((await page.evaluate(() => document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab)) === "history", "View history → opens the History tab");
+    /* RETIRED (pack v8.0): "View history →" lived on Overview. */
   }
   await page.screenshot({ path: `${OUT}/01-steady-${label.replace(" ", "")}.png` });
   await ctx.close();
@@ -188,7 +192,7 @@ for (const [label, persona, chat] of [
 ]) {
   const { ctx, page } = await open("/app/chat/t13", { persona, chat });
   const m = await measure(page);
-  check(m.heroKind === "escalation" && m.heroFirst && m.tabsAfterHero, `${label}: the escalation hero, above the tabs`, JSON.stringify({ k: m.heroKind, f: m.heroFirst }));
+  check(m.heroKind === "escalation" && m.heroFirst && m.tabsAfterHero, `${label}: the header above the tabs; the escalation hero inside Escalation review`, JSON.stringify({ k: m.heroKind, f: m.heroFirst }));
   check(m.ringed.length === 1 && m.ringed[0] === "node:alert" && m.ringColor?.includes(m.alertRing.replace(/\)$/, "")), `${label}: exactly one raised + ringed element — the current node, alert-ringed at Tier 1–2`, `${m.ringed.join()} · ${m.ringColor}`);
   check(m.filled.length <= 1, `${label}: at most one filled button in the panel`, m.filled.join(" · ") || "none");
   check(!m.notifiedInPanel && m.notifiedInBanner !== false, `${label}: "notified" is the banner's alone`, JSON.stringify({ panel: m.notifiedInPanel, banner: m.notifiedInBanner }));
@@ -284,15 +288,16 @@ const timeline = (page) =>
   const ins = await page.evaluate((k) => ({ box: document.querySelector('[data-slot="composer"] textarea')?.value ?? null, sent: (JSON.parse(localStorage.getItem(k)).state.chatMessages ?? []).length }), KEY);
   check(ins.box && q.question?.includes(ins.box) && ins.sent === sentBefore, "Ask in chat puts the question in the message box, editable — nothing is sent", JSON.stringify({ box: ins.box?.slice(0, 40), sent: ins.sent, before: sentBefore }));
 
-  /* ── ANSWERED ROWS: short label, verbatim on expand ── */
-  /* RETARGETED (pack v6.1): the answered rows are the accordion's own rows. */
-  const rows = await page.evaluate(() => [...document.querySelectorAll('[data-acc-row][data-acc-state="answered"]')].map((r) => ({ id: r.dataset.accRow, label: r.querySelector("[data-acc-label]")?.textContent.trim() })));
-  check(rows.length >= 1 && rows.every((r) => r.label && !/^Have you/.test(r.label) && !/…/.test(r.label)), "answered rows carry the short label, not a cut question", rows.map((r) => r.label).join(" · "));
-  /* (pack v6.1) Tap an answered row: it re-opens with the question verbatim. */
-  await page.locator(`[data-acc-row="${rows[0]?.id}"] > button`).click();
+  /* ── ANSWERED: short label, verbatim on open ── */
+  /* RETARGETED (pack v8.0): the answered rows are the deck's rail
+     segments, each carrying its short label; tapping one opens its card
+     with the question VERBATIM. */
+  const rows = await page.evaluate(() => [...document.querySelectorAll('[data-segment-state="yes"], [data-segment-state="no"]')].map((r) => ({ id: r.dataset.segment, label: r.querySelector("[data-segment-label]")?.textContent.trim() })));
+  check(rows.length >= 1 && rows.every((r) => r.label && !/^Have you/.test(r.label) && !/…/.test(r.label)), "answered segments carry the short label, not a cut question", rows.map((r) => r.label).join(" · "));
+  await page.locator(`[data-segment="${rows[0]?.id}"]`).click();
   await page.waitForTimeout(200);
-  const verb = await page.evaluate((id) => document.querySelector(`[data-acc-panel="${id}"] [data-question-text]`)?.textContent.trim(), rows[0]?.id);
-  check(verb === "“Have you wished you were dead or wished you could go to sleep and not wake up?”", "expanded, the question VERBATIM", String(verb));
+  const verb = await page.evaluate(() => document.querySelector("[data-deck-card] [data-question-text]")?.textContent.trim());
+  check(verb === "“Have you wished you were dead or wished you could go to sleep and not wake up?”", "opened, the question VERBATIM", String(verb));
   check(t.cut.length === 0, "nothing in the timeline is ellipsised", t.cut.join(" | "));
   await page.screenshot({ path: `${OUT}/03-question-card.png` });
 
@@ -400,8 +405,9 @@ let assessed;
   await page.locator(`[data-asked-from-assessment="${q}"]`).click();
   await page.waitForTimeout(400);
   const back = await page.evaluate(() => ({ rail: document.querySelector('[data-rail-tab][aria-selected="true"]')?.dataset.railTab, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, node: !!document.querySelector('[data-node="assessment"]') }));
-  check(back.rail === "care" && back.tab === "overview" && back.node, "the glyph opens the assessment: Care, Overview, its node", JSON.stringify(back));
-  for (let i = 0; i < 8; i++) { const no = page.locator('[data-yes-no$=":no"]').first(); if (!(await no.count())) break; await no.click(); await page.waitForTimeout(400); }
+  /* RETARGETED (pack v8.0): the assessment lives in Escalation review. */
+  check(back.rail === "care" && back.tab === "escalation" && back.node, "the glyph opens the assessment: Care, Escalation review, its node", JSON.stringify(back));
+  for (let i = 0; i < 8; i++) { const no = page.locator('[data-deck-card] [data-yes-no$=":no"]').first(); if (!(await no.count())) break; await no.click(); await page.waitForTimeout(400); }
   await page.locator('[data-exchange-field="mentor-summary"]').fill("Probe: talking, no plan.");
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
   await page.waitForTimeout(500);
@@ -426,7 +432,9 @@ let closed;
   const t = await toasts(page);
   const arc = await page.evaluate(() => ({ state: document.querySelector("[data-care-panel]")?.dataset.careState, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, arriving: !!document.querySelector("[data-tier-cell].tier-cell-arrive"), tier: document.querySelector("[data-tier-cell]")?.dataset.tier }));
   check(t.length === 1 && t[0] === "Escalation closed · Jordan moves to Tier 3 Medium risk", "close: ONE toast, the pack's words", t.join(" | "));
-  check(arc.state === "steady" && arc.tab === "overview" && arc.tier === "3", "the panel settles on Overview, steady, at Tier 3", JSON.stringify(arc));
+  /* RETARGETED (pack v8.0): the Escalation review tab converts to its
+     closed summary and stays selected; the header's tier cell is Tier 3. */
+  check(arc.state === "closed" && arc.tab === "escalation" && arc.tier === "3", "the tab converts to its closed summary, at Tier 3", JSON.stringify(arc));
   check(arc.arriving, "and the tier cell arrives — one beat", JSON.stringify(arc));
   await page.screenshot({ path: `${OUT}/05-close-arc.png` });
   await page.waitForTimeout(1800);

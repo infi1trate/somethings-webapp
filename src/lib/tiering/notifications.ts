@@ -24,7 +24,8 @@
 
 import type { EscalationState } from "@/lib/chat/types";
 import type { TierEvent, TierActor } from "@/lib/tiering/events";
-import { ASSESSMENT_QUESTIONS, RISK_LABEL, answeredCount, assessmentOf, escalationTarget, riskLevel, supervisorStage } from "@/lib/tiering/escalation";
+import { deckProgress } from "@/lib/tiering/deck";
+import { RISK_LABEL, assessmentOf, escalationTarget, riskLevel, supervisorStage } from "@/lib/tiering/escalation";
 import { PLATFORM, type Tier } from "@/lib/tiering/tiers";
 
 export type NoticeKind = "opened" | "assessed" | "confirmed" | "support" | "closed" | "follow-up-scheduled" | "follow-up-due";
@@ -45,7 +46,8 @@ export interface EscalationNotice {
 
 /** ═══ THE DEEP LINK ═══ The conversation, with Care on Overview in its
  *  current escalation state. `?care=overview` is read once by the chat page. */
-export const escalationHref = (teenId: string) => `/app/chat/${teenId}?care=overview`;
+/* Lands on the Escalation review tab (pack v8.0; was `?care=overview`). */
+export const escalationHref = (teenId: string) => `/app/chat/${teenId}?care=escalation`;
 
 export interface NoticeInput {
   escalations: EscalationState[];
@@ -165,7 +167,8 @@ export function stageLine(e: EscalationState | undefined): string | null {
   if (escalationTarget(e) === PLATFORM) return "Platform concern · in review";
   switch (supervisorStage(e)) {
     case "S0":
-      return `Assessment in · ${answeredCount(assessmentOf(e).answers)} of ${ASSESSMENT_QUESTIONS.length}`;
+      /* The deck's required count (pack v8.0): a skip shortens it to "of 3". */
+      return `Assessment in · ${deckProgress(assessmentOf(e).answers).done} of ${deckProgress(assessmentOf(e).answers).needed}`;
     case "S1":
       return "Awaiting confirmation";
     case "S2":

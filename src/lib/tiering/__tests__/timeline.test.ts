@@ -55,11 +55,13 @@ describe("exactly one current node per lens", () => {
       });
     }
   }
-  it("mentor · closed: the summary is the one current node", () => {
+  it("closed: the summary is the one current node — on both lenses (pack v8.0)", () => {
     const e = base({ safetyCheck: submitted, confirmedTier: 1, resolvedAt: T0 + 30 * MIN });
-    const nodes = timelineNodes(e, state(3), "mentor");
-    expect(nodes.filter((n) => n.state === "current").map((n) => n.kind)).toEqual(["closed"]);
-    expect(nodes.filter((n) => n.state === "upcoming")).toHaveLength(0);
+    for (const lens of ["mentor", "supervisor"] as Lens[]) {
+      const nodes = timelineNodes(e, state(3), lens);
+      expect(nodes.filter((n) => n.state === "current").map((n) => n.kind)).toEqual(["closed"]);
+      expect(nodes.filter((n) => n.state === "upcoming")).toHaveLength(0);
+    }
   });
   it("Tier 3 raise: no assessment node on either lens; the mentor waits at once", () => {
     const e = base({ requested: 3, safetyCheck: { answers: {}, submittedAt: null } });

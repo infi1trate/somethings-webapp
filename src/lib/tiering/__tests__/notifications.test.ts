@@ -101,9 +101,9 @@ describe("stageLine — Monitoring's one quiet line", () => {
 });
 
 describe("plumbing", () => {
-  it("unread counts against the last look; the deep link opens Care on Overview", () => {
+  it("unread counts against the last look; the deep link opens the Escalation review tab (pack v8.0)", () => {
     const n = supervisorNotices(input([esc(), esc({ id: "b", openedAt: T0 + 30 * MIN })]));
     expect(unreadNotices(n, T0 + 10 * MIN)).toBe(1);
-    expect(escalationHref("t13")).toBe("/app/chat/t13?care=overview");
+    expect(escalationHref("t13")).toBe("/app/chat/t13?care=escalation");
   });
 });

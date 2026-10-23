@@ -26,6 +26,18 @@
 // History rows and "View history →" (F3). While an escalation is open the
 // hero is the escalation's (`EscalationHero`) and Overview is its timeline.
 //
+// ═══ SUPERSEDED BY PACK v8.0 (Supersessions 3–4) ═══ Overview is REMOVED —
+// its Recent preview retires (History is the record), its raise flow and its
+// escalation takeover move to a TEMPORARY tab. The set is now:
+//   [Escalation review] · Emergency info (the default) · Safety plan ·
+//   Resources · History
+// Escalation review is created leftmost while an escalation is raised, open,
+// or closed-and-not-yet-dismissed; it is auto-selected once per open event
+// (`chat-page.tsx`) and carries the dot while this lens's attention is
+// needed. Closed, it is the closed summary with one Dismiss; dismissed (or
+// left after viewing) it is removed and leaves toward History. The anchor
+// cells (`care-hero.tsx`) persist above the tab bar in every state.
+//
 // ═══ ONE STORE, TWO VIEWS ═══ A supervisor watching the conversation reads
 // the same record — the assessment, the tier, the note, added chat moments —
 // on its own lens of the timeline, and gets "Update tier" where a mentor gets
@@ -40,7 +52,7 @@ import { useEffect, useRef, useState } from "react";
 import { EscalationExchange, EscalationHero } from "@/components/chat/escalation/exchange";
 import type { SupervisorEcho } from "@/components/chat/escalation/waiting-module";
 import { CareHero, TierCell } from "@/components/chat/rail/care-hero";
-import { mentorshipVitals, teenIdentity } from "@/lib/record/mentorship-vitals";
+import { mentorshipVitals } from "@/lib/record/mentorship-vitals";
 import { EmergencyInfoPanel } from "@/components/chat/escalation/crisis-view";
 import { RaiseFlow } from "@/components/tiering/raise-flow";
 import { TierHistory } from "@/components/tiering/tier-history";
@@ -63,15 +75,18 @@ export interface CareBrief {
 
 // ── THE TABS ────────────────────────────────────────────────────────────────
 
-export type CareTab = "overview" | "safety-plan" | "emergency" | "resources" | "history";
-/* TODO-COPY. Sentence case. */
+export type CareTab = "escalation" | "emergency" | "safety-plan" | "resources" | "history";
+/* TODO-COPY. Sentence case. Instrument order; "escalation" renders only while
+   the temporary tab exists. */
 export const CARE_TABS: { id: CareTab; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "safety-plan", label: "Safety plan" },
+  { id: "escalation", label: "Escalation review" },
   { id: "emergency", label: "Emergency info" },
+  { id: "safety-plan", label: "Safety plan" },
   { id: "resources", label: "Resources" },
   { id: "history", label: "History" },
 ];
+/** The steady default (pack v8.0, a blocked constant). */
+export const DEFAULT_CARE_TAB: CareTab = "emergency";
 
 /** TODO-COPY / TODO-CLINICAL: the list needs the same review as the rest. */
 const RESOURCES: { name: string; how: string }[] = [
@@ -80,15 +95,16 @@ const RESOURCES: { name: string; how: string }[] = [
   { name: "The Trevor Project", how: "Call 1-866-488-7386, or text START to 678-678" },
 ];
 
-function CareTabs({ tab, onTab, dot }: { tab: CareTab; onTab: (t: CareTab) => void; dot: "alert" | "neutral" | null }) {
+function CareTabs({ tab, onTab, dot, review, leaving }: { tab: CareTab; onTab: (t: CareTab) => void; dot: "alert" | "neutral" | null; review: boolean; leaving: boolean }) {
   const refs = useRef<Partial<Record<CareTab, HTMLButtonElement | null>>>({});
+  const TABS = CARE_TABS.filter((s) => s.id !== "escalation" || review);
   const onKey = (e: React.KeyboardEvent, id: CareTab) => {
-    const i = CARE_TABS.findIndex((s) => s.id === id);
+    const i = TABS.findIndex((s) => s.id === id);
     const to =
-      e.key === "ArrowRight" ? CARE_TABS[(i + 1) % CARE_TABS.length].id
-      : e.key === "ArrowLeft" ? CARE_TABS[(i - 1 + CARE_TABS.length) % CARE_TABS.length].id
-      : e.key === "Home" ? CARE_TABS[0].id
-      : e.key === "End" ? CARE_TABS[CARE_TABS.length - 1].id
+      e.key === "ArrowRight" ? TABS[(i + 1) % TABS.length].id
+      : e.key === "ArrowLeft" ? TABS[(i - 1 + TABS.length) % TABS.length].id
+      : e.key === "Home" ? TABS[0].id
+      : e.key === "End" ? TABS[TABS.length - 1].id
       : null;
     if (!to) return;
     e.preventDefault();
@@ -136,9 +152,10 @@ function CareTabs({ tab, onTab, dot }: { tab: CareTab; onTab: (t: CareTab) => vo
           onScroll={measure}
           className="-mb-px flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto [scrollbar-width:none]"
         >
-          {CARE_TABS.map((s) => {
+          {TABS.map((s) => {
             const on = s.id === tab;
-            const withDot = s.id === "overview" && dot;
+            const temp = s.id === "escalation";
+            const withDot = temp && dot;
             return (
               <button
                 key={s.id}
@@ -156,6 +173,9 @@ function CareTabs({ tab, onTab, dot }: { tab: CareTab; onTab: (t: CareTab) => vo
                 onKeyDown={(e) => onKey(e, s.id)}
                 className={cn(
                   "relative inline-flex min-h-10 shrink-0 snap-start items-center gap-1.5 border-b-2 whitespace-nowrap",
+                  /* ═══ ARRIVAL AND DEPARTURE (make it magical 2) ═══ In with
+                     the banner; out toward History on dismiss. */
+                  temp && (leaving ? "care-tab-out" : "care-tab-in"),
                   on
                     ? "border-[color:var(--text-primary)] text-[var(--text-primary)]"
                     : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
@@ -168,10 +188,10 @@ function CareTabs({ tab, onTab, dot }: { tab: CareTab; onTab: (t: CareTab) => vo
                   <>
                     <span
                       aria-hidden
-                      data-overview-dot={dot}
+                      data-review-dot={dot}
                       className={cn("size-1.5 rounded-full", dot === "alert" ? "bg-[var(--alert-critical-accent)]" : "bg-[var(--text-primary)]")}
                     />
-                    <span className="sr-only">, escalation open</span>
+                    <span className="sr-only">, needs your attention</span>
                   </>
                 )}
               </button>
@@ -265,8 +285,9 @@ export function CarePanel({
   echo,
   showDiagnosis = false,
   arrivedForCare = false,
-  onOpenProfile,
   onOpenSupportTo,
+  review,
+  onDismiss,
 }: {
   teenId: string;
   name: string;
@@ -280,7 +301,8 @@ export function CarePanel({
   /** Which tab is up. Held by the page — see the module note. */
   tab: CareTab;
   onTab: (t: CareTab) => void;
-  /** The escalation dot on the Overview tab: alert for Tier 1–2. */
+  /** The Escalation review tab's dot — while this lens's attention is
+   *  needed; alert for Tier 1–2. */
   dot: "alert" | "neutral" | null;
   onStartRaise: () => void;
   onCancelRaise: () => void;
@@ -306,11 +328,13 @@ export function CarePanel({
   showDiagnosis?: boolean;
   /** Arrived from a notification's deep link (make it magical 3). */
   arrivedForCare?: boolean;
-  /** The identity strip's "View their profile →" (Care Hero v7.0). */
-  onOpenProfile: () => void;
   /** The Mentorship cell's supervisor link: a bound opener when that Support
    *  thread exists, else undefined (the name then renders as plain text). */
   onOpenSupportTo?: (id: string) => (() => void) | undefined;
+  /** The temporary Escalation review tab exists (pack v8.0). */
+  review: boolean;
+  /** Dismiss the closed summary: the page records it and removes the tab. */
+  onDismiss?: () => void;
 }) {
   const state = tiering.stateFor(teenId);
   const lens = observer ? "supervisor" : "mentor";
@@ -318,93 +342,102 @@ export function CarePanel({
   /* Role-gated at the source: the supervisor's page never computes the
      mentorship, the mentor's never receives a diagnosis to render. */
   const vitals = showDiagnosis ? null : mentorshipVitals(teenId);
-  const panelState = raising && !observer && !escalation ? "raising" : escalation ? "active" : "steady";
-  const history = (limit?: number) => (
+  const panelState = raising && !observer && !escalation ? "raising" : escalation ? (escalation.resolvedAt !== null ? "closed" : "active") : "steady";
+  /* While an escalation is raised or in progress, the tier cell's own
+     actions step aside: the escalation is the way the tier moves now. */
+  const busy = panelState === "raising" || panelState === "active";
+  const history = () => (
     <TierHistory
       events={tiering.eventsFor(teenId)}
       escalations={tiering.escalationsFor(teenId)}
       nameOf={tiering.nameOf}
       mentorName={observer ? tiering.liveMentorName || "The mentor" : "You"}
       emptyName={name}
-      limit={limit}
       now={now}
     />
   );
 
-  const overview =
-    // ── RAISING ──────────────────────────────────────────────────────────────
+  /* ═══ DISMISS, THEN LEAVE TOWARD HISTORY (make it magical 2) ═══ The tab
+     plays its exit, then the page records the dismissal and removes it.
+     Reduced motion: at once. */
+  const [leaving, setLeaving] = useState(false);
+  const dismiss = () => {
+    if (!onDismiss) return;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduce";
+    if (reduce) return onDismiss();
+    setLeaving(true);
+    window.setTimeout(() => {
+      setLeaving(false);
+      onDismiss();
+    }, 220);
+  };
+
+  /* ═══ THE TAB'S CREATION AND REMOVAL ARE ANNOUNCED ═══ A DOM write, not
+     state: the announcement is an event, and nothing re-renders for it. */
+  const said = useRef<HTMLParagraphElement>(null);
+  const had = useRef(review);
+  useEffect(() => {
+    if (had.current === review) return;
+    had.current = review;
+    /* TODO-COPY */
+    if (said.current) said.current.textContent = review ? "Escalation review tab added." : "Escalation review closed. The record is in History.";
+  }, [review]);
+
+  /* ═══ THE ESCALATION REVIEW TAB'S CONTENTS ═══ */
+  const reviewBody =
     panelState === "raising" ? (
       <RaiseFlow name={name} current={state.tier} onCancel={onCancelRaise} onConfirm={onConfirmRaise} />
     ) : escalation ? (
-      // ── THE EXCHANGE (pack v2.0), on Overview only (pack v3.0) ─────────────
-      <EscalationExchange
-        e={escalation}
-        teenId={teenId}
-        name={name}
-        lens={lens}
-        tiering={tiering}
-        supervisorName={supervisorName}
-        mentorName={mentorName}
-        onUseWording={onUseWording}
-        teenLines={teenLines}
-        mentorLines={mentorLines}
-        onSettled={onSettled}
-        echo={echo}
-        arrived={arrivedForCare}
-      />
-    ) : (
-      // ── STEADY: the two most recent History rows (pack v4.0, F3) ──────────
-      /* The day headers are the section's labels — a "Recent" overline over
-         "Today" stacked two (measured), so the rows lead and the way to the
-         rest follows them. */
-      <section data-care-recent aria-label="Recent history" className="space-y-1">
-        {history(2)}
-        <button
-          type="button"
-          data-care-view-history
-          onClick={() => onTab("history")}
-          className={cn("inline-flex min-h-8 items-center rounded-sm text-[var(--text-primary)] underline underline-offset-2 hover:no-underline", RING)}
-          style={{ font: "var(--type-field-label)" }}
-        >
-          {/* TODO-COPY */}
-          View history →
-        </button>
-      </section>
-    );
+      <div className="space-y-4">
+        {/* The hero's STATE block moved in here (pack v8.0, Supersession 4). */}
+        <EscalationHero
+          e={escalation}
+          tiering={tiering}
+          teenId={teenId}
+          lens={lens}
+          supervisorName={supervisorName}
+          mentorName={mentorName}
+          presence={presence}
+          onSupport={onReplyInSupport}
+        />
+        <EscalationExchange
+          e={escalation}
+          teenId={teenId}
+          name={name}
+          lens={lens}
+          tiering={tiering}
+          supervisorName={supervisorName}
+          mentorName={mentorName}
+          onUseWording={onUseWording}
+          teenLines={teenLines}
+          mentorLines={mentorLines}
+          onSettled={onSettled}
+          onDismiss={dismiss}
+          echo={echo}
+          arrived={arrivedForCare}
+        />
+      </div>
+    ) : null;
 
   return (
-    /* ═══ THE HERO SITS ABOVE THE TABS (pack v4.0, Workstream B) ═══ It is
-       the panel's one status, so it holds across every tab: the Teen Status
-       card while steady, the escalation hero while one is open. */
+    /* ═══ THE HEADER SITS ABOVE THE TABS (pack v4.0; v8.0) ═══ The anchor
+       cells hold across every tab and every state; the escalation hero lives
+       in the Escalation review tab. */
     <div
       data-care-panel
       data-care-state={panelState}
       data-care-target={escalation ? String(escalation.requested ?? 1) : undefined}
       className="space-y-4"
     >
-      {/* ═══ THE CARE HERO (v7.0) ═══ Zone 1 persists in every state; while
-          an escalation is open its hero takes Zones 2–3's place. */}
+      <p ref={said} data-care-tabs-live role="status" aria-live="polite" className="sr-only" />
+      {/* ═══ THE PANEL HEADER (pack v8.0) ═══ The anchor cells, above the
+          tabs in every state; nothing renders above them. */}
       <CareHero
-        identity={teenIdentity(teenId) ?? { name, age: null, pronouns: null }}
+        name={name}
         showDiagnosis={showDiagnosis}
         brief={brief}
         vitals={vitals}
-        onOpenProfile={onOpenProfile}
         onOpenSupport={vitals?.supervisor ? onOpenSupportTo?.(vitals.supervisor.id) : undefined}
-        escalationHero={
-          escalation ? (
-            <EscalationHero
-              e={escalation}
-              tiering={tiering}
-              teenId={teenId}
-              lens={lens}
-              supervisorName={supervisorName}
-              mentorName={mentorName}
-              presence={presence}
-              onSupport={onReplyInSupport}
-            />
-          ) : undefined
-        }
         tierCell={
           <TierCell
             state={state}
@@ -412,16 +445,16 @@ export function CarePanel({
             name={name}
             role={lens}
             highlight={highlightTier}
-            onEscalate={onStartRaise}
-            onRequestStepDown={onRequestStepDown}
-            onUpdateTier={onUpdateTier}
+            onEscalate={busy ? undefined : onStartRaise}
+            onRequestStepDown={busy ? undefined : onRequestStepDown}
+            onUpdateTier={busy ? undefined : onUpdateTier}
           />
         }
       />
-      <CareTabs tab={tab} onTab={onTab} dot={dot} />
+      <CareTabs tab={tab} onTab={onTab} dot={dot} review={review} leaving={leaving} />
       <div id="care-tabpanel" role="tabpanel" aria-labelledby={`care-tab-${tab}`} data-care-tabpanel={tab}>
-        {tab === "overview" ? (
-          overview
+        {tab === "escalation" && reviewBody ? (
+          reviewBody
         ) : tab === "history" ? (
           history()
         ) : tab === "safety-plan" ? (

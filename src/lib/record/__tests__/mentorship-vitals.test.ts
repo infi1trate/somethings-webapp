@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mentorshipVitals, teenIdentity, tenureAt, tickedOver } from "@/lib/record/mentorship-vitals";
+import { mentorshipVitals, tenureAt, tickedOver } from "@/lib/record/mentorship-vitals";
 import { relLength } from "@/lib/record/mentees-demo";
 import { DEMO_TEENS } from "@/lib/record/people-demo";
 
@@ -51,10 +51,7 @@ describe("the Mentorship cell's vitals (Care Hero v7.0)", () => {
     expect(JSON.stringify(v)).not.toMatch(/[A-Z]\d{2}\.\d|diagnos|presentation/i);
   });
 
-  it("states the identity, and invents nothing for an unknown teen", () => {
-    const t = DEMO_TEENS[0];
-    expect(teenIdentity(t.id)).toMatchObject({ pronouns: t.pronouns ?? null });
-    expect(teenIdentity("nobody")).toBeNull();
+  it("invents nothing for an unknown teen", () => {
     expect(mentorshipVitals("nobody")).toBeNull();
   });
 });

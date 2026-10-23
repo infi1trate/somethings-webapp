@@ -287,6 +287,10 @@ export interface EscalationState {
   followUp?: { dueAt: number; status: string | null };
   /** M4: when the mentor read the wrap-up, after which Care is steady. */
   wrapSeenAt?: number;
+  /** ═══ THE SUPERVISOR'S DISMISSAL (pack v8.0) ═══ The Escalation review
+   *  tab converts to its closed summary in BOTH lenses; this is when the
+   *  supervisor dismissed it (or moved off it after viewing). Written once. */
+  supervisorWrapSeenAt?: number;
 }
 
 export interface CrisisNote {

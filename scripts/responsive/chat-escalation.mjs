@@ -179,7 +179,8 @@ console.log("\n── the rail @ escalation-active");
   check(rail.labels[0]?.startsWith("Care"), "Care is the first tab", rail.labels.join(" | "));
   check(rail.selected?.startsWith("Care"), "and selected on open", String(rail.selected));
   check(rail.assessmentOpen, "the assessment is what it shows");
-  check(rail.progress === "2 of 6 answered", "with a count of what is answered", String(rail.progress));
+  /* RETARGETED (pack v8.0): the deck counts the REQUIRED questions. */
+  check(rail.progress === "2 of 6 needed answered", "with a count of what is answered", String(rail.progress));
   /* SUPERSEDED (pack v6.1): v3 kept the chip off the mentor's card until the
      assessment was sent; v6.1's walkthrough verifies the risk chip at every
      step, so it is LIVE from the first answer. What survives: no score, no
@@ -197,7 +198,8 @@ console.log("\n── the assessment @ escalation-active");
   const p = await chat("escalation-active");
   const before = await p.evaluate(`(() => ({
     active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive,
-    answered: document.querySelectorAll('[data-acc-row][data-acc-state="answered"]').length,
+    /* RETARGETED (pack v8.0): answered = the rail's filled segments. */
+    answered: document.querySelectorAll('[data-segment-state="yes"], [data-segment-state="no"]').length,
     /* THE WORDING HELP is the field that matters most at 2am, and one press puts
        it in the composer rather than making a frightened mentor retype it. */
     wording: document.querySelectorAll("[data-assessment-wording]").length,
@@ -216,7 +218,7 @@ console.log("\n── the assessment @ escalation-active");
     };
   })()`);
   check(typeof after.at === "number", "answering records it, with a time", String(after.at));
-  check(after.progress === "3 of 6 answered" && after.active === "q4", "and the count follows, with the next question open", JSON.stringify(after));
+  check(after.progress === "3 of 6 needed answered" && after.active === "q4", "and the count follows, with the next question open", JSON.stringify(after));
 
   // The wording goes into the composer, unsent.
   await p.locator("[data-assessment-wording]").click();
@@ -476,8 +478,9 @@ console.log("\n── closing @ escalation-active");
   /* AN ACCOUNT, NOT TWO TIMESTAMPS. An escalation whose only trace is when it
      opened and closed tells nobody whether a teenager is all right. */
   check(resolved.stage === "M4" && /Standard tier update/.test(resolved.outcome ?? "") && resolved.tab.some((t) => t.startsWith("Care")), "the mentor is shown how it ended, in Care (M4)", JSON.stringify(resolved));
-  await p.locator('[data-exchange-primary="back-to-care"]').click();
-  await p.waitForTimeout(400);
+  /* RETARGETED (pack v8.0): one Dismiss; the tab leaves toward History. */
+  await p.locator('[data-exchange-primary="dismiss-summary"]').click();
+  await p.waitForTimeout(500);
   /* History is a Care tab of its own now (pack v3.0). */
   await p.locator('[data-care-tab="history"]').click();
   await p.waitForTimeout(200);

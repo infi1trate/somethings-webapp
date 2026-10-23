@@ -1,6 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // ASSESSMENT & CRISIS NOTE ACCORDIONS (pack v6.1) — the report's measurements
 //
+// ═══ RETARGETED BY PACK v8.0 ═══ The intake accordion is retired for the
+// assessment deck (`care-v8.mjs` measures it); §1–3b and §7 and the intake's
+// keyboard run are removed here. The CRISIS NOTE accordion is unchanged and
+// everything below measures it, after an assessment submitted via the deck.
+//
 //   1  retired patterns are gone: the one-question card's header, the
 //      answered group, the supervisor's count row, per-section / outcome /
 //      debrief timeline nodes
@@ -54,143 +59,26 @@ async function open(path, { persona = "mentor", chat = "escalation-active", extr
 const store = (page) => page.evaluate((k) => JSON.parse(localStorage.getItem(k)).state, KEY);
 const BREATH = 450;
 
-/** The intake accordion's state, and the bounded-movement measurements. */
-const acc = (page) =>
-  page.evaluate(() => {
-    const rows = [...document.querySelectorAll("[data-acc-row]")];
-    const open = rows.filter((r) => r.dataset.accOpen);
-    const panel = document.querySelector("[data-acc-panel]");
-    const scroller = panel && (function up(e) { for (let x = e.parentElement; x; x = x.parentElement) { const o = getComputedStyle(x).overflowY; if ((o === "auto" || o === "scroll") && x.scrollHeight > x.clientHeight) return x; } return document.scrollingElement; })(panel);
-    const pr = panel?.getBoundingClientRect();
-    const sr = scroller?.getBoundingClientRect?.() ?? { top: 0, bottom: innerHeight };
-    return {
-      rows: rows.map((r) => `${r.dataset.accRow}:${r.dataset.accState}`),
-      open: open.map((r) => r.dataset.accRow),
-      heights: [...new Set(rows.map((r) => Math.round(r.querySelector(":scope > button").getBoundingClientRect().height)))],
-      /* In view means below the STICKY Care tab bar too, not only inside the
-         viewport (measured: a card once landed under the bar). */
-      visible: !panel || (pr.top >= Math.max(0, sr.top, document.querySelector("[data-care-tabs-bar]")?.getBoundingClientRect().bottom ?? 0) - 1 && pr.bottom <= Math.min(innerHeight, sr.bottom) + 1),
-      risk: document.querySelector("[data-review-risk]")?.textContent ?? null,
-      focus: document.activeElement?.dataset?.assessmentWording ?? document.activeElement?.dataset?.exchangeField ?? document.activeElement?.tagName,
-      live: document.querySelector("[data-acc-live]")?.textContent ?? "",
-      progress: document.querySelector("[data-assessment-progress]")?.textContent ?? null,
-    };
-  });
-
-// ── 1–2 · INTAKE, OUT OF ORDER ─────────────────────────────────────────────
-console.log("\n── 1–2 · the intake, out of order");
+// ── 1–3b · RETIRED (pack v8.0, Supersession 1) ─────────────────────────────
+/* The intake accordion is replaced by the assessment DECK; its claims (one
+   row open, bounded movement, the observer's accordion, live arrival) are
+   measured in `care-v8.mjs`. What the note needs from the intake is only a
+   submitted assessment — made here through the deck. */
+console.log("\n── setup · an assessment submitted through the deck");
 let submittedState;
 {
   const { ctx, page, errors } = await open("/app/chat/t13");
-  // A fresh record: the fixture answers Q1–Q2. One real write puts the whole
-  // record in the session store; then its answers are cleared and reloaded.
-  await page.locator('[data-acc-row][data-acc-open] [data-yes-no$=":no"]').first().click();
-  await page.waitForTimeout(300);
-  await page.evaluate((k) => {
-    const raw = JSON.parse(localStorage.getItem(k));
-    raw.state.escalations.t13.safetyCheck = { answers: {}, submittedAt: null };
-    localStorage.setItem(k, JSON.stringify(raw));
-  }, KEY);
-  await page.reload({ waitUntil: "networkidle" });
-  await page.waitForTimeout(1000);
-  const retired = await page.evaluate(() => ({
-    header: !!document.querySelector("[data-question-header]"),
-    group: !!document.querySelector("[data-answered-toggle], [data-answered-group]"),
-    count: !!document.querySelector("[data-s0-progress]"),
-  }));
-  check(!retired.header && !retired.group && !retired.count, "retired: the Question n of 6 header, the answered group, the count row", JSON.stringify(retired));
-
-  let s = await acc(page);
-  const fresh = s.rows.every((r) => r.endsWith(":untouched"));
-  check(s.rows.length === 6 && s.open.join() === (fresh ? "q1" : s.open.join()) && s.open.length === 1, "six compact rows, exactly one open — on load, the first unanswered", `${s.rows.join(" ")} | open ${s.open}`);
-  const H = s.heights;
-  check(H.length === 1, "every compact row is one height", `${H}px`);
-
-  const step = async (label, fn, want) => {
-    await fn();
-    await page.waitForTimeout(BREATH);
-    const x = await acc(page);
-    check(x.open.join() === want.open && x.risk === want.risk && x.heights.join() === H.join() && x.visible, `${label}: open ${want.open || "none"} · ${want.risk ?? "no risk yet"} · rows ${H}px · card in view`, `${x.open} · ${x.risk} · ${x.heights} · visible ${x.visible}`);
-    return x;
-  };
-  // Q3 first — tap the row directly.
-  await page.locator('[data-acc-row="q3"] > button').click();
-  await page.waitForTimeout(250);
-  s = await step("Q3 Yes", () => page.locator('[data-yes-no="q3:yes"]').click(), { open: "q1", risk: "Assessment suggests: Moderate risk" });
-  check(s.focus === "q1" && /^Method, no intent recorded · 1 of 6 answered$/.test(s.live), "auto-advance went top-down to Q1, focus on its first control, and the live region spoke", `${s.focus} · ${s.live}`);
-  s = await step("Q1 No", () => page.locator('[data-yes-no="q1:no"]').click(), { open: "q2", risk: "Assessment suggests: Moderate risk" });
-  await page.locator('[data-acc-row="q6"] > button').click();
-  await page.waitForTimeout(250);
-  s = await step("Q6 Yes", () => page.locator('[data-yes-no="q6:yes"]').click(), { open: "q6", risk: "Assessment suggests: High risk" });
-  check(!!(await page.locator('[data-acc-followup="q6b"]').count()), "Q6's Yes nests its follow-up inside the row, which stays open");
-  await page.locator('[data-acc-panel="q6"]').screenshot({ path: `${OUT}/01-q6-followup.png` });
-  s = await step("Q6 follow-up No", () => page.locator('[data-yes-no="q6b:no"]').click(), { open: "q2", risk: "Assessment suggests: High risk" });
-  s = await step("Q2 No", () => page.locator('[data-yes-no="q2:no"]').click(), { open: "q4", risk: "Assessment suggests: High risk" });
-  s = await step("Q4 No", () => page.locator('[data-yes-no="q4:no"]').click(), { open: "q5", risk: "Assessment suggests: High risk" });
-  s = await step("Q5 No", () => page.locator('[data-yes-no="q5:no"]').click(), { open: "", risk: "Assessment suggests: High risk" });
-  check(s.focus === "mentor-summary" && s.progress === "6 of 6 answered", "the six done: focus lands on the summary; 6 of 6", `${s.focus} · ${s.progress}`);
-  // Editing pre-submit: re-open Q6, the answer shown pressed, change it.
-  await page.locator('[data-acc-row="q6"] > button').click();
-  await page.waitForTimeout(250);
-  const pressed = await page.evaluate(() => document.querySelector('[data-yes-no="q6:yes"]')?.getAttribute("aria-pressed"));
-  check(pressed === "true", "re-opened, the recorded answer is shown pressed", String(pressed));
-  s = await step("Q6 changed to No", () => page.locator('[data-yes-no="q6:no"]').click(), { open: "", risk: "Assessment suggests: Moderate risk" });
-  check((await store(page)).escalations.t13.safetyCheck.answers.q6b === undefined, "a Q6 No drops the follow-up from the record");
-  await page.locator("[data-assessment-accordion]").screenshot({ path: `${OUT}/02-intake-complete.png` });
+  for (let i = 0; i < 8; i++) {
+    const no = page.locator('[data-deck-card] [data-yes-no$=":no"]').first();
+    if (!(await no.count())) break;
+    await no.click();
+    await page.waitForTimeout(300);
+  }
   await page.locator('[data-exchange-field="mentor-summary"]').fill("Method, no intent. Talking it through with me now.");
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
   await page.waitForTimeout(600);
   submittedState = await store(page);
-  check(submittedState.escalations.t13.safetyCheck.submittedAt > 0, "Submit writes the record");
-  check(errors.length === 0, "no page errors on the mentor's run", errors.slice(0, 2).join(" | "));
-  await ctx.close();
-}
-
-// ── 3 · OBSERVER — LIVE AND READ-ONLY ──────────────────────────────────────
-console.log("\n── 3 · the observer");
-{
-  const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor" });
-  const o = await page.evaluate(() => {
-    const root = document.querySelector("[data-node-state='current'] [data-assessment-accordion]");
-    return {
-      mode: root?.dataset.accMode,
-      controls: root ? root.querySelectorAll("[data-yes-no], [data-assessment-wording], textarea, [data-exchange-primary]").length : -1,
-      open: root ? root.querySelectorAll("[data-acc-panel]").length : -1,
-      untouchedDisabled: [...(root?.querySelectorAll("[data-acc-state='untouched'] > button") ?? [])].every((b) => b.disabled),
-    };
-  });
-  check(o.mode === "observer" && o.controls === 0 && o.open === 0, "observer: the live accordion, nothing open, zero interactive affordances", JSON.stringify(o));
-  check(o.untouchedDisabled, "an unanswered row has nothing to expand for an observer");
-  await page.locator('[data-acc-row="q1"] > button').click();
-  await page.waitForTimeout(200);
-  const read = await page.evaluate(() => document.querySelector('[data-acc-panel="q1"] [data-answer-verbatim]')?.textContent);
-  check(/^“Have you wished you were dead or wished you could go to sleep and not wake up\?” — (Yes|No)$/.test(read ?? ""), "an answered row expands to the question VERBATIM", read);
-  await page.locator("[data-node-state='current'] [data-assessment-accordion]").screenshot({ path: `${OUT}/03-observer.png` });
-  await ctx.close();
-}
-
-// ── 3b · LIVE ARRIVAL ──────────────────────────────────────────────────────
-/* The store has no cross-tab sync, and the persona lives in it, so "live" in
-   this prototype is the record changing while the page is open: the mentor
-   answers, then the REAL dev bar switches the role with no reload. */
-console.log("\n── 3b · live arrival");
-{
-  const { ctx, page } = await open("/app/chat/t13");
-  const before = await page.locator('[data-acc-row="q4"]').getAttribute("data-acc-state");
-  await page.locator('[data-acc-row="q4"] > button').click();
-  await page.waitForTimeout(200);
-  await page.locator('[data-yes-no="q4:yes"]').click();
-  await page.waitForTimeout(400);
-  await page.getByRole("radiogroup", { name: "Viewer role" }).getByRole("radio", { name: "Supervisor" }).click();
-  await page.waitForTimeout(900);
-  const live = await page.evaluate(() => ({
-    mode: document.querySelector("[data-node-state='current'] [data-assessment-accordion]")?.dataset.accMode,
-    q4: document.querySelector('[data-acc-row="q4"]')?.dataset.accState,
-    tick: !!document.querySelector('[data-acc-row="q4"] [data-acc-value].tier-settle'),
-    stale: !!document.querySelector('[data-acc-row="q1"] [data-acc-value].tier-settle'),
-    risk: document.querySelector("[data-node-state='current'] [data-review-risk]")?.textContent,
-  }));
-  check(before === "untouched" && live.mode === "observer" && live.q4 === "answered" && live.tick && !live.stale && live.risk === "Assessment suggests: High risk", "an answer recorded while the page is open lands on the observer with one soft tick — earlier answers stay still", JSON.stringify(live));
+  check(submittedState.escalations.t13.safetyCheck.submittedAt > 0 && errors.length === 0, "the deck submits the record", errors.slice(0, 2).join(" | "));
   await ctx.close();
 }
 
@@ -204,8 +92,8 @@ let tier1Closed;
   await done.click();
   await page.waitForTimeout(200);
   const ro = await page.evaluate(() => {
-    const r = document.querySelector('[data-node="assessment"] [data-assessment-accordion]');
-    return { mode: r?.dataset.accMode, controls: r ? r.querySelectorAll("[data-yes-no], textarea, [data-exchange-primary]").length : -1, quote: !!r?.querySelector('[data-quote="mentor-summary"], [data-slot="mentor-summary"]') || /Talking it through/.test(r?.innerText ?? "") };
+    const r = document.querySelector('[data-node="assessment"] [data-assessment-deck]');
+    return { mode: r?.dataset.deckMode, controls: r ? r.querySelectorAll("[data-yes-no], textarea, [data-exchange-primary]").length : -1, quote: !!r?.querySelector('[data-quote="mentor-summary"], [data-slot="mentor-summary"]') || /Talking it through/.test(r?.innerText ?? "") };
   });
   check(ro.mode === "readonly" && ro.controls === 0 && ro.quote, "post-submit: the assessment reads back read-only, with the mentor's summary", JSON.stringify(ro));
   await page.locator('[data-s1-tier="1"]').click();
@@ -370,16 +258,7 @@ console.log("\n── 6 · closed and read-only");
 }
 
 
-// ── 7 · REDUCED MOTION ──────────────────────────────────────────────────────
-console.log("\n── 7 · reduced motion");
-{
-  const { ctx, page } = await open("/app/chat/t13", { reduce: true });
-  await page.locator('[data-yes-no="q3:yes"]').click();
-  await page.waitForTimeout(40);
-  const opened = await page.evaluate(() => [...document.querySelectorAll("[data-acc-row][data-acc-open]")].map((r) => r.dataset.accRow).join());
-  check(opened === "q4", "reduced motion: no breath — the next row opens at once", opened);
-  await ctx.close();
-}
+// ── 7 · RETIRED (pack v8.0) — the intake's reduced motion is care-v8's ──
 
 // ── 8 · KEYBOARD AND SCREEN READER — ONE NON-LINEAR RUN EACH ───────────────
 console.log("\n── 8 · keyboard-only, non-linear, with the transcript");
@@ -394,33 +273,7 @@ const focusOf = (page) =>
     return `${a?.getAttribute("role") ?? a?.tagName.toLowerCase()} “${name}”${state}${row ? ` · row ${row.dataset.accRow ?? row.dataset.noteRow}` : ""}`;
   });
 const heard = (page) => page.evaluate(() => [document.querySelector("[data-acc-live]")?.textContent, document.querySelector("[data-note-live]")?.textContent].filter(Boolean).join(" | "));
-{
-  const { ctx, page } = await open("/app/chat/t13");
-  say("## Intake (mentor), keyboard only — Q5 first, then the rest");
-  // Tab from the open card's Ask in chat to Q5's row header.
-  await page.locator('[data-acc-row="q5"] > button').focus();
-  say(`focus → ${await focusOf(page)}`);
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(200);
-  await page.keyboard.press("Tab");
-  say(`Tab → ${await focusOf(page)}`);
-  // Walk to Q5's No.
-  for (let i = 0; i < 6 && !(await page.evaluate(() => document.activeElement?.dataset?.yesNo === "q5:no")); i++) await page.keyboard.press("Tab");
-  say(`Tab… → ${await focusOf(page)}`);
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(BREATH);
-  say(`Enter → announced “${await heard(page)}”; focus → ${await focusOf(page)}`);
-  const f1 = await page.evaluate(() => document.activeElement?.dataset?.assessmentWording);
-  for (const id of ["q3", "q4", "q6"]) {
-    for (let i = 0; i < 6 && !(await page.evaluate((id) => document.activeElement?.dataset?.yesNo === `${id}:no`, id)); i++) await page.keyboard.press("Tab");
-    await page.keyboard.press("Enter");
-    await page.waitForTimeout(BREATH);
-    say(`${id} No, by Enter → announced “${await heard(page)}”; focus → ${await focusOf(page)}`);
-  }
-  const done = await page.evaluate(() => document.activeElement?.dataset?.exchangeField);
-  check(f1 === "q3" && done === "mentor-summary", "keyboard only: every advance lands focus on the next row's first control, then the summary", `${f1} · ${done}`);
-  await ctx.close();
-}
+/* The intake's keyboard run is the deck's now — care-v8.mjs, §7. */
 {
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-tier2" });
   say("\n## Crisis note (supervisor, Tier 2), keyboard only — Referral first");
@@ -449,8 +302,6 @@ await writeFile(`${OUT}/KEYBOARD-TRANSCRIPT.md`, `# Keyboard / screen-reader tra
 console.log("\n── 9 · squint screenshots");
 {
   const shots = [
-    ["10-intake-mentor-partial", "/app/chat/t13", { persona: "mentor" }, "[data-assessment-accordion]"],
-    ["11-intake-supervisor-observer", "/app/chat/t13", { persona: "supervisor" }, "[data-assessment-accordion]"],
     ["12-note-tier2-partial", "/app/chat/t13", { persona: "supervisor", chat: "escalation-tier2" }, "[data-node='note']"],
   ];
   for (const [name, path, o, sel] of shots) {

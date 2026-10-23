@@ -61,12 +61,12 @@ import type {
   SentArtifactItem,
 } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
-import { CarePanel, type CareBrief, type CareTab } from "@/components/chat/rail/care";
+import { CarePanel, DEFAULT_CARE_TAB, type CareBrief, type CareTab } from "@/components/chat/rail/care";
 import { StepDownRequestDialog, TierUpdateDialog } from "@/components/tiering/tier-update-module";
 import { AddMomentDialog } from "@/components/chat/escalation/add-moment-dialog";
 import { actorName } from "@/lib/chat/actor-name";
 import { useTiering } from "@/lib/tiering/use-tiering";
-import { escalationTarget, workingTier } from "@/lib/tiering/escalation";
+import { batonHolder, escalationTarget, workingTier } from "@/lib/tiering/escalation";
 import { isAlertTier, type RaiseTarget } from "@/lib/tiering/tiers";
 import { recordHrefFor } from "@/lib/record/subject";
 import { presentationFor } from "@/lib/record/care-demo";
@@ -311,8 +311,12 @@ export function ChatPage({
    *  the rail's default tab reads it — a wrap the rail opened past is a wrap
    *  nobody reads (measured: the rail landed on Assist). */
   const latest = thread ? tiering.escalationFor(thread.id) : undefined;
+  /* ═══ THE ESCALATION REVIEW TAB'S RECORD (pack v8.0) ═══ The open
+     escalation — or a closed one this LENS has not dismissed yet: the closed
+     summary is both lenses' now (it was the mentor's alone). */
   const careEscalation =
-    escalation ?? (!isSupervisorTier(persona) && latest && latest.resolvedAt !== null && !latest.wrapSeenAt ? latest : undefined);
+    escalation ??
+    (latest && latest.resolvedAt !== null && !(isSupervisorTier(persona) ? latest.supervisorWrapSeenAt : latest.wrapSeenAt) ? latest : undefined);
 
   /** ═══ THE ASSIST LADDER'S INPUTS, AND THE TEEN BEHIND THE THREAD ═══
    *
@@ -353,7 +357,8 @@ export function ChatPage({
      then picks another tab is not pulled back. Overview is already the Care
      panel's default tab. */
   const search = useSearchParams();
-  const arrivedForCare = search.get("care") === "overview";
+  /* `?care=escalation` (pack v8.0; `overview` is the retired tab's alias). */
+  const arrivedForCare = search.get("care") === "escalation" || search.get("care") === "overview";
   /* `?rail=profile` (Care Hero v7.0): the identity strip's link, addressable —
      the Monitoring row and the record can point at a teen's profile tab. */
   const arrivedForProfile = search.get("rail") === "profile";
@@ -443,11 +448,50 @@ export function ChatPage({
     });
   /** The message being added to the escalation (pack v3.0). */
   const [momentFrom, setMomentFrom] = useState<ChatMessage | null>(null);
-  const [pickedCareTab, setPickedCareTab] = useState<{ threadId: string; tab: CareTab } | null>(null);
-  const careTab: CareTab = pickedCareTab && pickedCareTab.threadId === thread?.id ? pickedCareTab.tab : "overview";
-  const setCareTab = (tab: CareTab) => {
-    if (thread) setPickedCareTab({ threadId: thread.id, tab });
+  /* ═══ THE CARE TAB — DERIVED, PER OPEN EVENT (pack v8.0) ═══
+     The temporary Escalation review tab exists while an escalation is being
+     raised, is open, or is closed and not yet dismissed in this lens. A pick
+     is held WITH its epoch (the escalation it was made under), so a NEW open
+     event auto-selects the tab once, and a reader who then moves elsewhere
+     is not pulled back. With no pick, the tab is the default: Escalation
+     review while it exists, else Emergency info (a blocked constant). */
+  /* The raise in progress — declared here because the tab set reads it. */
+  const [raise, setRaise] = useState<{ threadId: string; anchorMessageId: string | null } | null>(null);
+  const raising = !!raise && raise.threadId === thread?.id;
+  const review = !!careEscalation || raising;
+  const epoch = careEscalation?.id ?? (raising ? "raise" : "none");
+  const [pickedCareTab, setPickedCareTab] = useState<{ threadId: string; tab: CareTab; epoch: string } | null>(null);
+  const picked = pickedCareTab && pickedCareTab.threadId === thread?.id && pickedCareTab.epoch === epoch ? pickedCareTab.tab : null;
+  const careTab: CareTab = picked && (picked !== "escalation" || review) ? picked : review ? "escalation" : DEFAULT_CARE_TAB;
+  const lensKey = isSupervisorTier(persona) ? "supervisor" : "mentor";
+  const setCareTab = (tab: CareTab, at: string = epoch) => {
+    if (!thread) return;
+    /* LEAVING A VIEWED CLOSED SUMMARY dismisses it — the tab goes. */
+    if (careTab === "escalation" && tab !== "escalation" && careEscalation && careEscalation.resolvedAt !== null) {
+      tiering.seeWrap(thread.id, lensKey);
+      at = "none";
+      /* The rail's own default follows the escalation; a reader who is IN
+         Care stays in Care when its record goes (measured: it fell to Assist). */
+      setRailTab("care");
+    }
+    setPickedCareTab({ threadId: thread.id, tab, epoch: at });
   };
+  /** Dismiss the closed summary: recorded per lens; the tab goes, and the
+   *  panel lands on History, where the record now lives. */
+  const dismissReview = () => {
+    if (!thread) return;
+    tiering.seeWrap(thread.id, lensKey);
+    setRailTab("care");
+    setPickedCareTab({ threadId: thread.id, tab: "history", epoch: "none" });
+  };
+  /* ═══ THE DOT: THIS LENS'S ATTENTION IS NEEDED ═══ It is your move (the
+     baton), or a closed summary you have not dismissed. Alert for Tier 1–2. */
+  const reviewDot: "alert" | "neutral" | null =
+    thread && careEscalation && (careEscalation.resolvedAt !== null || batonHolder(careEscalation, tiering.stateFor(thread.id)) === lensKey)
+      ? isAlertTier(workingTier(careEscalation, tiering.stateFor(thread.id)))
+        ? "alert"
+        : "neutral"
+      : null;
   /** Open the hub on Care, on a given tab — the drawer too, below `xl`. */
   const openCare = (tab: CareTab) => {
     setRailTab("care");
@@ -614,15 +658,13 @@ export function ChatPage({
      confirm), carrying the message it came from. The notification still
      happens in the same write as the record, on Confirm (`confirmRaise`):
      the order the old note argued for is unchanged. */
-  const [raise, setRaise] = useState<{ threadId: string; anchorMessageId: string | null } | null>(null);
-  const raising = !!raise && raise.threadId === thread?.id;
   const raiseEscalation = (from: ChatMessage | null) => {
     if (!thread) return;
     setRaise({ threadId: thread.id, anchorMessageId: from?.id ?? null });
-    /* The raise flow is an Overview takeover. Below `xl` the hub is a drawer —
-       `openCare` opens it, or the flow is invisible (the audit's gap: raising
-       selected the tab and left it closed). */
-    openCare("overview");
+    /* The raise flow lives in the temporary Escalation review tab (pack v8.0:
+       Overview is gone). Below `xl` the hub is a drawer — `openCare` opens
+       it, or the flow is invisible. */
+    openCare("escalation");
   };
   const confirmRaise = ({ target, note }: { target: RaiseTarget; note: string }) => {
     if (!thread || !raise) return;
@@ -851,7 +893,7 @@ export function ChatPage({
                    assessment: Care, Overview, scrolled to its node. */
                 onOpenAssessment={() => {
                   setRailTab("care");
-                  setCareTab("overview");
+                  setCareTab("escalation");
                   window.requestAnimationFrame(() => document.querySelector('[data-node="assessment"]')?.scrollIntoView({ block: "nearest" }));
                 }}
                 /* ═══ SEND GOES SOMEWHERE (pack v3.0, Phase 0's confirmed bug) ═══
@@ -1039,7 +1081,9 @@ export function ChatPage({
                   onUseWording={(text, origin) => setInsert((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1, origin }))}
                   tab={careTab}
                   onTab={setCareTab}
-                  dot={escalation ? (isAlertTier(workingTier(escalation, tiering.stateFor(thread.id))) ? "alert" : "neutral") : null}
+                  dot={reviewDot}
+                  review={review}
+                  onDismiss={dismissReview}
                   onUpdateTier={() => setTierDialog("update")}
                   onRequestStepDown={() => setTierDialog("step-down")}
                   supervisorName={supervisorFirst}
@@ -1064,15 +1108,14 @@ export function ChatPage({
                      just acted sees the steady state and its history. */
                   onSettled={() => {
                     setRailTab("care");
-                    /* ═══ THE ARRIVAL (Supersession 6) ═══ The panel settles
-                       on Overview and the tier cell warms once. */
-                    setCareTab("overview");
+                    /* ═══ THE ARRIVAL ═══ The tab stays — it is the closed
+                       summary now (pack v8.0) — and the tier cell warms once. */
+                    setCareTab("escalation");
                     setArrived(thread.id);
                     window.setTimeout(() => setArrived(null), 1600);
                   }}
                   highlightTier={arrived === thread.id}
                   arrivedForCare={arrivedForCare}
-                  onOpenProfile={() => setRailTab("profile")}
                   onOpenSupportTo={(id) => (canOpenInSupport(id) ? () => openInSupport(id) : undefined)}
                 />
               }
