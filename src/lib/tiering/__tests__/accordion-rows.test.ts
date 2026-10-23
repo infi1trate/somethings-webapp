@@ -1,49 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { EscalationState } from "@/lib/chat/types";
-import { ASSESSMENT_QUESTIONS, riskLevel } from "@/lib/tiering/escalation";
-import { afterAnswer, assessmentComplete, firstOpenQuestion, questionComplete, questionOf } from "@/lib/tiering/assessment-rows";
 import { firstUntouched, noteComplete, noteDoneAt, noteProgress, noteRows, outcomeNeedsReview, rowDone, rowSummary } from "@/lib/tiering/note-rows";
 
-const yes = { value: "yes" as const, at: 1 };
-const no = { value: "no" as const, at: 1 };
-const q = (id: string) => ASSESSMENT_QUESTIONS.find((x) => x.id === id)!;
 
-describe("the intake as rows (pack v6.1, A)", () => {
-  it("opens the first incomplete row TOP-DOWN, so an out-of-order answer never skips a gap", () => {
-    expect(firstOpenQuestion({})).toBe("q1");
-    expect(firstOpenQuestion({ q3: yes })).toBe("q1");
-    expect(firstOpenQuestion({ q1: no, q3: yes })).toBe("q2");
-    expect(firstOpenQuestion({ q1: no, q2: no, q3: no, q4: no, q5: no })).toBe("q6");
-  });
-
-  it("holds Q6 open on a Yes until its follow-up is answered", () => {
-    expect(questionComplete({ q6: yes }, q("q6"))).toBe(false);
-    expect(questionComplete({ q6: yes, q6b: no }, q("q6"))).toBe(true);
-    expect(questionComplete({ q6: no }, q("q6"))).toBe(true);
-    const all = { q1: no, q2: no, q3: no, q4: no, q5: no, q6: yes };
-    expect(firstOpenQuestion(all)).toBe("q6");
-    expect(assessmentComplete({ ...all, q6b: yes })).toBe(true);
-  });
-
-  it("a Q6 No drops the follow-up — the store's rule, mirrored", () => {
-    expect(afterAnswer({ q6: yes, q6b: yes }, "q6", "no").q6b).toBeUndefined();
-    expect(questionOf("q6b")?.id).toBe("q6");
-  });
-
-  it("leaves the risk computation unchanged, in any answer order", () => {
-    // Q3 → Q1 → Q6 (Yes + follow-up) → the rest, the pack's walkthrough.
-    let a = afterAnswer({}, "q3", "yes");
-    expect(riskLevel(a)).toBe("moderate");
-    a = afterAnswer(a, "q1", "yes");
-    expect(riskLevel(a)).toBe("moderate");
-    a = afterAnswer(a, "q6", "yes");
-    expect(riskLevel(a)).toBe("high");
-    a = afterAnswer(a, "q6b", "no");
-    for (const id of ["q2", "q4", "q5"]) a = afterAnswer(a, id, "no");
-    expect(assessmentComplete(a)).toBe(true);
-    expect(riskLevel(a)).toBe("high");
-  });
-});
+/* The intake's rules moved to the deck (pack v8.0) — `deck.test.ts`. */
 
 const base = (patch: Partial<EscalationState> = {}): EscalationState => ({ id: "e1", openedAt: 0, resolvedAt: null, confirmedTier: 1, ...patch }) as EscalationState;
 const fullNote = {

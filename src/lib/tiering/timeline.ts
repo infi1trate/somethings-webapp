@@ -103,21 +103,27 @@ export function timelineNodes(e: EscalationState, state: TierState, lens: Lens):
     if (target === PLATFORM) {
       push({ id: "review", kind: "review" }, closed, e.resolvedAt);
     } else {
-      if (needsAssessment(target)) {
+      /* ═══ A CLOSED RECORD IS HISTORY (pack v8.0) ═══ Every step that
+         happened is done; a step that never did — an assessment never sent, a
+         note a Tier 3 exit never needed — is not drawn at all. */
+      if (needsAssessment(target) && !(closed && a.submittedAt === null)) {
         push({ id: "assessment", kind: "assessment" }, a.submittedAt !== null, a.submittedAt);
       }
-      push({ id: "confirm", kind: "confirm", condition: "after the assessment arrives" }, e.confirmedTier !== undefined, e.confirmedAt ?? null);
+      push({ id: "confirm", kind: "confirm", condition: "after the assessment arrives" }, e.confirmedTier !== undefined || closed, e.confirmedAt ?? null);
       const t = noteTier(e);
       /* Before a Tier 1–2 confirmation the note's length is not known; it is
          simply the step after the confirmation. */
-      push({ id: "note", kind: "note", condition: "after the tier is confirmed" }, t !== null && noteComplete(e, t), t !== null ? noteDoneAt(e, t) : null);
+      if (!(closed && t === null)) push({ id: "note", kind: "note", condition: "after the tier is confirmed" }, (t !== null && noteComplete(e, t)) || closed, t !== null ? noteDoneAt(e, t) : null);
       push({ id: "close", kind: "close", condition: "after the note is complete" }, closed, e.resolvedAt);
     }
+    /* ═══ THE SUPERVISOR'S CLOSED SUMMARY (pack v8.0) ═══ The Escalation
+       review tab converts to its closed summary in BOTH lenses, so a closed
+       record's current node is the summary here too, until dismissed. */
+    if (closed) push({ id: "closed", kind: "closed" }, false, null);
   }
 
-  /* A CLOSED RECORD on the supervisor lens has no current node — the panel
-     shows the steady state there, not a timeline. The mentor's closed node is
-     the summary card, current until they read it. */
+  /* A CLOSED RECORD: the summary card is the current node on both lenses
+     (pack v8.0 — the supervisor's used to have none), until dismissed. */
   return [...out, ...done.sort((x, y) => (x.at ?? 0) - (y.at ?? 0)), ...(current ? [current] : []), ...trimUpcoming(upcoming)];
 }
 

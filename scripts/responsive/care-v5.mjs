@@ -17,7 +17,7 @@
 //   8  C1: the chat list's shield — alert ink on Tiers 1–2 only, in words,
 //      beside the unread disc, gone once resolved; contrast measured
 //   9  C2–C3: the notification matrix through the bell and Today, actor-
-//      correct; the deep link lands on Care Overview and traces the ring
+//      correct; the deep link lands on Escalation review (v8.0) and traces the ring
 //  10  C4: Monitoring's live stage line
 //   Phase 4
 //  11  D1: History v3 on both hosts — title row, ONE summary line of ≤3
@@ -348,7 +348,7 @@ let assessedState;
 {
   const { ctx, page } = await open("/app/today", { persona: "supervisor", chat: "escalation-active", extra: { escalations: assessedState.escalations, tierEvents: assessedState.tierEvents } });
   const today = await page.evaluate(() => [...document.querySelectorAll("[data-today-escalations] [data-today-escalation]")].map((x) => ({ kind: x.dataset.todayEscalation, urgent: x.dataset.urgent === "true", text: x.innerText.replace(/\s+/g, " ").trim(), href: x.querySelector("a")?.getAttribute("href") })));
-  check(today[0]?.urgent && /^Jordan · Tier 1 requested Awaiting confirmation Needs you now$/.test(today[0].text) && today[0].href === "/app/chat/t13?care=overview", "Today: the opened escalation is the urgent item, its stage beneath, deep-linked", JSON.stringify(today[0]));
+  check(today[0]?.urgent && /^Jordan · Tier 1 requested Awaiting confirmation Needs you now$/.test(today[0].text) && today[0].href === "/app/chat/t13?care=escalation" /* RETARGETED (pack v8.0) */, "Today: the opened escalation is the urgent item, its stage beneath, deep-linked", JSON.stringify(today[0]));
   await page.screenshot({ path: `${OUT}/08-today.png`, fullPage: false });
   const sb = await bell(page);
   const kinds = sb.n.map((x) => x.kind);
@@ -366,16 +366,20 @@ let assessedState;
   await page.waitForURL(/\/app\/chat\/t13/);
   await page.waitForTimeout(1200);
   const land = await page.evaluate(() => ({ rail: document.querySelector('[data-rail-tab][aria-selected="true"]')?.dataset.railTab, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, state: document.querySelector("[data-care-panel]")?.dataset.careState, trace: !!document.querySelector('[data-node-state="current"] [data-node-trace]') }));
-  check(land.rail === "care" && land.tab === "overview" && land.state === "active" && land.trace, "the notification opens the conversation on Care Overview, and the current node traces its ring", JSON.stringify(land));
+  /* RETARGETED (pack v8.0): Overview is gone; the link lands on the
+     Escalation review tab. */
+  check(land.rail === "care" && land.tab === "escalation" && land.state === "active" && land.trace, "the notification opens the conversation on Escalation review, and the current node traces its ring", JSON.stringify(land));
   /* The deep link on its own: a thread with NO open escalation (Imani's is
      closed) still opens on Care Overview from a notice — and not without it. */
-  await page.goto(`${BASE}/app/chat/t21?care=overview`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/app/chat/t21?care=escalation`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1000);
   const viaLink = await page.evaluate(() => ({ rail: document.querySelector('[data-rail-tab][aria-selected="true"]')?.dataset.railTab, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
   await page.goto(`${BASE}/app/chat/t21`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1000);
   const plain = await page.evaluate(() => document.querySelector('[data-rail-tab][aria-selected="true"]')?.dataset.railTab);
-  check(viaLink.rail === "care" && viaLink.tab === "overview" && plain !== "care", "the link alone opens Care Overview — on a thread with no open escalation", JSON.stringify({ viaLink, plain }));
+  /* RETARGETED (pack v8.0): with no escalation there is no Escalation
+     review tab — the link opens Care on its default, Emergency info. */
+  check(viaLink.rail === "care" && viaLink.tab === "emergency" && plain !== "care", "the link alone opens Care (on Emergency info, the default) — on a thread with no open escalation", JSON.stringify({ viaLink, plain }));
   /* Monitoring's stage line, on the same record. */
   await page.goto(`${BASE}/app/monitoring`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1000);
@@ -394,7 +398,7 @@ let assessedState;
   const { ctx, page } = await open("/app/chat/t14", { chat: "escalation-active", extra: { escalations: assessedState.escalations, tierEvents: assessedState.tierEvents, noticesSeenAt: {} } });
   const mb = await bell(page);
   const conf = mb.n.find((x) => x.kind === "confirmed" && /Jordan/.test(x.text ?? ""));
-  check(conf && /^.+ confirmed Tier 1 for Jordan$/.test(conf.text) && conf.support && conf.href === "/app/chat/t13?care=overview", "the mentor's bell: “… confirmed Tier 1 for Jordan”, with Open Support, deep-linked", JSON.stringify(conf));
+  check(conf && /^.+ confirmed Tier 1 for Jordan$/.test(conf.text) && conf.support && conf.href === "/app/chat/t13?care=escalation", "the mentor's bell: “… confirmed Tier 1 for Jordan”, with Open Support, deep-linked", JSON.stringify(conf));
   const sups = mb.n.filter((x) => x.kind === "support");
   check(sups.length === 1 && / messaged you in Support$/.test(sups[0].text ?? "") && sups[0].href.startsWith("/app/chat/t13"), "and the supervisor's Support message, ONCE — on the open escalation only", JSON.stringify(sups));
   await page.screenshot({ path: `${OUT}/10-bell-mentor.png` });

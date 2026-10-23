@@ -177,19 +177,22 @@ console.log("\n── 4 · the Care tabs");
   const { ctx, page } = await open("/app/chat/t14");
   await careTab(page).click();
   await page.waitForTimeout(300);
-  const tabs = await page.evaluate(() => ({ labels: [...document.querySelectorAll("[data-care-tab]")].map((c) => c.textContent), first: (() => { const p = document.querySelector("[data-care-panel]"); /* RETARGETED (Care Hero v7.0): the hero sits in the CareHero root. */ return !!p?.children[0]?.matches("[data-care-hero-root]") && !!p.children[0].querySelector("[data-care-hero]") && !!p?.children[1]?.querySelector("[data-care-tabs]"); })(), sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
-  check(tabs.labels.join("|") === "Overview|Safety plan|Emergency info|Resources|History" && tabs.first && tabs.sel === "overview", "Overview · Safety plan · Emergency info · Resources · History, right under the hero (pack v4.0), on Overview", JSON.stringify(tabs));
+  const tabs = await page.evaluate(() => ({ labels: [...document.querySelectorAll("[data-care-tab]")].map((c) => c.textContent), first: (() => { const p = document.querySelector("[data-care-panel]"); /* RETARGETED (pack v8.0): the anchor header leads the panel; the tabs follow it. */ const kids = [...(p?.children ?? [])].filter((c) => !c.matches("[data-care-tabs-live]")); return !!kids[0]?.matches("[data-care-header]") && !!kids[1]?.querySelector("[data-care-tabs]"); })(), sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
+  /* RETARGETED (pack v8.0, Supersession 3): Overview is removed; steady is
+     Emergency info · Safety plan · Resources · History, on Emergency info. */
+  check(tabs.labels.join("|") === "Emergency info|Safety plan|Resources|History" && tabs.first && tabs.sel === "emergency", "Emergency info · Safety plan · Resources · History, right under the header, on Emergency info (pack v8.0)", JSON.stringify(tabs));
   const sub = await page.evaluate(() => document.querySelectorAll("[data-care-sub]").length);
   check(sub === 0, "and the mid-panel sub-chips are gone", `${sub}`);
-  await page.locator('[data-care-tab="overview"]').focus();
+  await page.locator('[data-care-tab="emergency"]').focus();
   const seen = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 3; i++) {
     await page.keyboard.press("ArrowRight");
     await page.waitForTimeout(80);
     seen.push(await page.evaluate(() => ({ focus: document.activeElement?.dataset.careTab, sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, panel: document.querySelector("[data-care-tabpanel]")?.dataset.careTabpanel })));
   }
-  check(seen.map((s) => s.sel).join() === "safety-plan,emergency,resources,history" && seen.every((s) => s.focus === s.sel && s.panel === s.sel), "arrow keys move selection, focus and the panel together", JSON.stringify(seen));
-  /* History → two ArrowLeft → Emergency info. */
+  check(seen.map((s) => s.sel).join() === "safety-plan,resources,history" && seen.every((s) => s.focus === s.sel && s.panel === s.sel), "arrow keys move selection, focus and the panel together", JSON.stringify(seen));
+  /* History → three ArrowLeft → Emergency info. */
+  await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("ArrowLeft");
   await page.waitForTimeout(100);
@@ -308,8 +311,11 @@ for (const tier of ["3", "platform", "1"]) {
   const st = await page.evaluate(() => ({
     tone: document.querySelector('[data-slot="status-banner"]')?.dataset.tone,
     dot: document.querySelector("[data-care-dot]")?.dataset.careDot,
-    /* pack v3.0: the Overview tab carries the escalation dot too. */
-    overviewDot: document.querySelector('[data-care-tab="overview"] [data-overview-dot]')?.dataset.overviewDot,
+    /* RETARGETED (pack v8.0): the Escalation review tab's dot — shown while
+       THIS lens's attention is needed (the mentor's at a Tier 1 raise: the
+       assessment is theirs; none at Tier 3 / Platform, which wait on the
+       supervisor). */
+    reviewDot: document.querySelector('[data-care-tab="escalation"] [data-review-dot]')?.dataset.reviewDot,
     /* The in-panel Emergency information button is gone (pack v3.0); the
        banner's Emergency info chip is the one entry, and carries the tone. */
     emergency: getComputedStyle(document.querySelector('[data-slot="banner-crisis"]')).backgroundColor,
@@ -319,8 +325,8 @@ for (const tier of ["3", "platform", "1"]) {
   const accent = await tok(page, "--alert-critical-accent", "bg");
   const alert = tier === "1";
   check(
-    (st.tone === "critical") === alert && (st.dot === "alert") === alert && st.overviewDot === st.dot && (st.emergency === accent) === alert,
-    `Tier ${tier}: banner, both dots and the Emergency info chip are ${alert ? "red" : "neutral"}`,
+    (st.tone === "critical") === alert && (st.dot === "alert") === alert && st.reviewDot === (alert ? "alert" : undefined) && (st.emergency === accent) === alert,
+    `Tier ${tier}: banner, the dots and the Emergency info chip are ${alert ? "red" : "neutral"}`,
     JSON.stringify(st)
   );
   check(st.assessment === alert && st.stage === (alert ? "M2" : "M3"), `Tier ${tier}: the assessment is ${alert ? "there (M2)" : "skipped (M3)"} — Tier 1–2 only`, String(st.stage));
@@ -370,10 +376,12 @@ let assessed;
   const s0 = await page.evaluate(() => ({
     active: [...document.querySelectorAll("[data-assessment-active]")].map((q) => q.dataset.assessmentActive),
     text: document.querySelector("[data-assessment-active]")?.innerText,
-    answered: [...document.querySelectorAll("[data-acc-row]")].filter((r) => r.dataset.accState === "answered").map((r) => r.dataset.accRow),
-    rows: document.querySelectorAll("[data-acc-row]").length,
+    /* RETARGETED (pack v8.0): the deck's rail — six segments, the filled
+       ones answered. */
+    answered: [...document.querySelectorAll("[data-segment]")].filter((r) => r.dataset.segmentState === "yes" || r.dataset.segmentState === "no").map((r) => r.dataset.segment),
+    rows: document.querySelectorAll("[data-segment]").length,
     progress: document.querySelector("[data-assessment-progress]")?.textContent,
-    reassure: [...document.querySelectorAll("[data-assessment-accordion] p")].filter((p) => p.textContent === "Your supervisor sees each answer as you give it.").length,
+    reassure: [...document.querySelectorAll("[data-assessment-deck] p")].filter((p) => p.textContent === "Your supervisor sees each answer as you give it.").length,
     header: document.querySelector("[data-question-header]")?.textContent.trim(),
     count: document.querySelector("[data-answered-toggle]")?.textContent.trim(),
     placeholder: /placeholder/i.test(document.querySelector("[data-assessment]")?.innerText ?? ""),
@@ -387,7 +395,9 @@ let assessed;
   check(x0?.live === "Now: Go through the assessment with Jordan", "the current node is announced in the header's live region", String(x0?.live));
   /* RETARGETED (pack v6.1, Supersession 1): all six rows always; exactly
      one open — the first unanswered. */
-  check(s0.active.join() === "q3" && s0.answered.join() === "q1,q2" && s0.rows === 6, "six rows; exactly one open (Q3, the first unanswered); Q1–Q2 answered", JSON.stringify({ a: s0.active, d: s0.answered, rows: s0.rows }));
+  /* RETARGETED (pack v8.0, Supersession 1): a six-segment rail and exactly
+     one active card — the first required unanswered. */
+  check(s0.active.join() === "q3" && s0.answered.join() === "q1,q2" && s0.rows === 6, "six segments; exactly one active card (Q3, the first required unanswered); Q1–Q2 answered", JSON.stringify({ a: s0.active, d: s0.answered, rows: s0.rows }));
   /* Quotes normalised: the panel sets the question in typographic quotes. */
   const q3 = (s0.text ?? "").replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
   check(q3.includes('"Have you thought about how you might do that?"') && q3.includes("I thought about pills, but I'd never actually do it."), "Q3 in the pack's wording, with its example", q3.slice(0, 80));
@@ -396,7 +406,7 @@ let assessed;
      reassurance is said once. */
   /* RETARGETED (pack v6.1): the header and the answered group are
      retired; the progress line counts, the reassurance is said once. */
-  check(!s0.header && !s0.count && s0.progress === "2 of 6 answered" && s0.reassure === 1 && !s0.placeholder, "no Question n of 6 header, no answered group; 2 of 6 answered; the reassurance once", JSON.stringify({ ...s0, text: undefined }));
+  check(!s0.header && !s0.count && s0.progress === "2 of 6 needed answered" && s0.reassure === 1 && !s0.placeholder, "no Question n of 6 header, no answered group; 2 of 6 needed answered; the reassurance once", JSON.stringify({ ...s0, text: undefined }));
   /* Put in message box: the question's own words, into the composer, unsent. */
   await page.locator('[data-assessment-wording="q3"]').click();
   await page.waitForTimeout(250);
@@ -406,10 +416,10 @@ let assessed;
   await page.keyboard.press("Enter");
   await page.waitForTimeout(500);
   const streamed = (await store(page)).escalations.t13?.safetyCheck;
-  const s1 = await page.evaluate(() => ({ active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive, focus: document.activeElement?.dataset.assessmentWording, live: document.querySelector("[data-acc-live]")?.getAttribute("aria-live"), said: document.querySelector("[data-acc-live]")?.textContent }));
+  const s1 = await page.evaluate(() => ({ active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive, focus: document.activeElement?.dataset.assessmentWording, live: document.querySelector("[data-deck-live]")?.getAttribute("aria-live"), said: document.querySelector("[data-deck-live]")?.textContent }));
   /* RETARGETED (pack v6.1, shared a11y): focus moves to the newly opened
      row's first control (its Ask in chat), and the record is announced. */
-  check(s1.active === "q4" && s1.focus === "q4" && s1.live === "polite" && s1.said === "Method, no intent recorded · 3 of 6 answered", "after Enter, Q4 opens with focus on its first control, and the record is announced (polite)", JSON.stringify(s1));
+  check(s1.active === "q4" && s1.focus === "q4" && s1.live === "polite" && s1.said === "Method, no intent: Yes · 3 of 6 needed answered", "after Enter, the deck advances to Q4 with focus on its first control, and the record is announced (polite)", JSON.stringify(s1));
   check(streamed?.answers?.q3?.value === "yes" && streamed.submittedAt === null, "an answer is on the record the moment it is given — before Submit", JSON.stringify(streamed?.answers?.q3));
   for (const id of ["q4:no", "q5:no", "q6:yes"]) {
     await page.locator(`[data-yes-no="${id}"]`).click();
@@ -449,10 +459,11 @@ let closed;
   /* S0 first: while the mentor is still assessing, progress only. */
   const z = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active" });
   const z0 = await xs(z.page);
-  const prog = await z.page.evaluate(() => ({ text: document.querySelector("[data-node-state='current'] [data-assessment-progress]")?.textContent, mode: document.querySelector("[data-node-state='current'] [data-assessment-accordion]")?.dataset.accMode, controls: document.querySelectorAll("[data-node-state='current'] [data-yes-no], [data-node-state='current'] [data-assessment-wording], [data-node-state='current'] textarea").length }));
+  const prog = await z.page.evaluate(() => ({ text: document.querySelector("[data-node-state='current'] [data-assessment-progress]")?.textContent, mode: document.querySelector("[data-node-state='current'] [data-assessment-deck]")?.dataset.deckMode, controls: document.querySelectorAll("[data-node-state='current'] [data-yes-no], [data-node-state='current'] [data-assessment-wording], [data-node-state='current'] textarea").length }));
   /* RETARGETED (pack v6.1, Supersession 4): the count row is the live
      read-only accordion now — progress, and no control of any kind. */
-  check(z0?.stage === "S0" && z0.current.join() === "assessment" && prog.text === "2 of 6 answered" && prog.mode === "observer" && prog.controls === 0, "assessment in progress: the live read-only accordion — progress, no controls", JSON.stringify({ z0, prog }));
+  /* RETARGETED (pack v8.0): the live read-only DECK — its rail fills in. */
+  check(z0?.stage === "S0" && z0.current.join() === "assessment" && prog.text === "2 of 6 needed answered" && prog.mode === "observer" && prog.controls === 0, "assessment in progress: the live read-only deck — progress, no controls", JSON.stringify({ z0, prog }));
   check(z0?.upcoming.join() === "confirm,close", "and Confirm waits on the Up next path, before the exit", z0?.upcoming.join());
   await z.ctx.close();
 
@@ -461,7 +472,8 @@ let closed;
   check(x0?.lens === "supervisor" && x0.stage === "S1" && x0.current.join() === "confirm" && x0.done.includes("assessment"), "assessment received: completed; Confirm tier is current", JSON.stringify(x0));
   const answers = await expandNode(page, "assessment");
   const risk = await page.evaluate(() => document.querySelector('[data-node="assessment"] [data-risk-chip]')?.dataset.riskChip);
-  const answerRows = await page.evaluate(() => document.querySelectorAll('[data-node="assessment"] [data-acc-row][data-acc-state="answered"]').length);
+  /* RETARGETED (pack v8.0): read-only, the deck shows its review ledger. */
+  const answerRows = await page.evaluate(() => document.querySelectorAll('[data-node="assessment"] [data-ledger-row][data-ledger-state="yes"], [data-node="assessment"] [data-ledger-row][data-ledger-state="no"]').length);
   /* RETARGETED (pack v6.1): six rows read-only — Q6's follow-up is inside
      Q6's row, not a seventh. */
   check(answerRows === 6 && risk === "high" && /gave away her headphones/.test(answers), "expanded, the received node holds the six answered rows, High, and the summary — the same record", JSON.stringify({ answerRows, risk }));
@@ -576,7 +588,9 @@ let closed;
   check(done?.resolvedAt && done.followUp && Math.round((done.followUp.dueAt - done.resolvedAt) / 86400000) === 3, "Close files it, with the follow-up the arrow key chose (3 days)", JSON.stringify(done?.followUp));
   check(last?.kind === "stepped-down" && last.tier === 3 && last.actor.role === "supervisor", "and steps Jordan down to Tier 3, by the supervisor, on the log", JSON.stringify(last && { kind: last.kind, tier: last.tier }));
   const careNow = await page.evaluate(() => document.querySelector("[data-care-state]")?.dataset.careState);
-  check(careNow === "steady", "the supervisor's Care returns to steady", String(careNow));
+  /* RETARGETED (pack v8.0, tab restructure 3): the Escalation review tab
+     converts to its closed summary, until the supervisor dismisses it. */
+  check(careNow === "closed" && (await page.evaluate(() => document.querySelector('[data-care-tab="escalation"][aria-selected="true"]') !== null)), "the supervisor's tab converts to its closed summary", String(careNow));
   closed = st;
   await ctx.close();
 }
@@ -594,11 +608,13 @@ console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 e
   const named = await page.evaluate(() => ({ next: document.querySelector("[data-wrap-next]")?.textContent ?? "", meta: document.querySelector("[data-timeline-meta]")?.textContent ?? "" }));
   check(/* "notified" is the banner's alone now (pack v4.0, B2). */ /^Brandy checks in/.test(named.next) && !/Your supervisor|notified/.test(named.meta), "and it names the supervisor, Brandy — never \u201cYour supervisor\u201d", JSON.stringify(named));
   await page.screenshot({ path: `${OUT}/05-m4-wrap.png` });
-  await page.locator('[data-exchange-primary="back-to-care"]').click();
-  await page.waitForTimeout(400);
-  const steadyNow = await page.evaluate(() => ({ state: document.querySelector("[data-care-state]")?.dataset.careState, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
+  /* RETARGETED (pack v8.0): one Dismiss removes the tab, which leaves
+     toward History — where the record now lives. */
+  await page.locator('[data-exchange-primary="dismiss-summary"]').click();
+  await page.waitForTimeout(600);
+  const steadyNow = await page.evaluate(() => ({ state: document.querySelector("[data-care-state]")?.dataset.careState, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, review: !!document.querySelector('[data-care-tab="escalation"]') }));
   const seen = (await store(page)).escalationHistory.concat(Object.values((await store(page)).escalations)).find((e) => e.id === "esc-t13")?.wrapSeenAt;
-  check(steadyNow.state === "steady" && steadyNow.tab === "overview" && typeof seen === "number", "Back to Care: Overview, steady, and the wrap is marked seen on the record", JSON.stringify({ ...steadyNow, seen }));
+  check(steadyNow.state === "steady" && steadyNow.tab === "history" && !steadyNow.review && typeof seen === "number", "Dismiss: the tab is removed, the panel on History, the wrap marked seen on the record", JSON.stringify({ ...steadyNow, seen }));
   /* History is its own tab now (pack v3.0). */
   await page.locator('[data-care-tab="history"]').click();
   await page.waitForTimeout(200);

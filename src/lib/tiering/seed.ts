@@ -191,6 +191,9 @@ export function seedEscalationHistory(now: number): EscalationState[] {
       },
       followUp: { dueAt: now - DAY, status: "affirmed_stable" },
       wrapSeenAt: now - 2 * DAY + 10 * MINUTE,
+      /* Dismissed long ago in both lenses — a fixture close never reopens
+         the Escalation review tab (pack v8.0). */
+      supervisorWrapSeenAt: now - 2 * DAY + 5 * MINUTE,
     },
   ];
 }

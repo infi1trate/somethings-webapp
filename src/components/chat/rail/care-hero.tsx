@@ -11,10 +11,9 @@
 // mentorship). Risk tier is the constant secondary in both — it reports, it
 // never anchors.
 //
-//   ZONE 1  IDENTITY STRIP   both lenses, every state: avatar · name · age ·
-//                            pronouns · View their profile →. It persists
-//                            above the escalation hero — the page never
-//                            loses its subject.
+//   ZONE 1  REMOVED (pack v8.0, Supersession 2 — a reversal of v7): the
+//                            identity strip and its single-home exception are
+//                            gone. Profile is the rail's person-icon tab.
 //   ZONE 2  ANCHOR CELL      supervisor / lead: CLINICAL DIAGNOSIS · mentor:
 //                            THE MENTORSHIP (tenure as the headline, one line
 //                            of relational vitals — facts only). ROLE-GATED IN
@@ -25,13 +24,10 @@
 // ═══ SUPERSEDES ═══ the mentor's tier-only card (v5.0, Supersession 5) and
 // the supervisor's Teen Status card — retired, this file replaces it.
 //
-// ═══ THE ONE SANCTIONED REPETITION ═══ The identity strip repeats the name
-// and pronouns the chat header shows. The chat header is navigation chrome;
-// the strip is the document title of a profile surface that is also reached
-// from Monitoring and the user record. It is the only fact repeated by
-// design. (A second, named in the v7 report: "Last spoke" sits near the chat
-// list's last-activity time.) The Profile tab's "Matched" row LEFT for the
-// Mentorship cell, so tenure has one home.
+// ═══ NO SANCTIONED REPETITION (pack v8.0) ═══ v7's identity strip repeated
+// the chat header's name and pronouns as the one sanctioned exception; the
+// strip is gone, and the exception with it. The Profile tab's "Matched" row
+// stays gone: tenure's one home is the Mentorship cell.
 //
 // The card is the lightest surface on the panel (raised white over the
 // panel's surface-s1), on the soft Bloom elevation.
@@ -45,8 +41,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { dayInTier, type TierState } from "@/lib/tiering/events";
 import { TIER_DESCRIPTION, TIER_DWELL_DAYS, TIER_MINIMUM_DAYS, T1_MAX_DAYS, type Tier } from "@/lib/tiering/tiers";
 import type { CareBrief } from "@/components/chat/rail/care";
-import { RecordAvatar } from "@/components/record/record-avatar";
-import type { MentorshipVitals, TeenIdentity } from "@/lib/record/mentorship-vitals";
+import type { MentorshipVitals } from "@/lib/record/mentorship-vitals";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -90,77 +85,38 @@ function dwell(state: TierState, now: number): { day: number; of: number | null;
 const HEADLINE = { font: "var(--type-card-title)" } as const;
 
 export function CareHero({
-  identity,
+  name,
   showDiagnosis,
   brief,
   vitals,
-  escalationHero,
-  onOpenProfile,
   onOpenSupport,
   tierCell,
 }: {
-  identity: TeenIdentity;
+  /** The teen's display name — for the region's label and the settle key. */
+  name: string;
   /** Supervisor or lead mentor: the diagnosis anchors. Else the mentorship. */
   showDiagnosis: boolean;
   brief: CareBrief;
   vitals: MentorshipVitals | null;
-  /** While an escalation is open, Zones 2–3 yield to it; Zone 1 stays. */
-  escalationHero?: React.ReactNode;
-  onOpenProfile: () => void;
   /** The supervisor's Support thread, bound — absent when there is none. */
   onOpenSupport?: () => void;
   tierCell: React.ReactNode;
 }) {
+  /* ═══ THE PANEL HEADER, IN EVERY STATE (pack v8.0) ═══ The anchor cells
+     persist above the tab bar — steady, raising, open, closed. The escalation
+     hero moved INTO the Escalation review tab, and nothing renders above
+     these cells (the v7 identity strip is removed). */
   return (
-    <div data-care-hero-root className="space-y-3">
-      <IdentityStrip identity={identity} onOpenProfile={onOpenProfile} />
-      {escalationHero ?? (
-        <section
-          data-care-hero="steady"
-          data-teen-status
-          aria-label={`${identity.name}'s care`}
-          className="divide-y divide-[color:var(--border-subtle)] rounded-[16px] bg-[var(--surface-raised)] shadow-[var(--el-soft)]"
-        >
-          {showDiagnosis ? <DiagnosisCell brief={brief} /> : <MentorshipCell who={identity.name} vitals={vitals} onOpenSupport={onOpenSupport} />}
-          {tierCell}
-        </section>
-      )}
-    </div>
-  );
-}
-
-/** ═══ ZONE 1 · IDENTITY ═══ One quiet line. The avatar is the record's
- *  initials disc — PLACEHOLDER for the teen's curated-profile photo: the
- *  prototype carries no teen photography by design (people-demo.ts), and none
- *  is generated. */
-function IdentityStrip({ identity, onOpenProfile }: { identity: TeenIdentity; onOpenProfile: () => void }) {
-  const facts = [identity.age !== null ? `${identity.age}` : null, identity.pronouns].filter(Boolean).join(" · ");
-  return (
-    <div data-care-identity className="flex min-w-0 items-center gap-2.5">
-      <span data-identity-avatar className="shrink-0">
-        <RecordAvatar name={identity.name} size={24} />
-      </span>
-      <p className="m-0 flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
-        <span data-identity-name className="truncate text-[var(--text-primary)]" style={BODY}>
-          {identity.name}
-        </span>
-        {facts && (
-          <span data-identity-facts className="tabular-nums text-[var(--text-secondary)]" style={LABEL}>
-            {facts}
-          </span>
-        )}
-      </p>
-      <button
-        type="button"
-        data-identity-profile
-        onClick={onOpenProfile}
-        className={cn("inline-flex min-h-8 shrink-0 items-center gap-1 rounded-sm text-[var(--text-primary)] underline underline-offset-2 hover:no-underline", RING)}
-        style={LABEL}
-      >
-        {/* TODO-COPY */}
-        View their profile <ArrowRight aria-hidden className="size-3.5" />
-      </button>
-    </div>
+    <section
+      data-care-hero="steady"
+      data-care-header
+      data-teen-status
+      aria-label={`${name}'s care`}
+      className="divide-y divide-[color:var(--border-subtle)] rounded-[16px] bg-[var(--surface-raised)] shadow-[var(--el-soft)]"
+    >
+      {showDiagnosis ? <DiagnosisCell brief={brief} /> : <MentorshipCell who={name} vitals={vitals} onOpenSupport={onOpenSupport} />}
+      {tierCell}
+    </section>
   );
 }
 

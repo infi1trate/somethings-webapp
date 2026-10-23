@@ -842,3 +842,41 @@ html[data-motion="reduce"] *::after {
   animation: none !important;
   transition: none !important;
 }
+
+/* ═══ THE ASSESSMENT DECK (pack v8.0) ═══════════════════════════════════════
+ *  seg-skip      the skip ripple: Q3–Q5 settle into "skipped" left to right
+ *                (each segment's delay is set inline) — the instrument
+ *                visibly shortens because the news is good
+ *  deck-settle   the observer's completed rail: one calm rule under the chip
+ *  care-tab-in   the Escalation review tab arrives with the banner
+ *  care-tab-out  and, dismissed, leaves toward History
+ *  All four are stilled under reduced motion (and by `data-motion`). */
+@keyframes seg-skip {
+  0% { opacity: 1; transform: translateY(0); }
+  45% { opacity: 0.55; transform: translateY(2px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.seg-skip { animation: seg-skip 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes deck-settle {
+  from { border-bottom-color: transparent; }
+  to { border-bottom-color: var(--border-strong); }
+}
+.deck-settle { animation: deck-settle 600ms ease-out both; }
+@keyframes care-tab-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.care-tab-in { animation: care-tab-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes care-tab-out {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(24px); }
+}
+.care-tab-out { animation: care-tab-out 220ms ease-in both; }
+@media (prefers-reduced-motion: reduce) {
+  .seg-skip,
+  .deck-settle,
+  .care-tab-in,
+  .care-tab-out {
+    animation: none;
+  }
+}
