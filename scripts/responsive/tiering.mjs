@@ -177,7 +177,7 @@ console.log("\n── 4 · the Care tabs");
   const { ctx, page } = await open("/app/chat/t14");
   await careTab(page).click();
   await page.waitForTimeout(300);
-  const tabs = await page.evaluate(() => ({ labels: [...document.querySelectorAll("[data-care-tab]")].map((c) => c.textContent), first: (() => { const p = document.querySelector("[data-care-panel]"); /* RETARGETED (pack v8.0): the anchor header leads the panel; the tabs follow it. */ const kids = [...(p?.children ?? [])].filter((c) => !c.matches("[data-care-tabs-live]")); return !!kids[0]?.matches("[data-care-header]") && !!kids[1]?.querySelector("[data-care-tabs]"); })(), sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
+  const tabs = await page.evaluate(() => ({ labels: [...document.querySelectorAll("[data-care-tab]")].map((c) => c.textContent), first: (() => { const p = document.querySelector("[data-care-panel]"); /* RETARGETED (pack v8.0): the anchor header leads the panel; the tabs follow it. */ const kids = [...(p?.children ?? [])].filter((c) => !c.matches("[data-care-tabs-live]")); /* RETARGETED (pack v9.0): the header sits in its yield; a supervisor's strip may follow it. */ const next = kids[1]?.matches('[data-care-yield="strip"]') ? kids[2] : kids[1]; return !!kids[0]?.matches('[data-care-yield="cells"][data-open="true"]') && !!kids[0].querySelector("[data-care-header]") && !!next?.querySelector("[data-care-tabs]"); })(), sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
   /* RETARGETED (pack v8.0, Supersession 3): Overview is removed; steady is
      Emergency info · Safety plan · Resources · History, on Emergency info. */
   check(tabs.labels.join("|") === "Emergency info|Safety plan|Resources|History" && tabs.first && tabs.sel === "emergency", "Emergency info · Safety plan · Resources · History, right under the header, on Emergency info (pack v8.0)", JSON.stringify(tabs));
@@ -378,10 +378,12 @@ let assessed;
     text: document.querySelector("[data-assessment-active]")?.innerText,
     /* RETARGETED (pack v8.0): the deck's rail — six segments, the filled
        ones answered. */
-    answered: [...document.querySelectorAll("[data-segment]")].filter((r) => r.dataset.segmentState === "yes" || r.dataset.segmentState === "no").map((r) => r.dataset.segment),
-    rows: document.querySelectorAll("[data-segment]").length,
+    /* RETARGETED (pack v9.0, Supersession 1): the guided form — six
+       question groups, each the full question, the answered ones chipped. */
+    answered: [...document.querySelectorAll("[data-ga-question]")].filter((r) => r.dataset.gaState === "yes" || r.dataset.gaState === "no").map((r) => r.dataset.gaQuestion),
+    rows: document.querySelectorAll("[data-ga-question]").length,
     progress: document.querySelector("[data-assessment-progress]")?.textContent,
-    reassure: [...document.querySelectorAll("[data-assessment-deck] p")].filter((p) => p.textContent === "Your supervisor sees each answer as you give it.").length,
+    reassure: [...document.querySelectorAll("[data-guided-assessment] p")].filter((p) => p.textContent === "Your supervisor sees each answer as you give it.").length,
     header: document.querySelector("[data-question-header]")?.textContent.trim(),
     count: document.querySelector("[data-answered-toggle]")?.textContent.trim(),
     placeholder: /placeholder/i.test(document.querySelector("[data-assessment]")?.innerText ?? ""),
@@ -397,7 +399,7 @@ let assessed;
      one open — the first unanswered. */
   /* RETARGETED (pack v8.0, Supersession 1): a six-segment rail and exactly
      one active card — the first required unanswered. */
-  check(s0.active.join() === "q3" && s0.answered.join() === "q1,q2" && s0.rows === 6, "six segments; exactly one active card (Q3, the first required unanswered); Q1–Q2 answered", JSON.stringify({ a: s0.active, d: s0.answered, rows: s0.rows }));
+  check(s0.active.join() === "q3" && s0.answered.join() === "q1,q2" && s0.rows === 6, "six question groups; exactly one focused (Q3, the first required unanswered); Q1–Q2 answered", JSON.stringify({ a: s0.active, d: s0.answered, rows: s0.rows }));
   /* Quotes normalised: the panel sets the question in typographic quotes. */
   const q3 = (s0.text ?? "").replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
   check(q3.includes('"Have you thought about how you might do that?"') && q3.includes("I thought about pills, but I'd never actually do it."), "Q3 in the pack's wording, with its example", q3.slice(0, 80));
@@ -416,10 +418,10 @@ let assessed;
   await page.keyboard.press("Enter");
   await page.waitForTimeout(500);
   const streamed = (await store(page)).escalations.t13?.safetyCheck;
-  const s1 = await page.evaluate(() => ({ active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive, focus: document.activeElement?.dataset.assessmentWording, live: document.querySelector("[data-deck-live]")?.getAttribute("aria-live"), said: document.querySelector("[data-deck-live]")?.textContent }));
+  const s1 = await page.evaluate(() => ({ active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive, focus: document.activeElement?.dataset.assessmentWording, live: document.querySelector("[data-ga-live]")?.getAttribute("aria-live"), said: document.querySelector("[data-ga-live]")?.textContent }));
   /* RETARGETED (pack v6.1, shared a11y): focus moves to the newly opened
      row's first control (its Ask in chat), and the record is announced. */
-  check(s1.active === "q4" && s1.focus === "q4" && s1.live === "polite" && s1.said === "Method, no intent: Yes · 3 of 6 needed answered", "after Enter, the deck advances to Q4 with focus on its first control, and the record is announced (polite)", JSON.stringify(s1));
+  check(s1.active === "q4" && s1.focus === "q4" && s1.live === "polite" && s1.said === "Question 3: Yes · 3 of 6 needed answered. Question 4 of 6.", "after Enter, the form advances to Q4 with focus on its first control, and the record is announced (polite)", JSON.stringify(s1));
   check(streamed?.answers?.q3?.value === "yes" && streamed.submittedAt === null, "an answer is on the record the moment it is given — before Submit", JSON.stringify(streamed?.answers?.q3));
   for (const id of ["q4:no", "q5:no", "q6:yes"]) {
     await page.locator(`[data-yes-no="${id}"]`).click();
@@ -431,7 +433,7 @@ let assessed;
   await page.waitForTimeout(450);
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
   await page.waitForTimeout(200);
-  const empty = await page.evaluate(() => ({ alert: document.querySelector("[data-review-ledger] [role=alert]")?.textContent, invalid: document.querySelector('[data-exchange-field="mentor-summary"]')?.getAttribute("aria-invalid") }));
+  const empty = await page.evaluate(() => ({ alert: document.querySelector("[data-ga-review-block] [role=alert]")?.textContent, invalid: document.querySelector('[data-exchange-field="mentor-summary"]')?.getAttribute("aria-invalid") }));
   check(!!empty.alert && empty.invalid === "true" && (await store(page)).escalations.t13.safetyCheck.submittedAt === null, "Submit with no summary names the gap and sends nothing", JSON.stringify(empty));
   await page.locator('[data-exchange-field="mentor-summary"]').fill("Jordan has a plan involving pills and gave away her headphones yesterday.");
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
@@ -459,11 +461,11 @@ let closed;
   /* S0 first: while the mentor is still assessing, progress only. */
   const z = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active" });
   const z0 = await xs(z.page);
-  const prog = await z.page.evaluate(() => ({ text: document.querySelector("[data-node-state='current'] [data-assessment-progress]")?.textContent, mode: document.querySelector("[data-node-state='current'] [data-assessment-deck]")?.dataset.deckMode, controls: document.querySelectorAll("[data-node-state='current'] [data-yes-no], [data-node-state='current'] [data-assessment-wording], [data-node-state='current'] textarea").length }));
+  const prog = await z.page.evaluate(() => ({ text: document.querySelector("[data-node-state='current'] [data-assessment-progress]")?.textContent, mode: document.querySelector("[data-node-state='current'] [data-guided-assessment]")?.dataset.gaMode, controls: document.querySelectorAll("[data-node-state='current'] [data-yes-no], [data-node-state='current'] [data-assessment-wording], [data-node-state='current'] textarea").length }));
   /* RETARGETED (pack v6.1, Supersession 4): the count row is the live
      read-only accordion now — progress, and no control of any kind. */
   /* RETARGETED (pack v8.0): the live read-only DECK — its rail fills in. */
-  check(z0?.stage === "S0" && z0.current.join() === "assessment" && prog.text === "2 of 6 needed answered" && prog.mode === "observer" && prog.controls === 0, "assessment in progress: the live read-only deck — progress, no controls", JSON.stringify({ z0, prog }));
+  check(z0?.stage === "S0" && z0.current.join() === "assessment" && prog.text === "2 of 6 needed answered" && prog.mode === "observer" && prog.controls === 0, "assessment in progress: the live read-only form — progress, no controls", JSON.stringify({ z0, prog }));
   check(z0?.upcoming.join() === "confirm,close", "and Confirm waits on the Up next path, before the exit", z0?.upcoming.join());
   await z.ctx.close();
 
@@ -473,7 +475,9 @@ let closed;
   const answers = await expandNode(page, "assessment");
   const risk = await page.evaluate(() => document.querySelector('[data-node="assessment"] [data-risk-chip]')?.dataset.riskChip);
   /* RETARGETED (pack v8.0): read-only, the deck shows its review ledger. */
-  const answerRows = await page.evaluate(() => document.querySelectorAll('[data-node="assessment"] [data-ledger-row][data-ledger-state="yes"], [data-node="assessment"] [data-ledger-row][data-ledger-state="no"]').length);
+  /* RETARGETED (pack v9.0, Supersession 2): the form IS the review — six
+     question groups, read-only, each with its answer. */
+  const answerRows = await page.evaluate(() => document.querySelectorAll('[data-node="assessment"] [data-ga-question][data-ga-state="yes"], [data-node="assessment"] [data-ga-question][data-ga-state="no"]').length);
   /* RETARGETED (pack v6.1): six rows read-only — Q6's follow-up is inside
      Q6's row, not a seventh. */
   check(answerRows === 6 && risk === "high" && /gave away her headphones/.test(answers), "expanded, the received node holds the six answered rows, High, and the summary — the same record", JSON.stringify({ answerRows, risk }));

@@ -72,7 +72,9 @@ const hero = (page) =>
     const card = root;
     const panel = document.querySelector("[data-care-panel]");
     return {
-      rootFirst: [...(panel?.children ?? [])].filter((c) => !c.matches("[data-care-tabs-live]"))[0] === root,
+      /* RETARGETED (pack v9.0, Supersession 3): the cells sit inside their
+         yield, first in the panel (open escalations collapse it). */
+      rootFirst: (() => { const k = [...(panel?.children ?? [])].filter((c) => !c.matches("[data-care-tabs-live]"))[0]; return !!k?.matches('[data-care-yield="cells"]') && !!root && k.contains(root); })(),
       strip: !!document.querySelector("[data-care-identity]"),
       cells: [...(card?.querySelectorAll("[data-overline]") ?? [])].map((o) => o.textContent.trim()),
       headline: root?.querySelector("[data-anchor] [data-anchor-headline]")?.textContent.trim(),
@@ -169,7 +171,11 @@ for (const [persona, chat] of [["mentor", "escalation-active"], ["supervisor", "
   await careOpen(page);
   const h = await hero(page);
   const inTab = await page.evaluate(() => !!document.querySelector('[data-care-tabpanel="escalation"] [data-care-hero="escalation"]'));
-  check(h.rootFirst && h.cells.length === 2 && inTab, `${persona}: the anchor cells hold the header; the escalation hero is inside the Escalation review tab`, JSON.stringify({ first: h.rootFirst, cells: h.cells, inTab }));
+  /* RETARGETED (pack v9.0, Supersession 3): while it is open the cells
+     YIELD — the mentor's hide, the supervisor's compress to the one-line
+     strip — and the escalation hero in the tab is the working header. */
+  const y = await page.evaluate(() => ({ cells: document.querySelector('[data-care-yield="cells"]')?.dataset.open, strip: document.querySelector('[data-care-yield="strip"]')?.dataset.open ?? null }));
+  check(h.rootFirst && h.cells.length === 2 && inTab && y.cells === "false" && y.strip === (persona === "mentor" ? null : "true"), `${persona}: the cells yield (${persona === "mentor" ? "hidden" : "to the strip"}); the escalation hero is inside the Escalation review tab`, JSON.stringify({ first: h.rootFirst, cells: h.cells, inTab, ...y }));
   await page.locator('[data-care-tab="history"]').first().click();
   await page.waitForTimeout(250);
   check((await hero(page)).rootFirst, `${persona}: the header holds on another Care tab`);

@@ -51,7 +51,7 @@
 import { useEffect, useRef, useState } from "react";
 import { EscalationExchange, EscalationHero } from "@/components/chat/escalation/exchange";
 import type { SupervisorEcho } from "@/components/chat/escalation/waiting-module";
-import { CareHero, TierCell } from "@/components/chat/rail/care-hero";
+import { CareHero, DiagnosisStrip, TierCell } from "@/components/chat/rail/care-hero";
 import { mentorshipVitals } from "@/lib/record/mentorship-vitals";
 import { EmergencyInfoPanel } from "@/components/chat/escalation/crisis-view";
 import { RaiseFlow } from "@/components/tiering/raise-flow";
@@ -95,6 +95,29 @@ const RESOURCES: { name: string; how: string }[] = [
   { name: "Crisis Text Line", how: "Text HOME to 741741" },
   { name: "The Trevor Project", how: "Call 1-866-488-7386, or text START to 678-678" },
 ];
+
+/** ═══ A HEADER THAT YIELDS (pack v9.0) ═══ Collapses to nothing by its
+ *  grid row (1fr → 0fr) rather than unmounting, so the yield is one eased
+ *  motion in step with the columns — and instant under reduced motion. The
+ *  gap below it lives INSIDE the collapsing box, so a yielded header leaves
+ *  no 16px ghost. Collapsed, it is inert and out of the accessibility tree. */
+function Yield({ open, slot, children }: { open: boolean; slot: string; children: React.ReactNode }) {
+  return (
+    <div
+      data-care-yield={slot}
+      data-open={open ? "true" : "false"}
+      inert={!open}
+      aria-hidden={!open || undefined}
+      className="grid transition-[grid-template-rows,opacity] duration-[var(--focus-dur)] ease-[var(--focus-ease)] motion-reduce:transition-none"
+      style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
+    >
+      {/* The negative inset keeps the card's soft shadow out of the clip. */}
+      <div className="-mx-2 -mt-2 min-h-0 overflow-hidden px-2 pt-2">
+        <div className="pb-4">{children}</div>
+      </div>
+    </div>
+  );
+}
 
 function CareTabs({ tab, onTab, dot, review, leaving }: { tab: CareTab; onTab: (t: CareTab) => void; dot: "alert" | "neutral" | null; review: boolean; leaving: boolean }) {
   const refs = useRef<Partial<Record<CareTab, HTMLButtonElement | null>>>({});
@@ -347,6 +370,8 @@ export function CarePanel({
   /* While an escalation is raised or in progress, the tier cell's own
      actions step aside: the escalation is the way the tier moves now. */
   const busy = panelState === "raising" || panelState === "active";
+  /** The header yields while an escalation is OPEN (pack v9.0). */
+  const yielded = panelState === "active";
   const historyEvents = useCareHistoryEvents(teenId, now);
   const history = () => (
     <TierHistory
@@ -429,11 +454,21 @@ export function CarePanel({
       data-care-panel
       data-care-state={panelState}
       data-care-target={escalation ? String(escalation.requested ?? 1) : undefined}
-      className="space-y-4"
+      data-care-yielded={yielded ? "" : undefined}
+      className="flex flex-col"
     >
       <p ref={said} data-care-tabs-live role="status" aria-live="polite" className="sr-only" />
       {/* ═══ THE PANEL HEADER (pack v8.0) ═══ The anchor cells, above the
-          tabs in every state; nothing renders above them. */}
+          tabs — in the steady, raising and closed states.
+          ═══ SUPERSEDED IN PART (pack v9.0, Supersession 3): THE HERO
+          YIELDS ═══ While an escalation is OPEN the cells step aside — the
+          Escalation review tab's status block, which already names the
+          requested or confirmed tier, is the working header. The mentor's
+          header hides entirely; the supervisor's compresses to the one-line
+          diagnosis strip. Both return on close. The yield rides the same
+          eased beat as the columns making way (Focus Mode), so the room
+          clears its desk in one breath. */}
+      <Yield open={!yielded} slot="cells">
       <CareHero
         name={name}
         showDiagnosis={showDiagnosis}
@@ -453,8 +488,14 @@ export function CarePanel({
           />
         }
       />
+      </Yield>
+      {showDiagnosis && (
+        <Yield open={yielded} slot="strip">
+          <DiagnosisStrip brief={brief} />
+        </Yield>
+      )}
       <CareTabs tab={tab} onTab={onTab} dot={dot} review={review} leaving={leaving} />
-      <div id="care-tabpanel" role="tabpanel" aria-labelledby={`care-tab-${tab}`} data-care-tabpanel={tab}>
+      <div id="care-tabpanel" role="tabpanel" aria-labelledby={`care-tab-${tab}`} data-care-tabpanel={tab} className="mt-4">
         {tab === "escalation" && reviewBody ? (
           reviewBody
         ) : tab === "history" ? (

@@ -85,8 +85,12 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
   /* ═══ A SUPERVISOR'S CHAT HAS NO LIST (pack v3.0, Workstream A) ═══ They
      arrive from Monitoring; the route is the conversation and the hub. */
   const listless = persona === "supervisor" || persona === "admin";
-  if (listless) check(c.layout === "list" && c.list === null && c.hub?.w === 360, "closed: no list — conversation · hub 360", JSON.stringify({ list: c.list?.w, thread: c.thread?.w, hub: c.hub?.w }));
-  else check(c.layout === "list" && c.list?.w === 300 && c.hub?.w === 360, "closed: list 300 · conversation · hub 360", JSON.stringify({ list: c.list?.w, thread: c.thread?.w, hub: c.hub?.w }));
+  /* RETARGETED (pack v9.0, Escalation Focus Mode): this fixture has an
+     OPEN escalation, so the columns are equalized — the static
+     300 · flex · 360 is the steady layout only. Mentor 1512: 444 · 480 · 480;
+     list-less: 50/50. */
+  if (listless) check(c.layout === "list" && c.list === null && Math.abs(c.hub?.w - c.thread?.w) <= 1, "closed, escalation open: no list — conversation and hub 50/50 (Focus Mode)", JSON.stringify({ list: c.list?.w, thread: c.thread?.w, hub: c.hub?.w }));
+  else check(c.layout === "list" && c.list?.w >= 256 && c.thread?.w >= 480 && c.hub?.w > 360 && c.hub?.w <= c.thread?.w, "closed, escalation open: the list yields, conversation ≥ 480, the hub wider than 360 and never wider than the conversation (Focus Mode)", JSON.stringify({ list: c.list?.w, thread: c.thread?.w, hub: c.hub?.w }));
   check(c.banner && c.banner.x === c.thread.x && Math.abs(c.banner.r - c.hub.r) <= 1, "closed: the banner spans conversation + hub, not the list", JSON.stringify({ banner: c.banner, thread: c.thread?.x, hubR: c.hub?.r }));
 
   /* The hub's identity and tab, before Support opens. */
@@ -100,7 +104,9 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
   }));
   check(o.layout === "beside" && o.list === null, "open: the list collapses — gone, not narrowed");
   check(o.back?.w === 40, "Back to chats, 40px, at the conversation header's start", JSON.stringify(o.back));
-  check(!!o.hub && Math.abs(o.hub.w - o.thread.w) <= 1, "the hub stays, conversation and hub 50/50", `${o.thread?.w} / ${o.hub?.w}`);
+  /* RETARGETED (pack v9.0): beside an escalation the split keeps the chat
+     floor — chat max(480, half), the hub the rest, never wider than chat. */
+  check(!!o.hub && o.thread.w >= 480 && o.hub.w <= o.thread.w && (o.thread.w === 480 || Math.abs(o.hub.w - o.thread.w) <= 1), "the hub stays, beside a conversation of at least 480 (50/50 where there is room)", `${o.thread?.w} / ${o.hub?.w}`);
   check(o.banner && o.banner.x === o.thread.x && Math.abs(o.banner.r - o.hub.r) <= 1 && o.banner.r <= o.support.x - 4, "the banner spans conversation + hub, never the support card", JSON.stringify({ banner: o.banner, support: o.support?.x }));
   check(same.node === "same-hub" && same.tab === "timeline", "the hub never remounted, and kept its tab", JSON.stringify(same));
   check(o.hscroll <= 0, "nothing scrolls sideways", `${o.hscroll}`);
@@ -113,8 +119,9 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
     tab: document.querySelector('[data-slot="chat-rail"] [role="tab"][aria-selected="true"]')?.dataset.railTab,
     open: document.querySelector("[data-support-slot]").dataset.open,
   }));
-  if (listless) check(kept.open === "false" && back.list === null && back.hub?.w === 360, "Back closes Support, and the list-less layout returns", JSON.stringify({ list: back.list?.w, hub: back.hub?.w }));
-  else check(kept.open === "false" && back.list?.w === 300 && back.hub?.w === 360, "Back to chats closes Support and restores the list", JSON.stringify({ list: back.list?.w, hub: back.hub?.w }));
+  /* RETARGETED (pack v9.0): restored to the Focus Mode tracks above. */
+  if (listless) check(kept.open === "false" && back.list === null && back.hub?.w === c.hub?.w, "Back closes Support, and the list-less layout returns", JSON.stringify({ list: back.list?.w, hub: back.hub?.w }));
+  else check(kept.open === "false" && back.list?.w === c.list?.w && back.hub?.w === c.hub?.w, "Back to chats closes Support and restores the list", JSON.stringify({ list: back.list?.w, hub: back.hub?.w }));
   check(kept.node === "same-hub" && kept.tab === "timeline", "the hub's tab survives the round trip", JSON.stringify(kept));
   await ctx.close();
 }
@@ -232,7 +239,10 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
 for (const [width, expect] of [
   [1512, { two: true, rail: 248 }],
   [1440, { two: true, rail: 248, support: 348 }],
-  [1280, { two: true, rail: 248 }],
+  /* RETARGETED (pack v9.0, the 480 chat floor — the cost stated in Phase
+     0): with the escalation open, 664 of canvas cannot hold 480 + a 320
+     Care, so at 1280 the hub is the drawer. */
+  [1280, { two: false, rail: 248 }],
   [1279, { two: true, rail: 72 }],
   [1100, { two: false, rail: 72 }],
 ]) {
@@ -244,9 +254,10 @@ for (const [width, expect] of [
   const drawerToggle = await page.evaluate(() => [...document.querySelectorAll("button")].some((x) => /conversation tools/i.test(x.getAttribute("aria-label") ?? "") && x.getBoundingClientRect().width > 0));
   check(g.rail?.w === expect.rail, `the staff rail is ${expect.rail}`, `${g.rail?.w}`);
   if (expect.two) {
-    check(!!g.hub && Math.abs(g.hub.w - g.thread.w) <= 1 && !drawerToggle, "two panes, 50/50, no drawer toggle", `${g.thread?.w} / ${g.hub?.w}`);
+    /* RETARGETED (pack v9.0): chat max(480, half), the hub the rest. */
+    check(!!g.hub && g.thread.w >= 480 && g.hub.w <= g.thread.w && g.hub.w >= 320 && !drawerToggle, "two panes — the conversation at least 480, the hub never wider — no drawer toggle", `${g.thread?.w} / ${g.hub?.w}`);
   } else {
-    check(!g.hub && drawerToggle, "below 1120 the hub is a drawer, opened from the conversation", JSON.stringify({ hub: g.hub, toggle: drawerToggle }));
+    check(!g.hub && drawerToggle, "too narrow for two panes (below 1120, or the chat floor), the hub is a drawer, opened from the conversation", JSON.stringify({ hub: g.hub, toggle: drawerToggle }));
   }
   check(g.support && g.support.w >= 348 && g.support.w <= 420, "support 348–420", `${g.support?.w}`);
   if (width === 1512) check(g.thread.w + g.hub.w === 840, "the canvas card holds 840 while it can", `${g.thread.w + g.hub.w}`);

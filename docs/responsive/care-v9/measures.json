@@ -1,0 +1,211 @@
+{
+  "layout": [
+    {
+      "who": "mentor 1512",
+      "before": "300px 744px 360px",
+      "during": "444px 480px 480px"
+    },
+    {
+      "who": "mentor 1280",
+      "before": "300px 512px 360px",
+      "during": "256px 480px 436px"
+    },
+    {
+      "who": "mentor 1512",
+      "during": "444px 480px 480px",
+      "care": 480
+    },
+    {
+      "who": "mentor 1512 + Support",
+      "during": "490px 490px",
+      "care": 490
+    },
+    {
+      "who": "supervisor 1512",
+      "during": "624px 624px",
+      "care": 624
+    },
+    {
+      "who": "supervisor 1512 + Support",
+      "during": "480px 360px",
+      "care": 360
+    },
+    {
+      "who": "mentor 1280",
+      "during": "256px 480px 436px",
+      "care": 436
+    },
+    {
+      "who": "mentor 1280 + Support",
+      "during": "480px 340px",
+      "care": 340
+    },
+    {
+      "who": "supervisor 1280",
+      "during": "508px 508px",
+      "care": 508
+    },
+    {
+      "who": "supervisor 1280 + Support",
+      "during": "664px",
+      "care": 0
+    },
+    {
+      "who": "supervisor 1512, close",
+      "during": "624px 624px",
+      "after": "888px 360px"
+    }
+  ],
+  "clamps": {
+    "capture (fresh, Q1 focused)": 0,
+    "capture (skip, Q6 focused)": 0,
+    "capture (Q6 follow-up open)": 0,
+    "review": 0,
+    "observer": 0
+  },
+  "states": [
+    {
+      "label": "linear · start",
+      "focus": "q1",
+      "focused": 1,
+      "review": false,
+      "states": "······"
+    },
+    {
+      "label": "linear · q1 yes",
+      "focus": "q2",
+      "focused": 1,
+      "review": false,
+      "states": "Y·····"
+    },
+    {
+      "label": "linear · q2 yes",
+      "focus": "q3",
+      "focused": 1,
+      "review": false,
+      "states": "YY····"
+    },
+    {
+      "label": "linear · q3 no",
+      "focus": "q4",
+      "focused": 1,
+      "review": false,
+      "states": "YYN···"
+    },
+    {
+      "label": "linear · q4 no",
+      "focus": "q5",
+      "focused": 1,
+      "review": false,
+      "states": "YYNN··"
+    },
+    {
+      "label": "linear · q5 no",
+      "focus": "q6",
+      "focused": 1,
+      "review": false,
+      "states": "YYNNN·"
+    },
+    {
+      "label": "linear · q6 no",
+      "focus": "none",
+      "focused": 0,
+      "review": true,
+      "states": "YYNNNN"
+    },
+    {
+      "label": "out-of-order · tap Q6",
+      "focus": "q6",
+      "focused": 1,
+      "review": false,
+      "states": "······"
+    },
+    {
+      "label": "out-of-order · Q6 No",
+      "focus": "q1",
+      "focused": 1,
+      "review": false,
+      "states": "·····N"
+    },
+    {
+      "label": "out-of-order · Q3 No",
+      "focus": "q1",
+      "focused": 1,
+      "review": false,
+      "states": "··N··N"
+    },
+    {
+      "label": "out-of-order · Q1 Yes",
+      "focus": "q2",
+      "focused": 1,
+      "review": false,
+      "states": "Y·N··N"
+    },
+    {
+      "label": "skip · No/No",
+      "focus": "q6",
+      "focused": 1,
+      "review": false,
+      "states": "NNsss·"
+    },
+    {
+      "label": "amend · tap Q2",
+      "focus": "q2",
+      "focused": 1,
+      "review": false,
+      "states": "NNsss·"
+    },
+    {
+      "label": "amend · Q2 Yes",
+      "focus": "q3",
+      "focused": 1,
+      "review": false,
+      "states": "NY····"
+    },
+    {
+      "label": "conflict · Q3 Yes first",
+      "focus": "q1",
+      "focused": 1,
+      "review": false,
+      "states": "··Y···"
+    },
+    {
+      "label": "conflict · then No/No",
+      "focus": "q6",
+      "focused": 1,
+      "review": false,
+      "states": "NNYss·"
+    },
+    {
+      "label": "recompute · review",
+      "focus": "none",
+      "focused": 0,
+      "review": true,
+      "states": "YNNNNN"
+    },
+    {
+      "label": "recompute · tap Q4 from review",
+      "focus": "q4",
+      "focused": 1,
+      "review": false,
+      "states": "YNNNNN"
+    },
+    {
+      "label": "recompute · Q4 Yes",
+      "focus": "none",
+      "focused": 0,
+      "review": true,
+      "states": "YNNYNN"
+    }
+  ],
+  "contrast": {
+    "light": {
+      "text": 16.64,
+      "chip": 7.63
+    },
+    "dark": {
+      "text": 13.3,
+      "chip": 6.16
+    }
+  }
+}

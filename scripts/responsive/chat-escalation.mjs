@@ -199,7 +199,8 @@ console.log("\n── the assessment @ escalation-active");
   const before = await p.evaluate(`(() => ({
     active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive,
     /* RETARGETED (pack v8.0): answered = the rail's filled segments. */
-    answered: document.querySelectorAll('[data-segment-state="yes"], [data-segment-state="no"]').length,
+    /* RETARGETED (pack v9.0): answered = the form's chipped questions. */
+    answered: document.querySelectorAll('[data-ga-state="yes"], [data-ga-state="no"]').length,
     /* THE WORDING HELP is the field that matters most at 2am, and one press puts
        it in the composer rather than making a frightened mentor retype it. */
     wording: document.querySelectorAll("[data-assessment-wording]").length,

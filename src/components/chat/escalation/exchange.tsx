@@ -46,7 +46,7 @@ import { noteProgressOf, noteTierOf, orderNodes, timelineNodes, type Lens, type 
 import type { Tiering } from "@/lib/tiering/use-tiering";
 import { PLATFORM, TIER_NAME, isAlertTier, type Tier } from "@/lib/tiering/tiers";
 import { cn } from "@/lib/utils";
-import { AssessmentDeck } from "@/components/chat/escalation/assessment-deck";
+import { GuidedAssessment } from "@/components/chat/escalation/guided-assessment";
 import { BODY, Field, LABEL, Primary, RING, RiskChip, TITLE, onRadioKeys, rovingTab } from "@/components/chat/escalation/controls";
 import { CrisisNoteAccordion } from "@/components/chat/escalation/crisis-note-accordion";
 
@@ -651,11 +651,12 @@ export function EscalationExchange({
   const cardOf = (n: TimelineNode): React.ReactNode => {
     switch (n.kind) {
       case "assessment":
-        /* ═══ ONE DECK, BOTH LENSES (pack v8.0, Supersession 1) ═══ The
-           holder answers on it; the observing supervisor reads its rail
-           filling in live. It replaces v6.1's accordion. */
+        /* ═══ ONE FORM, BOTH LENSES (pack v9.0, Supersessions 1–2) ═══ The
+           holder answers on it; the observing supervisor watches the actual
+           instrument fill — every question in full, answers arriving in
+           place. It replaces v8's deck, rail and review ledger. */
         return lens === "mentor" ? (
-          <AssessmentDeck
+          <GuidedAssessment
             e={e}
             name={name}
             mode="holder"
@@ -664,7 +665,7 @@ export function EscalationExchange({
             onSubmit={(summary) => tiering.submitAssessment(teenId, summary)}
           />
         ) : (
-          <AssessmentDeck e={e} name={name} mode="observer" />
+          <GuidedAssessment e={e} name={name} mode="observer" />
         );
       case "waiting":
         /* ═══ THE WAITING MODULE (pack v4.0, Workstream D) ═══ */
@@ -763,7 +764,7 @@ export function EscalationExchange({
         return m ? <Quote slot="moment" text={m.quote.text} who={m.quote.senderName} at={m.quote.at} note={m.note || undefined} /> : null;
       }
       case "assessment":
-        return n.state === "completed" ? <AssessmentDeck e={e} name={name} mode="readonly" summaryBy={lens === "mentor" ? "You" : "Mentor's summary"} /> : null;
+        return n.state === "completed" ? <GuidedAssessment e={e} name={name} mode="readonly" summaryBy={lens === "mentor" ? "You" : "Mentor's summary"} /> : null;
       case "confirm": {
         const ev = [...tiering.eventsFor(teenId)].reverse().find((x) => x.escalationId === e.id && (x.kind === "confirmed" || x.kind === "placed" || x.kind === "stepped-down"));
         return ev?.reason ? <p className="text-[var(--text-secondary)]" style={LABEL}>{ev.reason}</p> : null;
