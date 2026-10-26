@@ -56,6 +56,7 @@ import { mentorshipVitals } from "@/lib/record/mentorship-vitals";
 import { EmergencyInfoPanel } from "@/components/chat/escalation/crisis-view";
 import { RaiseFlow } from "@/components/tiering/raise-flow";
 import { TierHistory } from "@/components/tiering/tier-history";
+import { CareHistorySections, useCareHistoryEvents } from "@/components/record/care-history";
 import type { EmergencyInfo, EscalationState, MessageOrigin } from "@/lib/chat/types";
 import type { Tiering } from "@/lib/tiering/use-tiering";
 import type { RaiseTarget } from "@/lib/tiering/tiers";
@@ -346,6 +347,7 @@ export function CarePanel({
   /* While an escalation is raised or in progress, the tier cell's own
      actions step aside: the escalation is the way the tier moves now. */
   const busy = panelState === "raising" || panelState === "active";
+  const historyEvents = useCareHistoryEvents(teenId, now);
   const history = () => (
     <TierHistory
       events={tiering.eventsFor(teenId)}
@@ -456,7 +458,18 @@ export function CarePanel({
         {tab === "escalation" && reviewBody ? (
           reviewBody
         ) : tab === "history" ? (
-          history()
+          /* ═══ THE RECORD'S HISTORY, EXACTLY (2026-10-26) ═══ Supervisor and
+             lead mentor read the same two sections the record's Care tab
+             renders — `CareHistorySections`, one module for both hosts. The
+             History section is clinical, so a mentor gets the tier and
+             escalation trail alone (the v5/v7 role gate). */
+          showDiagnosis ? (
+            <div data-care-history-host className="space-y-6">
+              <CareHistorySections teenId={teenId} firstName={name} events={historyEvents} clinical />
+            </div>
+          ) : (
+            history()
+          )
         ) : tab === "safety-plan" ? (
           observer ? (
             <p data-care-safety-plan className="text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>

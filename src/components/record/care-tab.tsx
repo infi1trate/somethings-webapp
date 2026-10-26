@@ -50,12 +50,9 @@ import {
 } from "@/lib/record/care-time-block";
 import type { FieldProvenance } from "@/lib/record/field-provenance";
 import { useEffect, useRef, useState } from "react";
-import {
-  CareTimeline,
-  type CareTimelineHandle,
-} from "@/components/record/care-timeline";
+import { type CareTimelineHandle } from "@/components/record/care-timeline";
 import { RecordAuthorityNote } from "@/components/record/record-authority-note";
-import { RecordTierHistory } from "@/components/record/record-tier";
+import { CareHistorySections } from "@/components/record/care-history";
 import { CareSummaryCard } from "@/components/record/care-summary";
 import { RecordButton } from "@/components/record/record-button";
 import {
@@ -104,6 +101,7 @@ import {
   type CareUpdateRecord,
   type CareReviewDecision,
   type CareUpdatePrefill,
+  careStoreSlice,
 } from "@/lib/record/care-demo";
 import type { Dsm5Entry } from "@/lib/record/dsm5";
 import {
@@ -257,16 +255,12 @@ export function CareTab({
     open(true);
   };
 
-  const store: CareStoreSlice = {
-    decisions: Object.values(careReviews),
-    updates: Object.values(careUpdates),
-    closures: Object.values(careFlagClosures),
-    // ONLY HERE. The other two slice constructions (record-task-regions,
-    // mentee-table) feed `presentationFor`/`cadenceFor`/`pendingReviewFor`,
-    // none of which read summary events — History is rendered on this tab
-    // alone, so passing them elsewhere would add a read nothing consumes.
-    summaries: careSummaryCommits[teen.id] ?? [],
-  };
+  /* ONE CONSTRUCTION (`careStoreSlice`), shared with the chat Care panel's
+     History, so the two hosts read History from the same slice. Summaries
+     are included here and there; the other slice constructions
+     (record-task-regions, mentee-table) feed `presentationFor`/`cadenceFor`/
+     `pendingReviewFor`, none of which read summary events. */
+  const store: CareStoreSlice = careStoreSlice({ careReviews, careUpdates, careFlagClosures, careSummaryCommits }, teen.id);
   const events = careTimelineFor(teen.id, now, store);
   const presentation = presentationFor(teen.id, now, store);
   const cadence = cadenceFor(teen.id, now, store);
@@ -1012,31 +1006,11 @@ export function CareTab({
             What is not lost: the clustering its prose described ("two fell
             within 19 days of each other") reads off two triangles 19 days apart
             on the strip's shared axis. */}
-        {/* ═══ TIER AND ESCALATION HISTORY (Tiering & Escalation pack) ═══
-            The append-only tier and escalation trail, with audit lozenges —
-            the same component, from the same store, as the chat Care tab's
-            History, so the two cannot tell different stories. Above the care
-            timeline because placement is what a reader of this tab is asked
-            about first. */}
-        <section aria-label="Tier and escalation history" data-record-tier-history>
-          <h2 className={H2}>
-            {/* TODO-COPY */}
-            Tier and escalation history
-          </h2>
-          <div className="mt-3">
-            <RecordTierHistory teenId={teen.id} firstName={teen.firstName} />
-          </div>
-        </section>
-
-        {/* 5 · HISTORY */}
-        <section aria-label="History">
-          <h2 className={H2} ref={historyHeading} tabIndex={-1}>
-            History
-          </h2>
-          <div className="mt-3">
-            <CareTimeline events={events} ref={timelineRef} />
-          </div>
-        </section>
+        {/* ═══ TIER AND ESCALATION HISTORY · 5 · HISTORY ═══ One module,
+            `CareHistorySections`, rendered here AND in the chat Care panel's
+            History tab — the same sections, components and slice, so the two
+            hosts cannot tell different stories (2026-10-26). */}
+        <CareHistorySections teenId={teen.id} firstName={teen.firstName} events={events} clinical historyHeadingRef={historyHeading} timelineRef={timelineRef} />
 
         {/* ═══ THE COMPLIANCE FOOTER IS GONE FROM HERE (A4) ═══
             It was a bare line above a `border-t` at the foot of this column, and
