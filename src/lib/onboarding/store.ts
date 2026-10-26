@@ -100,6 +100,7 @@ import { normaliseClosedRecord, type ClosedCareReview } from "@/lib/tasks/closed
 import { devClockByKey } from "@/lib/home/dev-clock";
 import { appendable, type TierEvent } from "@/lib/tiering/events";
 import { pinsFor, todayScenarioById } from "@/lib/home/scenarios";
+import { isPristineMentor, populatedMentorFields } from "@/lib/onboarding/populated-mentor";
 
 // A persisted-shape copy of the draft (no password, no volatile blob url) — the
 // approved baseline used to detect post-publish edits in the mentor's settings.
@@ -734,7 +735,19 @@ interface OnboardingState {
   /** The "You're approved!" CTA — the mentor has entered their live home. */
   markHomeEntered: () => void;
   setHasHydrated: () => void;
+  /** The dev "start over": every fixture re-seeded, and the live mentor back
+   *  to the POPULATED default (`lib/onboarding/populated-mentor.ts`). */
   reset: () => void;
+  /** ═══ THE ONE WAY TO A BLANK MENTOR ═══ `reset()`, then an empty, invited
+   *  draft, with `mentorStartedNew` set — the dev footer's "Reset as new
+   *  mentor" and the front page's "Start as a new mentor". */
+  resetAsNewMentor: () => void;
+  /** Make the live mentor the populated default (an untouched one only — the
+   *  caller checks `isPristineMentor`). */
+  populateMentor: () => void;
+  /** True once the user deliberately reset as a new mentor: such a mentor is
+   *  NEVER re-populated automatically. Persisted. */
+  mentorStartedNew: boolean;
 }
 
 export const useOnboardingStore = create<OnboardingState>()(
@@ -807,6 +820,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       mentorRole: "Mentor",
       mentorGroups: ["North Carolina", "New Jersey"],
       schedule: cloneSchedule(DEFAULT_SCHEDULE),
+      mentorStartedNew: false,
 
       update: (patch) =>
         set((state) => ({ draft: { ...state.draft, ...patch } })),
@@ -1492,23 +1506,16 @@ export const useOnboardingStore = create<OnboardingState>()(
 
       reset: () =>
         set({
-          draft: emptyDraft(),
-          status: "invited",
-          completed: [],
-          rejectionNote: null,
-          changeRequests: [],
-          publishedSnapshot: null,
-          hubSteps: emptyHubSteps(),
-          hubWelcomeSeen: false,
+          /* The mentor's own fields (draft, status, completed, review state,
+             snapshot, hub steps, enteredHome) are the POPULATED default,
+             spread at the end — see `populatedMentorFields`. */
           slots: { total: 16, dailyNew: 1 },
           accountStatus: "active",
           deactivatedOn: null,
-          profileUpdate: null,
           activity: [],
           staffPhoto: null, // persona is a dev lens, not data — reset leaves it
           internalNotes: [],
           profileHidden: false,
-          enteredHome: false,
           notificationPrefs: {}, // dev lens keeps switches per persona; reset clears
           caseloads: {}, // caseload overrides reset with the mentor
           mentorStatuses: {}, // status overrides reset with the mentor
@@ -1567,7 +1574,30 @@ export const useOnboardingStore = create<OnboardingState>()(
           schedule: cloneSchedule(DEFAULT_SCHEDULE),
           welcomeOpen: false,
           welcomeAutoShown: false,
+          /* ═══ THE MENTOR RESETS TO POPULATED (2026-10-26) ═══ "Start over"
+             is not "start as new": only `resetAsNewMentor` blanks the mentor. */
+          ...populatedMentorFields(),
+          mentorStartedNew: false,
         }),
+
+      resetAsNewMentor: () => {
+        useOnboardingStore.getState().reset();
+        set({
+          draft: emptyDraft(),
+          status: "invited",
+          completed: [],
+          rejectionNote: null,
+          changeRequests: [],
+          publishedSnapshot: null,
+          hubSteps: emptyHubSteps(),
+          hubWelcomeSeen: false,
+          profileUpdate: null,
+          enteredHome: false,
+          mentorStartedNew: true,
+        });
+      },
+
+      populateMentor: () => set({ ...populatedMentorFields(), mentorStartedNew: false }),
     }),
     {
       name: "somethings.mentor-onboarding",
@@ -1720,7 +1750,12 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v56: `noticesSeenAt` (Care v5.0, Workstream C), a per-persona map in
       //      `partialize`. Backfilled to {} — nothing seen, so every derived
       //      notice reads as unread once, which is what a first look is.
-      version: 56,
+      // v57: the populated default mentor (2026-10-26). A stored session whose
+      //      mentor is still UNTOUCHED (blank, invited, never published) and
+      //      not a deliberate new mentor becomes the populated mentor once;
+      //      `mentorStartedNew` backfills false (true for a session already on
+      //      the new-mentor persona, which is the deliberate case).
+      version: 57,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -2214,6 +2249,13 @@ export const useOnboardingStore = create<OnboardingState>()(
         // v56: a map — {} is the right backfill.
         const st56 = persisted as { noticesSeenAt?: unknown };
         if (typeof st56.noticesSeenAt !== "object" || st56.noticesSeenAt === null) st56.noticesSeenAt = {};
+        // v57: the populated default — see the version note.
+        if (version < 57) {
+          const st57 = persisted as { persona?: string; mentorStartedNew?: unknown; draft?: Record<string, unknown>; status?: string; publishedSnapshot?: unknown };
+          const startedNew = st57.persona === "new-mentor";
+          st57.mentorStartedNew = startedNew;
+          if (!startedNew && isPristineMentor(st57 as Parameters<typeof isPristineMentor>[0])) Object.assign(st57, populatedMentorFields());
+        }
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -2223,6 +2265,11 @@ export const useOnboardingStore = create<OnboardingState>()(
       // repair. This mirrors the v10–v12 shape changes idempotently on every
       // rehydrate. Data plumbing only — snapshot-capture timing is untouched.
       merge: (persisted, current) => {
+        /* ═══ A FRESH BROWSER GETS THE POPULATED MENTOR (2026-10-26) ═══
+           `persisted` is undefined only when nothing is stored at all — a
+           probe's partial seed is an object, so it keeps the blank start it
+           was written against. */
+        if (persisted === undefined || persisted === null) return { ...current, ...populatedMentorFields() } as OnboardingState;
         const merged = {
           ...current,
           ...(persisted as Partial<OnboardingState>),
@@ -2644,6 +2691,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         status: state.status,
         completed: state.completed,
         rejectionNote: state.rejectionNote,
+        mentorStartedNew: state.mentorStartedNew,
         changeRequests: state.changeRequests,
         publishedSnapshot: state.publishedSnapshot,
         hubSteps: state.hubSteps,

@@ -14,7 +14,9 @@
 // ═══ EVERY ENTRY RESETS THE DEMO STATE, DELIBERATELY ═══
 //
 // `reset()` wipes the store, restores the pending care reviews and reopens the
-// closed flags, so each starting point begins from the same seeded position
+// closed flags — and returns the live mentor to the POPULATED default; only
+// "Start as a new mentor" blanks it (`resetAsNewMentor`) — so each starting
+// point begins from the same seeded position
 // rather than from wherever the last session was abandoned. That is what makes
 // these repeatable enough to demo from. It is stated on the page rather than
 // left as a surprise.
@@ -49,9 +51,9 @@ interface Entry {
    *  role. A reader picking a door wants to know what is behind it. */
   blurb: string;
   persona: Persona;
-  /** True for the mentor who is already onboarded: publish the profile so the
-   *  app opens past the wizard and the hub. */
-  published?: boolean;
+  /** True for the new-mentor door: the ONE entry that blanks the mentor
+   *  (`resetAsNewMentor`). Every other entry resets to the populated mentor. */
+  asNew?: boolean;
   href: string;
 }
 
@@ -63,6 +65,7 @@ const ENTRIES: Entry[] = [
     blurb:
       "Open a demo invite and walk the whole setup flow, from the email link through review to a published profile.",
     persona: "new-mentor",
+    asNew: true,
     href: "/invite/demo-invite-token",
   },
   {
@@ -84,7 +87,6 @@ const ENTRIES: Entry[] = [
     blurb:
       "The mentor app as someone already onboarded sees it — their mentees, chats, tasks and their own profile.",
     persona: "mentor",
-    published: true,
     href: "/app",
   },
 ];
@@ -99,12 +101,11 @@ export default function Home() {
     // `getState()` rather than a subscription: nothing here reads store state
     // during render, so the page has no hydration surface at all.
     const s = useOnboardingStore.getState();
-    s.reset();
+    /* `reset()` returns the populated mentor (2026-10-26); only the new-mentor
+       door starts over as new. */
+    if (entry.asNew) s.resetAsNewMentor();
+    else s.reset();
     s.setPersona(entry.persona);
-    if (entry.published) {
-      s.setStatus("published");
-      s.capturePublishedSnapshot();
-    }
     window.location.assign(entry.href);
   };
 

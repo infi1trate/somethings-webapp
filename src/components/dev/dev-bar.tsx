@@ -56,6 +56,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { EyeOff, RotateCcw } from "lucide-react";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import { isPristineMentor } from "@/lib/onboarding/populated-mentor";
 /* bar-01: scope comes from ONE declaration now — see `axes.ts` on why it can no
    longer live in the controls' label text. */
 import {
@@ -271,7 +272,9 @@ function mentorDest(): string {
 
 function resetToNewMentor() {
   const s = useOnboardingStore.getState();
-  s.reset();
+  /* ═══ THE ONE BLANK RESET (2026-10-26) ═══ Every other path leaves the
+     populated mentor; this is the only one that starts over as new. */
+  s.resetAsNewMentor();
   s.setPersona("new-mentor");
   // THE ONE HARD NAVIGATION. A wiped store must rehydrate from scratch.
   window.location.assign("/invite/demo-invite-token");
@@ -541,6 +544,14 @@ export function DevBar() {
 
 
   const pickRole = (p: (typeof PERSONAS)[number]) => {
+    /* ═══ MENTOR IS A POPULATED MENTOR (2026-10-26) ═══ An untouched mentor
+       that was not deliberately reset as new becomes the populated default
+       before the lens lands — so Mentor opens the onboarded app, not an
+       invite. A mentor the user has started on, or reset as new, is theirs. */
+    if (p.key === "mentor") {
+      const s = useOnboardingStore.getState();
+      if (!s.mentorStartedNew && isPristineMentor(s)) s.populateMentor();
+    }
     setPersona(p.key);
     // STAY PUT ON A RECORD — see the module note. Off a record, enter the
     // persona's own destination the way the old pill did.
