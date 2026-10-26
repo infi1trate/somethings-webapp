@@ -122,8 +122,21 @@ const measure = (page) =>
       /* RETARGETED (pack v8.0, Supersessions 2 and 4): no identity strip —
          the anchor header is the panel's first element in every state, and
          the tabs follow it. */
-      heroFirst: [...(panel?.children ?? [])].filter((c) => !c.matches("[data-care-tabs-live]"))[0] === header,
-      tabsAfterHero: !!header?.nextElementSibling?.querySelector("[data-care-tabs]") || !!header?.nextElementSibling?.matches("[data-care-tabs-bar]"),
+      /* RETARGETED (pack v9.0, Supersession 3): the header lives in its
+         yield — first in the panel — and the supervisor's one-line strip
+         may follow it; then the tabs. While an escalation is open the cells
+         are yielded (collapsed), the strip open for supervisor and lead. */
+      ...(() => {
+        const kids = [...(panel?.children ?? [])].filter((c) => !c.matches("[data-care-tabs-live]"));
+        let n = kids[0]?.nextElementSibling;
+        if (n?.matches('[data-care-yield="strip"]')) n = n.nextElementSibling;
+        return {
+          heroFirst: !!kids[0]?.matches('[data-care-yield="cells"]') && !!header && kids[0].contains(header),
+          tabsAfterHero: !!n?.querySelector("[data-care-tabs]") || !!n?.matches("[data-care-tabs-bar]"),
+          yielded: kids[0]?.dataset.open === "false",
+          yieldStrip: panel?.querySelector('[data-care-yield="strip"]')?.dataset.open ?? null,
+        };
+      })(),
       ringed: ringed.map((el) => el.dataset.nodeCard !== undefined ? `node:${el.dataset.nodeAccent}` : el.tagName),
       ringColor: ringed[0] ? getComputedStyle(ringed[0]).boxShadow : null,
       alertRing: tok("--alert-critical-border"), neutralRing: tok("--border-default"),
@@ -153,7 +166,7 @@ console.log("\n── 1 · steady: the Teen Status card");
 for (const [label, extra] of [["Tier 4", {}], ["Tier 2", T2]]) {
   const { ctx, page } = await open("/app/chat/t14", { extra });
   const m = await measure(page);
-  check(m.heroKind === "steady" && m.heroFirst && m.tabsAfterHero, `${label}: the anchor header leads the panel, above the tabs`, JSON.stringify({ k: m.heroKind, f: m.heroFirst, t: m.tabsAfterHero }));
+  check(m.heroKind === "steady" && m.heroFirst && m.tabsAfterHero && !m.yielded, `${label}: the anchor header leads the panel, above the tabs`, JSON.stringify({ k: m.heroKind, f: m.heroFirst, t: m.tabsAfterHero, y: m.yielded }));
   /* RETARGETED (Care Hero v7.0, superseding v5.0 Supersession 5): the
      mentor's card anchors on the Mentorship, then the Risk tier — and the
      diagnosis is still not in the DOM at all. */
@@ -192,7 +205,10 @@ for (const [label, persona, chat] of [
 ]) {
   const { ctx, page } = await open("/app/chat/t13", { persona, chat });
   const m = await measure(page);
-  check(m.heroKind === "escalation" && m.heroFirst && m.tabsAfterHero, `${label}: the header above the tabs; the escalation hero inside Escalation review`, JSON.stringify({ k: m.heroKind, f: m.heroFirst }));
+  /* RETARGETED (pack v9.0, Supersession 3): open, the cells YIELD — the
+     mentor's hide, the supervisor's compress to the one-line strip — and
+     the Escalation review status block is the working header. */
+  check(m.heroKind === "escalation" && m.heroFirst && m.tabsAfterHero && m.yielded && m.yieldStrip === (persona === "mentor" ? null : "true"), `${label}: the header yields (${persona === "mentor" ? "hidden" : "the one-line strip"}); the escalation hero inside Escalation review`, JSON.stringify({ k: m.heroKind, f: m.heroFirst, y: m.yielded, s: m.yieldStrip }));
   check(m.ringed.length === 1 && m.ringed[0] === "node:alert" && m.ringColor?.includes(m.alertRing.replace(/\)$/, "")), `${label}: exactly one raised + ringed element — the current node, alert-ringed at Tier 1–2`, `${m.ringed.join()} · ${m.ringColor}`);
   check(m.filled.length <= 1, `${label}: at most one filled button in the panel`, m.filled.join(" · ") || "none");
   check(!m.notifiedInPanel && m.notifiedInBanner !== false, `${label}: "notified" is the banner's alone`, JSON.stringify({ panel: m.notifiedInPanel, banner: m.notifiedInBanner }));
@@ -280,7 +296,10 @@ const timeline = (page) =>
   });
   check(q.zones.join() === "ask,answer" && q.labels[0] === "Ask Jordan" && q.labels[1] === "Jordan’s answer", "two zones: Ask Jordan, then Jordan’s answer", JSON.stringify(q.labels));
   check(q.hint === "Record what Jordan tells you." && q.yesNoInAnswer === 2 && !q.disabled, "zone 2 carries the microcopy and Yes / No — never disabled", JSON.stringify({ h: q.hint, n: q.yesNoInAnswer, d: q.disabled }));
-  check(q.answerBg === q.s1 && q.cardBorder === "0px", "zone 2 is a sunken well, subordinate; no card inside the node card", JSON.stringify({ bg: q.answerBg, border: q.cardBorder }));
+  /* RETARGETED (pack v9.0, Part 2.2): the focused question wears the
+     emphasis ring — a 2px ink BORDER, never a raised shadow, so the node
+     stays the only element raised AND ringed (counted above). */
+  check(q.answerBg === q.s1 && q.cardBorder === "2px", "zone 2 is a sunken well, subordinate; the focused question carries the 2px emphasis ring", JSON.stringify({ bg: q.answerBg, border: q.cardBorder }));
   check(q.askInAsk && /^Ask in chat/.test(q.ask ?? ""), "“Ask in chat” lives in zone 1", String(q.ask));
   const sentBefore = await page.evaluate((k) => (JSON.parse(localStorage.getItem(k)).state.chatMessages ?? []).length, KEY);
   await page.locator("[data-assessment-wording]").click();
@@ -292,11 +311,14 @@ const timeline = (page) =>
   /* RETARGETED (pack v8.0): the answered rows are the deck's rail
      segments, each carrying its short label; tapping one opens its card
      with the question VERBATIM. */
-  const rows = await page.evaluate(() => [...document.querySelectorAll('[data-segment-state="yes"], [data-segment-state="no"]')].map((r) => ({ id: r.dataset.segment, label: r.querySelector("[data-segment-label]")?.textContent.trim() })));
-  check(rows.length >= 1 && rows.every((r) => r.label && !/^Have you/.test(r.label) && !/…/.test(r.label)), "answered segments carry the short label, not a cut question", rows.map((r) => r.label).join(" · "));
-  await page.locator(`[data-segment="${rows[0]?.id}"]`).click();
-  await page.waitForTimeout(200);
-  const verb = await page.evaluate(() => document.querySelector("[data-deck-card] [data-question-text]")?.textContent.trim());
+  /* RETARGETED (pack v9.0, Supersession 1 — a reversal of the short
+     label): every answered question shows its FULL verbatim text, never a
+     label; tapping one focuses it, the question at the full step. */
+  const rows = await page.evaluate(() => [...document.querySelectorAll('[data-ga-question][data-ga-state="yes"], [data-ga-question][data-ga-state="no"]')].map((r) => ({ id: r.dataset.gaQuestion, label: r.querySelector("[data-question-text]")?.textContent.trim() })));
+  check(rows.length >= 1 && rows.every((r) => r.label && /^Have you/.test(r.label) && !/…/.test(r.label)), "answered questions carry the full question, not a label or a cut", rows.map((r) => r.label).join(" · "));
+  await page.locator(`[data-ga-question="${rows[0]?.id}"] button`).first().click();
+  await page.waitForTimeout(250);
+  const verb = await page.evaluate(() => document.querySelector("[data-ga-focused] [data-question-text]")?.textContent.trim());
   check(verb === "“Have you wished you were dead or wished you could go to sleep and not wake up?”", "opened, the question VERBATIM", String(verb));
   check(t.cut.length === 0, "nothing in the timeline is ellipsised", t.cut.join(" | "));
   await page.screenshot({ path: `${OUT}/03-question-card.png` });
@@ -407,7 +429,7 @@ let assessed;
   const back = await page.evaluate(() => ({ rail: document.querySelector('[data-rail-tab][aria-selected="true"]')?.dataset.railTab, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, node: !!document.querySelector('[data-node="assessment"]') }));
   /* RETARGETED (pack v8.0): the assessment lives in Escalation review. */
   check(back.rail === "care" && back.tab === "escalation" && back.node, "the glyph opens the assessment: Care, Escalation review, its node", JSON.stringify(back));
-  for (let i = 0; i < 8; i++) { const no = page.locator('[data-deck-card] [data-yes-no$=":no"]').first(); if (!(await no.count())) break; await no.click(); await page.waitForTimeout(400); }
+  for (let i = 0; i < 8; i++) { const no = page.locator('[data-ga-focused] [data-yes-no$=":no"]').first(); if (!(await no.count())) break; await no.click(); await page.waitForTimeout(400); }
   await page.locator('[data-exchange-field="mentor-summary"]').fill("Probe: talking, no plan.");
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
   await page.waitForTimeout(500);

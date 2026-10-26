@@ -637,7 +637,7 @@ count, each marked in place above.**
 - **Close is gated on the note** in the store's write as well as the node —
   a blocked constant.
 - **Blocked constants unchanged:** verbatim C-SSRS wording in expanded cards
-  only; all six answerable in any order (any gating is Meg / Dr. Nissan's);
+  only (**SUPERSEDED by v9.0:** in full for every question, always); all six answerable in any order (any gating is Meg / Dr. Nissan's);
   the risk computation; the chart's section labels; no Emergency at Tier 2.
 - **No cross-tab sync:** the store has none and the role lives in it, so
   "live" for the observer means the record changing while the page is open.
@@ -656,7 +656,9 @@ tab, each marked in place above.**
   border, not a box-shadow ring, so the timeline node stays the only element
   raised AND ringed). The deck ALWAYS has exactly one active card: the next
   required question, or the review card once complete. Zero-expanded cannot
-  render.
+  render. **SUPERSEDED by v9.0:** the deck, the rail and the review card are
+  deleted for the `GuidedAssessment` form — every question in full, always;
+  the rules module (`lib/tiering/deck.ts`) is unchanged.
 - **The skip rule is clinical policy, supplied** (a blocked constant): Q1 No
   ∧ Q2 No → UNANSWERED Q3–Q5 skip and the deck goes to Q6. A recorded Q3–Q5
   answer is never discarded and still counts; amending Q1 or Q2 to Yes
@@ -677,8 +679,49 @@ tab, each marked in place above.**
   exits toward History. The close toast is unchanged.
 - **The panel header** is the anchor cells (v7 Zones 2–3) above the tabs in
   every state; nothing renders above them. The tier cell's own actions step
-  aside while an escalation is raised or open.
+  aside while an escalation is raised or open. **SUPERSEDED IN PART by v9.0
+  (Supersession 3):** "every state" is now steady, raising and closed — while
+  an escalation is OPEN the cells yield.
 - **Deep links:** `?care=escalation` (the retired `overview` is an alias).
+
+### Escalation Focus Mode & Guided Assessment (pack v9.0, feat/escalation-focus)
+
+Answered 2026-10-26 ("go" on the Phase 0 audit — the chat floor at 480).
+**Supersedes v8's deck, coverage rail and review ledger, and the "header in
+every state" rule, each marked in place above.**
+
+- **Focus Mode** (`chat-page.tsx`, `data-chat-focus`). While THIS
+  conversation has an OPEN escalation (not the raise flow, not a closed
+  summary) the columns equalize: list · chat · Care trend to thirds, and
+  restore on close. The floors, from the 8pt grid: **chat 480** (a bubble of
+  349px beside a full composer), list 256 (it yields first), and Care never
+  wider than chat. Measured: mentor 1512 `300·744·360 → 444·480·480`; 1280
+  `→ 256·480·436`; supervisor 50/50. THE COST, STATED: a supervisor at 1280
+  with Support open gets Care as the drawer — 664 of canvas cannot hold 480
+  plus a 320 Care.
+- **One motion.** The focus tracks are LENGTHS (`max()`/`min()` over
+  percentages, in `--focus-list` / `--focus-care`) with the chat's
+  `minmax(0,1fr)` the same in both states, so `grid-template-columns`
+  interpolates — `fr ↔ px` would jump. The Care header's yield shares the
+  beat (`--focus-dur`, `--focus-ease`). Reduced motion: an instant swap.
+- **The hero yields** (`rail/care.tsx` `Yield`): collapsed by grid row, inert,
+  never unmounted. The mentor's header hides; supervisor and lead get the
+  one-line `DiagnosisStrip` (diagnosis + ICD chip; a long one wraps, never
+  ellipsised). The Escalation review status block is the working header.
+- **`GuidedAssessment`** (`escalation/guided-assessment.tsx`): six question
+  groups, each its number, the FULL verbatim text and an answer chip (— · Yes
+  · No · Not needed). **Exactly one focused question in every capture
+  state** (the ring is a 2px ink border, never a raised shadow); **review is
+  the only zero-focus state** — the form with every answer, then the risk
+  chip, the note and Submit rising in. A record advances focus to the next
+  required unanswered; a tap moves it; amending from review re-enters capture
+  and the chip recomputes. Observer: the same form read-only, arrivals tick.
+- **No labels as questions, anywhere** (a blocked constant): the supervisor's
+  `assesses` labels render on no assessment surface. `draftDebrief`'s
+  narrative still names findings by them — a description, not a question.
+- **Deleted, not orphaned:** `assessment-deck.tsx` (deck, rail, read card,
+  review ledger) and the `seg-skip` / `deck-settle` CSS. `care-v8.mjs` keeps
+  its tab-lifecycle claims; its deck sections are `care-v9.mjs`'s.
 
 ### Monitoring asserts only what it can compute (arch-mon)
 

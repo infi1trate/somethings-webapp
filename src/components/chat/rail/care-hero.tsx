@@ -120,6 +120,41 @@ export function CareHero({
   );
 }
 
+/** ═══ THE ONE-LINE DIAGNOSIS STRIP (pack v9.0, Supersession 3) ═══ While an
+ *  escalation is open the supervisor's header yields: the cells give way to
+ *  this one line — the diagnosis and its ICD chip, nothing else — because the
+ *  Escalation review tab's status block is the working header now. The tier
+ *  is that block's; the record link returns with the cells on close.
+ *  Supervisor and lead only: the caller gates it, as it gates the cell. A
+ *  long diagnosis WRAPS rather than truncates (no meaning lost to an
+ *  ellipsis, and no `title` carrying what the reader needs). */
+export function DiagnosisStrip({ brief }: { brief: CareBrief }) {
+  return (
+    <section
+      data-diagnosis-strip
+      aria-label="Clinical diagnosis"
+      className="flex min-h-10 items-center rounded-[12px] bg-[var(--surface-raised)] px-4 py-2 shadow-[var(--el-soft)]"
+    >
+      <p className="m-0 min-w-0 break-words text-[var(--text-primary)]" style={BODY}>
+        {brief.presentation ?? (
+          <span className="text-[var(--text-secondary)]">
+            {/* TODO-COPY */}
+            No presentation assigned yet.
+          </span>
+        )}
+        {brief.presentation && brief.code && (
+          <>
+            {" "}
+            <span data-icd className="ml-1 inline-flex h-5 items-center rounded-[5px] border border-[color:var(--border-default)] px-1.5 align-[1px] font-mono text-[11px] leading-none whitespace-nowrap text-[var(--text-secondary)]">
+              {brief.code}
+            </span>
+          </>
+        )}
+      </p>
+    </section>
+  );
+}
+
 /** ═══ ZONE 2 · CLINICAL DIAGNOSIS (supervisor, lead) ═══ The panel's true
  *  headline, on a strict three-line rhythm: overline · the diagnosis with its
  *  ICD code as a quiet mono chip · "Updated {date}" and the record link. */

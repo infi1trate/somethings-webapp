@@ -1,5 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// THE ASSESSMENT DECK'S RULES (pack v8.0)
+// THE ASSESSMENT'S RULES (pack v8.0; the form's since v9.0)
+//
+// ═══ v9.0 ═══ The deck and its coverage rail are deleted; the
+// `GuidedAssessment` form (`components/chat/escalation/guided-assessment.tsx`)
+// reads these rules unchanged. `nextCard`'s "review" is the form's review —
+// its ONE zero-focus state; `segmentState` is a question's answer chip.
+// The names keep the deck's vocabulary so the record, the tests and the
+// notifications that read them did not move.
 //
 // ═══ THE SKIP RULE — CLINICAL POLICY, SUPPLIED, A BLOCKED CONSTANT ═══
 //   Q1 = No AND Q2 = No  →  Q3–Q5 are skipped; the deck advances to Q6.

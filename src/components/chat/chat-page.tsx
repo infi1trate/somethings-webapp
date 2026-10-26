@@ -395,6 +395,10 @@ export function ChatPage({
   const supportOpen = useSupportOpen();
   const supportThreadId = useSupportThread();
   const beside = supportOpen && !!thread;
+  /** ═══ ESCALATION FOCUS MODE (pack v9.0) ═══ This conversation has an
+   *  OPEN escalation — not the raise flow (nothing is open yet), not a
+   *  closed summary (closing restores the room). */
+  const focus = !!escalation;
   /** ═══ A SUPERVISOR WATCHES (support-beside-hub) ═══ The conversation is
    *  the observed mentor's, read-only. */
   const liveMentor = useLiveMentorRow();
@@ -736,23 +740,65 @@ export function ChatPage({
           and hub split 50/50, below it the hub is a drawer over the
           conversation. Track counts differ between the two, so the change is a
           swap, not an animation. */}
+      {/* ═══ ESCALATION FOCUS MODE (pack v9.0, Part 1) ═══ While THIS
+          conversation has an open escalation the columns equalize — the list
+          and the chat give ground and the Care panel widens to about a
+          third — and they restore on close. The floors, from Bloom's 8pt
+          grid (measured: the transcript row is the thread less 2 × 16, and
+          a bubble is `min(78%, 420px)` of it):
+            CHAT   480 (60 × 8) — the composer at full width and a bubble of
+                   349px (~46ch) beside a full-width Care panel
+            LIST   256 (32 × 8) — the list yields first, so Care gains
+            CARE   never wider than the chat (the formula caps it at half of
+                   what the list leaves, and at what keeps chat ≥ 480)
+          At a canvas of 3 × 480 and up the three are thirds. Mentor 1512:
+          300 · 744 · 360 → 444 · 480 · 480; 1280: 300 · 512 · 360 →
+          256 · 480 · 436. The supervisor (no list) splits 50/50.
+          ═══ ONE MOTION ═══ The focus tracks are LENGTHS (`max()`/`min()`
+          over percentages) with the chat's `minmax(0,1fr)` the same in both
+          states, so `grid-template-columns` interpolates between them in one
+          eased beat — `fr ↔ px` would not, and would jump. The beat is
+          `--focus-dur`, shared with the Care header's yield. Reduced motion:
+          the swap is instant. A breakpoint change alters the track COUNT,
+          which never interpolates — so resizing a window does not animate. */}
       <div
         data-chat-layout={beside ? "beside" : "list"}
+        data-chat-focus={focus ? "" : undefined}
         className={cn(
           // `relative` because the rail is ABSOLUTE wherever it is a drawer.
           "relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]",
           "grid-cols-[minmax(0,1fr)] [grid-template-areas:'banner'_'thread']",
+          "transition-[grid-template-columns] duration-[var(--focus-dur)] ease-[var(--focus-ease)] motion-reduce:transition-none",
+          listless
+            ? "[--focus-list:0px]"
+            : "[--focus-list:max(256px,min(33.333%,calc(100%_-_960px)))]",
+          "[--focus-care:min(calc((100%_-_var(--focus-list))/2),calc(100%_-_var(--focus-list)_-_480px))]",
           beside
-            ? /* Two panes from a 1120 VIEWPORT, the pack's rule (it was a
-                 680 canvas floor, which turned the hub into a drawer at 1280
-                 for staff: their nav is 248, not the Figma's 232). The 600
-                 canvas guard keeps 300 a pane. */
-              "min-[1120px]:@min-[600px]/canvas:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] min-[1120px]:@min-[600px]/canvas:[grid-template-areas:'banner_banner'_'thread_rail']"
+            ? focus
+              ? /* SUPPORT BESIDE AN ESCALATION: the list is already gone
+                   (support-beside-hub), and the split keeps the chat floor —
+                   chat max(480, half), Care the rest. Below an 800 canvas
+                   (480 + a 320 Care) the hub is the drawer, as it is below
+                   the two-pane floor. */
+                "min-[1120px]:@min-[800px]/canvas:grid-cols-[max(480px,50%)_minmax(0,1fr)] min-[1120px]:@min-[800px]/canvas:[grid-template-areas:'banner_banner'_'thread_rail']"
+              : /* Two panes from a 1120 VIEWPORT, the pack's rule (it was a
+                   680 canvas floor, which turned the hub into a drawer at
+                   1280 for staff: their nav is 248, not the Figma's 232).
+                   The 600 canvas guard keeps 300 a pane. */
+                "min-[1120px]:@min-[600px]/canvas:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] min-[1120px]:@min-[600px]/canvas:[grid-template-areas:'banner_banner'_'thread_rail']"
             : listless
-              ? "xl:@min-[1000px]/canvas:grid-cols-[minmax(0,1fr)_360px] xl:@min-[1000px]/canvas:[grid-template-areas:'banner_banner'_'thread_rail']"
+              ? [
+                  focus
+                    ? "xl:@min-[1000px]/canvas:grid-cols-[minmax(0,1fr)_var(--focus-care)]"
+                    : "xl:@min-[1000px]/canvas:grid-cols-[minmax(0,1fr)_360px]",
+                  "xl:@min-[1000px]/canvas:[grid-template-areas:'banner_banner'_'thread_rail']",
+                ]
               : [
                   "md:@min-[640px]/canvas:grid-cols-[300px_minmax(0,1fr)] md:@min-[640px]/canvas:[grid-template-areas:'list_banner'_'list_thread']",
                   "xl:@min-[1000px]/canvas:grid-cols-[300px_minmax(0,1fr)_360px] xl:@min-[1000px]/canvas:[grid-template-areas:'list_banner_banner'_'list_thread_rail']",
+                  /* Focus needs 256 + 480 + 360 = 1096 of canvas; below it
+                     the steady tracks stand. */
+                  focus && "xl:@min-[1096px]/canvas:grid-cols-[var(--focus-list)_minmax(0,1fr)_var(--focus-care)]",
                 ]
         )}
       >
@@ -997,7 +1043,9 @@ export function ChatPage({
                   /* Shown wherever the hub is a drawer: closed between `md`
                      and `xl`; open, below the 680 two-pane floor. */
                   beside
-                    ? "flex min-[1120px]:@min-[600px]/canvas:hidden"
+                    ? focus
+                      ? "flex min-[1120px]:@min-[800px]/canvas:hidden"
+                      : "flex min-[1120px]:@min-[600px]/canvas:hidden"
                     : "md:@min-[640px]/canvas:flex xl:@min-[1000px]/canvas:hidden",
                   "hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                   RING
@@ -1048,10 +1096,15 @@ export function ChatPage({
             className={cn(
               "absolute inset-y-0 right-0 z-20 w-[360px] max-w-full border-l border-[color:var(--border-subtle)] shadow-[var(--shadow-panel)]",
               beside
-                ? [
-                    "min-[1120px]:@min-[600px]/canvas:static min-[1120px]:@min-[600px]/canvas:z-auto min-[1120px]:@min-[600px]/canvas:w-auto min-[1120px]:@min-[600px]/canvas:max-w-none min-[1120px]:@min-[600px]/canvas:shadow-none min-[1120px]:@min-[600px]/canvas:[grid-area:rail]",
-                    !railOpen && "hidden min-[1120px]:@min-[600px]/canvas:block",
-                  ]
+                ? focus
+                  ? [
+                      "min-[1120px]:@min-[800px]/canvas:static min-[1120px]:@min-[800px]/canvas:z-auto min-[1120px]:@min-[800px]/canvas:w-auto min-[1120px]:@min-[800px]/canvas:max-w-none min-[1120px]:@min-[800px]/canvas:shadow-none min-[1120px]:@min-[800px]/canvas:[grid-area:rail]",
+                      !railOpen && "hidden min-[1120px]:@min-[800px]/canvas:block",
+                    ]
+                  : [
+                      "min-[1120px]:@min-[600px]/canvas:static min-[1120px]:@min-[600px]/canvas:z-auto min-[1120px]:@min-[600px]/canvas:w-auto min-[1120px]:@min-[600px]/canvas:max-w-none min-[1120px]:@min-[600px]/canvas:shadow-none min-[1120px]:@min-[600px]/canvas:[grid-area:rail]",
+                      !railOpen && "hidden min-[1120px]:@min-[600px]/canvas:block",
+                    ]
                 : [
                     "xl:@min-[1000px]/canvas:static xl:@min-[1000px]/canvas:z-auto xl:@min-[1000px]/canvas:w-auto xl:@min-[1000px]/canvas:max-w-none xl:@min-[1000px]/canvas:shadow-none xl:@min-[1000px]/canvas:[grid-area:rail]",
                     // Hidden below `xl` until toggled; always present at `xl`.

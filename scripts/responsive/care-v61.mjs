@@ -63,13 +63,13 @@ const BREATH = 450;
 /* The intake accordion is replaced by the assessment DECK; its claims (one
    row open, bounded movement, the observer's accordion, live arrival) are
    measured in `care-v8.mjs`. What the note needs from the intake is only a
-   submitted assessment — made here through the deck. */
-console.log("\n── setup · an assessment submitted through the deck");
+   submitted assessment — made here through the guided form (v9.0). */
+console.log("\n── setup · an assessment submitted through the guided form");
 let submittedState;
 {
   const { ctx, page, errors } = await open("/app/chat/t13");
   for (let i = 0; i < 8; i++) {
-    const no = page.locator('[data-deck-card] [data-yes-no$=":no"]').first();
+    const no = page.locator('[data-ga-focused] [data-yes-no$=":no"]').first();
     if (!(await no.count())) break;
     await no.click();
     await page.waitForTimeout(300);
@@ -78,7 +78,7 @@ let submittedState;
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
   await page.waitForTimeout(600);
   submittedState = await store(page);
-  check(submittedState.escalations.t13.safetyCheck.submittedAt > 0 && errors.length === 0, "the deck submits the record", errors.slice(0, 2).join(" | "));
+  check(submittedState.escalations.t13.safetyCheck.submittedAt > 0 && errors.length === 0, "the form submits the record", errors.slice(0, 2).join(" | "));
   await ctx.close();
 }
 
@@ -92,8 +92,8 @@ let tier1Closed;
   await done.click();
   await page.waitForTimeout(200);
   const ro = await page.evaluate(() => {
-    const r = document.querySelector('[data-node="assessment"] [data-assessment-deck]');
-    return { mode: r?.dataset.deckMode, controls: r ? r.querySelectorAll("[data-yes-no], textarea, [data-exchange-primary]").length : -1, quote: !!r?.querySelector('[data-quote="mentor-summary"], [data-slot="mentor-summary"]') || /Talking it through/.test(r?.innerText ?? "") };
+    const r = document.querySelector('[data-node="assessment"] [data-guided-assessment]');
+    return { mode: r?.dataset.gaMode, controls: r ? r.querySelectorAll("[data-yes-no], textarea, [data-exchange-primary]").length : -1, quote: !!r?.querySelector('[data-quote="mentor-summary"], [data-slot="mentor-summary"]') || /Talking it through/.test(r?.innerText ?? "") };
   });
   check(ro.mode === "readonly" && ro.controls === 0 && ro.quote, "post-submit: the assessment reads back read-only, with the mentor's summary", JSON.stringify(ro));
   await page.locator('[data-s1-tier="1"]').click();
@@ -273,7 +273,7 @@ const focusOf = (page) =>
     return `${a?.getAttribute("role") ?? a?.tagName.toLowerCase()} “${name}”${state}${row ? ` · row ${row.dataset.accRow ?? row.dataset.noteRow}` : ""}`;
   });
 const heard = (page) => page.evaluate(() => [document.querySelector("[data-acc-live]")?.textContent, document.querySelector("[data-note-live]")?.textContent].filter(Boolean).join(" | "));
-/* The intake's keyboard run is the deck's now — care-v8.mjs, §7. */
+/* The intake's keyboard run is the guided form's now — care-v9.mjs. */
 {
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-tier2" });
   say("\n## Crisis note (supervisor, Tier 2), keyboard only — Referral first");
