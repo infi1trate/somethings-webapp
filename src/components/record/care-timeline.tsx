@@ -429,7 +429,7 @@ function Row({
         )}
         {statusText && <span>{statusText}</span>}
         {(statusText || pair) && named && (
-          <span aria-hidden className="text-[var(--text-muted)]">
+          <span aria-hidden data-line2-sep className="text-[var(--text-muted)] @max-[30rem]/care-timeline:hidden">
             ·
           </span>
         )}
@@ -528,11 +528,11 @@ function Row({
           line, derived from this row's own children, and a global spacing token
           would imply it applies somewhere else. Flagged rather than minted. */}
       <div
-        className="flex items-start gap-3 sm:gap-4"
+        className="flex items-start gap-3 @[30rem]/care-timeline:gap-4"
         style={{ "--care-row-line1": "22px" } as React.CSSProperties}
       >
-        {/* NOT `aria-hidden`. The gutter is the row's date at `sm` and up, and
-            the inline copy below is `sm:hidden` — so exactly ONE of the two is
+        {/* NOT `aria-hidden`. The gutter is the row's date at 30rem of the
+            container and up, and the narrow copy is hidden there — so exactly ONE of the two is
             rendered at any width, and `display:none` keeps the other out of the
             accessibility tree. Hiding this one as decorative would have taken
             the date out of the row's accessible name at every width above
@@ -544,7 +544,7 @@ function Row({
             "Jul 11" and "Aug 28" would not end at the same place.
             `h-[var(--care-row-line1)] items-center` replaces `pt-0.5`. */}
         <span
-          className="hidden h-[var(--care-row-line1)] w-[96px] shrink-0 items-center justify-end text-right tabular-nums text-[var(--text-muted)] sm:flex"
+          className="hidden h-[var(--care-row-line1)] w-[96px] shrink-0 items-center justify-end text-right tabular-nums text-[var(--text-muted)] @[30rem]/care-timeline:flex"
           style={{ font: "var(--type-row-label)" }}
         >
           {dateOf(event.occurredAt)}
@@ -561,6 +561,9 @@ function Row({
               // 24px target; the wrapper height is line one's, so the glyph
               // cannot drift when the row gains a second line.
               "flex h-[var(--care-row-line1)] w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)]",
+              // Narrow, the date is its own 16px line above the title: the
+              // slot drops by that line so it still centres on line one.
+              "@max-[30rem]/care-timeline:mt-4",
               "transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
               RING
             )}
@@ -576,11 +579,24 @@ function Row({
           // non-expandable rows would start at different x.
           <span
             aria-hidden
-            className="h-[var(--care-row-line1)] w-6 shrink-0"
+            className="h-[var(--care-row-line1)] w-6 shrink-0 @max-[30rem]/care-timeline:mt-4"
           />
         )}
 
         <div className="min-w-0 flex-1">
+          {/* ═══ NARROW: THE DATE ON ITS OWN LINE ═══ Below 30rem of THIS
+              container the 96px gutter is hidden. The date used to return
+              inline on line one, where — beside the chevron, the title and the
+              type chip — it left the title ~90px at the panel's width. It sits
+              above line one instead, so the title and its chip get the row.
+              Exactly one of the two dates renders at any width, so the
+              accessible name carries it once. */}
+          <span
+            className="block h-4 tabular-nums text-[var(--text-muted)] @[30rem]/care-timeline:hidden"
+            style={{ font: "var(--type-row-label)" }}
+          >
+            {dateOf(event.occurredAt)}
+          </span>
           {/* ── LINE 1 · title, score lozenge, type chip ───────────────────
               NO `flex-wrap`. With wrapping, a long escalation title pushed the
               type chip onto a second line and the row became three lines deep —
@@ -592,16 +608,6 @@ function Row({
               two-line row it stays anchored here, because the chip labels the
               EVENT and not the paragraph under it. */}
           <div className="flex h-[var(--care-row-line1)] items-center gap-x-2">
-            {/* THE GUTTER IS HIDDEN BELOW `sm`, so the date returns inline there
-                — a 96px column plus a chevron plus a title does not fit at
-                320px. Exactly one of the two renders at any width, so the
-                accessible name carries the date once and never twice. */}
-            <span
-              className="shrink-0 tabular-nums text-[var(--text-muted)] sm:hidden"
-              style={{ font: "var(--type-row-label)" }}
-            >
-              {dateOf(event.occurredAt)}
-            </span>
 
             {/* `truncate` is VISUAL ONLY — `text-overflow` leaves the full
                 string in the DOM, so a screen reader still reads the whole
@@ -727,8 +733,13 @@ function Row({
               // making a two-line row three lines — and only at that width,
               // which is why it survived the 1024 pass. Measured at 88px against
               // a 70px row. The cap applies to both lines or it is not a cap.
+              /* NARROW (below 30rem of the container): the cap gives way to the
+                 column — the parts WRAP, each truncating at the line, and the
+                 "·" that only means something inline is hidden. At the panel's
+                 width a long status ("Clinical summary · Diagnostic support
+                 statement · Improved") otherwise ran under the card's edge. */
               <p
-                className="mt-1 flex items-center gap-x-2 overflow-hidden text-[var(--text-secondary)] [&>*]:shrink-0 [&>*:last-child]:min-w-0 [&>*:last-child]:truncate"
+                className="mt-1 flex items-center gap-x-2 overflow-hidden text-[var(--text-secondary)] [&>*]:shrink-0 [&>*:last-child]:min-w-0 [&>*:last-child]:truncate @max-[30rem]/care-timeline:flex-wrap @max-[30rem]/care-timeline:gap-y-0.5 @max-[30rem]/care-timeline:[&>*]:max-w-full @max-[30rem]/care-timeline:[&>*]:min-w-0 @max-[30rem]/care-timeline:[&>*]:truncate"
                 style={{ font: "var(--type-row-label)" }}
               >
                 {line2}
@@ -1782,7 +1793,15 @@ export function CareTimeline({
   useImperativeHandle(ref, () => ({ jump }));
 
   return (
-    <section aria-label="Care timeline" data-record-section="care-timeline" data-anno-ref="care-timeline">
+    /* ═══ A NAMED CONTAINER (2026-10-26) ═══ The rows lay out by THIS
+       component's width, not the viewport's: the same timeline renders in the
+       record's wide column and in the chat Care panel's ~327px History tab,
+       and a viewport breakpoint (`sm:`) gave the panel the wide layout inside
+       a narrow column — titles crushed to "P..", lozenges cut (measured).
+       30rem (480px) reproduces the old switch on the record, measured: its
+       History is 560px at 1280 and 1100 and 680–764px elsewhere on desktop
+       (wide, as before); 342px on a phone and ~300px in the panel (narrow). */
+    <section aria-label="Care timeline" data-record-section="care-timeline" data-anno-ref="care-timeline" className="@container/care-timeline">
       {/* ═══ SEARCH SITS INLINE WITH THE CHIPS, RIGHT-ALIGNED ═══
           The brief offered a header row opposite the "History" heading or the
           chip row. The heading belongs to `care-tab`'s section, not to this

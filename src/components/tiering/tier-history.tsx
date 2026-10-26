@@ -220,13 +220,18 @@ function EscalationStory({
                 </span>
               )}
             </span>
-            {/* Each fragment is one unbreakable phrase; the line wraps only
-                BETWEEN them ("Follow-" broke from "up" — measured in v4). */}
+            {/* Each SHORT fragment is one unbreakable phrase, so the line wraps
+                BETWEEN them ("Follow-" broke from "up" — measured in v4). A
+                fragment longer than a narrow card ("A guardian or trusted adult
+                is with them", in the chat panel's ~300px card) wraps between its
+                own words instead of running past the edge (measured,
+                2026-10-26) — and every hyphen is non-breaking, so "Follow-up"
+                still never splits. */}
             <span data-story-stages className="block text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
               {stages.map((st, i) => (
                 <span key={st}>
                   {i > 0 && " · "}
-                  <span className="whitespace-nowrap">{st}</span>
+                  <span className={st.length <= 24 ? "whitespace-nowrap" : undefined}>{st.replace(/-/g, "\u2011")}</span>
                 </span>
               ))}
             </span>

@@ -1878,6 +1878,27 @@ export interface CareStoreSlice {
   summaries?: CareSummaryCommit[];
 }
 
+/** ═══ THE STORE SLICE, BUILT ONCE (2026-10-26) ═══ The record's Care tab
+ *  and the chat Care panel's History both read History through this — the
+ *  four store fields, narrowed to what `careTimelineFor` and its siblings
+ *  read. One construction, so the two hosts cannot drift apart. */
+export function careStoreSlice(
+  s: {
+    careReviews: Record<string, CareReviewDecision>;
+    careUpdates: Record<string, CareUpdateRecord>;
+    careFlagClosures: Record<string, CareFlagClosure>;
+    careSummaryCommits: Record<string, CareSummaryCommit[]>;
+  },
+  teenId: string
+): CareStoreSlice {
+  return {
+    decisions: Object.values(s.careReviews),
+    updates: Object.values(s.careUpdates),
+    closures: Object.values(s.careFlagClosures),
+    summaries: s.careSummaryCommits[teenId] ?? [],
+  };
+}
+
 /** The full append-only timeline for a teen: the hand-written clinical fixtures,
  *  whatever the person universe already records, and everything staff have
  *  appended. Newest-first ordering is the renderer's job — this returns the
