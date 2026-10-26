@@ -90,7 +90,9 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
      300 · flex · 360 is the steady layout only. Mentor 1512: 444 · 480 · 480;
      list-less: 50/50. */
   if (listless) check(c.layout === "list" && c.list === null && Math.abs(c.hub?.w - c.thread?.w) <= 1, "closed, escalation open: no list — conversation and hub 50/50 (Focus Mode)", JSON.stringify({ list: c.list?.w, thread: c.thread?.w, hub: c.hub?.w }));
-  else check(c.layout === "list" && c.list?.w >= 256 && c.thread?.w >= 480 && c.hub?.w > 360 && c.hub?.w <= c.thread?.w, "closed, escalation open: the list yields, conversation ≥ 480, the hub wider than 360 and never wider than the conversation (Focus Mode)", JSON.stringify({ list: c.list?.w, thread: c.thread?.w, hub: c.hub?.w }));
+  /* RETARGETED (pack v9.1): the escalated conversation is the FOCUS VIEW —
+     the list is away (its track 0), chat and Care 50/50. */
+  else check(c.layout === "list" && (c.list?.w ?? 0) <= 1 && c.thread?.w >= 480 && Math.abs(c.hub?.w - c.thread?.w) <= 1, "closed, escalation open: the focus view — no list, conversation and hub 50/50", JSON.stringify({ list: c.list?.w, thread: c.thread?.w, hub: c.hub?.w }));
   check(c.banner && c.banner.x === c.thread.x && Math.abs(c.banner.r - c.hub.r) <= 1, "closed: the banner spans conversation + hub, not the list", JSON.stringify({ banner: c.banner, thread: c.thread?.x, hubR: c.hub?.r }));
 
   /* The hub's identity and tab, before Support opens. */
@@ -103,7 +105,10 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
     tab: document.querySelector('[data-slot="chat-rail"] [role="tab"][aria-selected="true"]')?.dataset.railTab,
   }));
   check(o.layout === "beside" && o.list === null, "open: the list collapses — gone, not narrowed");
-  check(o.back?.w === 40, "Back to chats, 40px, at the conversation header's start", JSON.stringify(o.back));
+  /* RETARGETED (pack v9.1, Supersession 2): in the view the way out is the
+     "← Chats" bar, so the header's Support-closing Back is not drawn; it is
+     measured outside the view in §1b. */
+  check(listless ? o.back === null : o.back === null && (await page.locator('[data-slot="chat-back-chats"]').count()) === 1, "in the view: no header Back — the way out is the ← Chats bar (supervisor: ← Monitoring)", JSON.stringify(o.back));
   /* RETARGETED (pack v9.0): beside an escalation the split keeps the chat
      floor — chat max(480, half), the hub the rest, never wider than chat. */
   check(!!o.hub && o.thread.w >= 480 && o.hub.w <= o.thread.w && (o.thread.w === 480 || Math.abs(o.hub.w - o.thread.w) <= 1), "the hub stays, beside a conversation of at least 480 (50/50 where there is room)", `${o.thread?.w} / ${o.hub?.w}`);
@@ -111,8 +116,9 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
   check(same.node === "same-hub" && same.tab === "timeline", "the hub never remounted, and kept its tab", JSON.stringify(same));
   check(o.hscroll <= 0, "nothing scrolls sideways", `${o.hscroll}`);
 
-  await page.locator('[data-slot="chat-back-to-chats"]').click();
-  await page.waitForTimeout(500);
+  /* RETARGETED (pack v9.1): closing Support restores chat · Care. */
+  await toggleSupport(page);
+  await page.waitForTimeout(300);
   const back = await geo(page);
   const kept = await page.evaluate(() => ({
     node: document.querySelector("[data-chat-hub]").__probe,
@@ -120,9 +126,28 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
     open: document.querySelector("[data-support-slot]").dataset.open,
   }));
   /* RETARGETED (pack v9.0): restored to the Focus Mode tracks above. */
-  if (listless) check(kept.open === "false" && back.list === null && back.hub?.w === c.hub?.w, "Back closes Support, and the list-less layout returns", JSON.stringify({ list: back.list?.w, hub: back.hub?.w }));
-  else check(kept.open === "false" && back.list?.w === c.list?.w && back.hub?.w === c.hub?.w, "Back to chats closes Support and restores the list", JSON.stringify({ list: back.list?.w, hub: back.hub?.w }));
+  check(kept.open === "false" && (back.list?.w ?? 0) <= 1 && back.hub?.w === c.hub?.w, "closing Support restores chat · Care — not the list", JSON.stringify({ list: back.list?.w, hub: back.hub?.w }));
   check(kept.node === "same-hub" && kept.tab === "timeline", "the hub's tab survives the round trip", JSON.stringify(kept));
+  await ctx.close();
+}
+
+// ── 1b · OUTSIDE THE VIEW: the support-beside-hub rule itself ──────────────
+/* Added (pack v9.1): the list-collapse and its 40px Back now act only on a
+   conversation with no escalation in hand — measured there. */
+{
+  console.log("\n── mentor at 1512, a conversation outside the focus view");
+  const { ctx, page } = await open("mentor", 1512);
+  await page.goto(`${BASE}/app/chat/t14`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+  const c = await geo(page);
+  check(c.layout === "list" && c.list?.w === 300 && c.hub?.w === 360, "closed: list 300 · conversation · hub 360", JSON.stringify({ list: c.list?.w, hub: c.hub?.w }));
+  await toggleSupport(page);
+  const o = await geo(page);
+  check(o.layout === "beside" && o.list === null && o.back?.w === 40 && Math.abs(o.hub.w - o.thread.w) <= 1, "open: the list collapses, Back to chats 40px, conversation and hub 50/50", JSON.stringify({ list: o.list, back: o.back?.w, t: o.thread?.w, h: o.hub?.w }));
+  await page.locator('[data-slot="chat-back-to-chats"]').click();
+  await page.waitForTimeout(500);
+  const back = await geo(page);
+  check(back.list?.w === 300 && back.hub?.w === 360, "Back to chats closes Support and restores the list", JSON.stringify({ list: back.list?.w, hub: back.hub?.w }));
   await ctx.close();
 }
 
@@ -182,7 +207,9 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
 
   /* KEYBOARD ORDER, and Esc from the support composer */
   const order = await page.evaluate(() => {
-    const a = document.querySelector('[data-slot="chat-back-to-chats"]');
+    /* RETARGETED (pack v9.1): in the focus view the way back is the
+       "← Chats" bar, first in the conversation. */
+    const a = document.querySelector('[data-slot="chat-back-to-chats"], [data-slot="chat-back-chats"]');
     const h = document.querySelector('[data-slot="chat-rail"] [role="tab"][data-rail-tab][tabindex="0"]');
     const s = document.querySelector("#support-panel [data-support-back]");
     const before = (x, y) => !!(x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING);

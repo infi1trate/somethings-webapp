@@ -1,0 +1,78 @@
+{
+  "widths": [
+    {
+      "who": "mentor 1512",
+      "cols": "0px 702px 702px",
+      "chat": 702,
+      "care": 702
+    },
+    {
+      "who": "mentor 1512 + Support",
+      "cols": "490px 490px",
+      "chat": 490,
+      "care": 490
+    },
+    {
+      "who": "supervisor 1512",
+      "cols": "624px 624px",
+      "chat": 624,
+      "care": 624
+    },
+    {
+      "who": "supervisor 1512 + Support",
+      "cols": "480px 360px",
+      "chat": 480,
+      "care": 360
+    },
+    {
+      "who": "mentor 1280",
+      "cols": "0px 586px 586px",
+      "chat": 586,
+      "care": 586
+    },
+    {
+      "who": "mentor 1280 + Support",
+      "cols": "480px 340px",
+      "chat": 480,
+      "care": 340
+    },
+    {
+      "who": "supervisor 1280",
+      "cols": "508px 508px",
+      "chat": 508,
+      "care": 508
+    },
+    {
+      "who": "supervisor 1280 + Support",
+      "cols": "664px",
+      "chat": 664,
+      "care": 0
+    }
+  ],
+  "deepLink": {
+    "frames": 233,
+    "distinct": [
+      "300px 744px 360px",
+      "0px 702px 702px"
+    ]
+  },
+  "midChat": {
+    "before": "300px 744px 360px",
+    "after": "0px 702px 702px",
+    "from": 300,
+    "to": 0,
+    "mono": true,
+    "between": 42,
+    "settledAt": 426,
+    "opacity": 43
+  },
+  "exit": {
+    "cols": "300px 744px 360px",
+    "from": 0,
+    "to": 300,
+    "mono": true,
+    "between": 43,
+    "settledAt": 678,
+    "opacity": 43
+  }
+}

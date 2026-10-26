@@ -693,7 +693,9 @@ every state" rule, each marked in place above.**
 - **Focus Mode** (`chat-page.tsx`, `data-chat-focus`). While THIS
   conversation has an OPEN escalation (not the raise flow, not a closed
   summary) the columns equalize: list · chat · Care trend to thirds, and
-  restore on close. The floors, from the 8pt grid: **chat 480** (a bubble of
+  restore on close. **SUPERSEDED by v9.1:** the list no longer shares the
+  room — the Escalation Focus View below; v9's floors and Care ≤ chat apply
+  inside it. The floors, from the 8pt grid: **chat 480** (a bubble of
   349px beside a full composer), list 256 (it yields first), and Care never
   wider than chat. Measured: mentor 1512 `300·744·360 → 444·480·480`; 1280
   `→ 256·480·436`; supervisor 50/50. THE COST, STATED: a supervisor at 1280
@@ -722,6 +724,44 @@ every state" rule, each marked in place above.**
 - **Deleted, not orphaned:** `assessment-deck.tsx` (deck, rail, read card,
   review ledger) and the `seg-skip` / `deck-settle` CSS. `care-v8.mjs` keeps
   its tab-lifecycle claims; its deck sections are `care-v9.mjs`'s.
+
+### Escalation Focus View (amendment pack v9.1, feat/escalation-focus-view)
+
+Answered 2026-10-26 ("go" on the light audit — 50/50 inside the view).
+**Supersedes v9.0's in-place equalization (list 444/256 beside the room)
+and the Support auto-collapse inside it, each marked in place above.**
+
+- **A room, entered.** A conversation is IN the view while this lens holds
+  its escalation record (`roomFor`): open, or closed with the summary not
+  yet dismissed. In it the list's track is 0 and the list inert; chat and
+  Care are v9's equalized proportions — 50/50, chat ≥ 480 (mentor 1512 702 ·
+  702; 1280 586 · 586; the supervisor's unchanged). THE COST, STATED: at 702
+  the compact question rows run ~85 characters, past the 75 ceiling — the
+  pack's "proportions carry forward" won over the measure (560 was offered).
+- **"← Chats · N"** is the supervisor's "← Monitoring" bar, at every width:
+  both lenses land in the same room and only the label differs. N is the
+  OTHER conversations with unreads; it ticks on change, hidden at 0. It
+  closes nothing; the pinned row re-enters.
+- **A default is never the room.** With no conversation in the route, `md`
+  and up still selects one beside the list — and an escalated default would
+  have turned ← Chats into a loop back in. The default skips the room; a
+  ROUTE (a row, a notification) always lands in it.
+- **The Active escalation group** is a partition of the filtered rows, open
+  escalations first, under one quiet header that exists only when non-empty
+  (a blocked constant); no new filter tab. A section labelled by its h3.
+- **Motion follows an action.** The grid transitions only after the reader
+  has pressed something on the page (`data-chat-motion`, armed on the first
+  pointerdown/keydown): the mid-chat open (Confirm) and the dismiss exit
+  compose in ONE motion — the list track slides 300 ↔ 0 as the list fades,
+  the same beat as the Care header's yield — and anything a LOAD brings in
+  lands. A frame count could not promise that: the records arrive after two
+  frames (measured), and v9.0's deep link animated 43 frames from steady.
+  Duration and easing live INSIDE the variant — unscoped, `transition-
+  property: all` timed every change (measured).
+- **Route entries land, they do not travel** (deferred): a row and ← Chats
+  are navigations, which remount the page — a CSS transition cannot span
+  them, and React's `<ViewTransition>` needs `experimental.viewTransition`,
+  which cross-fades every navigation in the app.
 
 ### Monitoring asserts only what it can compute (arch-mon)
 

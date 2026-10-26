@@ -35,7 +35,10 @@ async function chat(scenario, width = 1440, height = 900) {
   const errors = [];
   p.on("pageerror", (e) => errors.push(String(e).slice(0, 160)));
   p.on("console", (m) => { if (m.type() === "error") errors.push(m.text().slice(0, 160)); });
-  await p.goto(BASE + "/app/chat", { waitUntil: "networkidle" });
+  /* RETARGETED (pack v9.1): an escalated conversation is never the
+     DEFAULT selection — the focus view is entered by a route — so the
+     escalation scenarios open the thread itself. */
+  await p.goto(BASE + (/^escalation-/.test(scenario) ? "/app/chat/t13" : "/app/chat"), { waitUntil: "networkidle" });
   await p.waitForTimeout(1800);
   p.__errors = errors;
   return p;
