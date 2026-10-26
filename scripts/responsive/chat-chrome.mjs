@@ -195,7 +195,10 @@ console.log("\n── the kebab @ active-mentorship");
   await p.keyboard.press("Escape");
 
   /* GONE WHILE ONE IS OPEN, like the message menu's. */
-  const q = await open("/app/chat", { scenario: "escalation-active" });
+  /* RETARGETED (pack v9.1): an escalated conversation is never the
+     DEFAULT selection — the focus view is entered by a route — so the
+     escalation scenarios open the thread itself. */
+  const q = await open("/app/chat/t13", { scenario: "escalation-active" });
   await q.locator('button[aria-label^="More options for"]').click();
   await q.waitForTimeout(400);
   const during = await q.evaluate(

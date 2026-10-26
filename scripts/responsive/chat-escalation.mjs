@@ -35,7 +35,11 @@ const check = (ok, label, extra = "") => {
 
 const b = await chromium.launch();
 
-async function chat(scenario, width = 1440, height = 1000, { persona = "mentor", extra = {}, path = "/app/chat" } = {}) {
+async function chat(scenario, width = 1440, height = 1000, { persona = "mentor", extra = {}, path } = {}) {
+  /* RETARGETED (pack v9.1): an escalated conversation is never the
+     DEFAULT selection — the focus view is entered by a route — so the
+     escalation scenarios open the thread itself. */
+  path ??= /^escalation-/.test(scenario) ? "/app/chat/t13" : "/app/chat";
   const ctx = await b.newContext({ viewport: { width, height } });
   await ctx.addInitScript(
     ([k, v]) => {
@@ -419,6 +423,13 @@ console.log("\n── raising one @ active-mentorship");
   await p.waitForTimeout(1200);
   await p.goto(BASE + "/app/chat", { waitUntil: "networkidle" });
   await p.waitForTimeout(1900);
+  /* RETARGETED (pack v9.1): back on the list it is PINNED under "Active
+     escalation" (a default is never the room), and its row opens the
+     focus view with the banner. */
+  const pinnedRow = p.locator('[data-list-group="active-escalation"] [data-anno-ref^="conversation-row:"]').first();
+  check((await pinnedRow.count()) === 1, "back on the list, it is pinned under Active escalation");
+  await pinnedRow.click();
+  await p.waitForTimeout(1500);
   const returned = await p.evaluate(`(() => {
     const banner = document.querySelector('[data-slot="status-banner"]');
     return { banner: !!banner, notified: /Supervisor notified/.test(banner?.innerText ?? "") };

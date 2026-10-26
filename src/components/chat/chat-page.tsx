@@ -27,7 +27,7 @@
 // reason `useMounted` gates the seed rather than the render: the shell and the
 // three columns paint immediately; only the DATA waits a frame.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PanelRight, PanelRightClose, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -213,7 +213,35 @@ export function ChatPage({
   /* ═══ TEENS ONLY (SUP-5) ═══ Support conversations live in the Support
      panel now; this page never selects one. */
   const teenThreads = useMemo(() => (data?.threads ?? []).filter((t) => t.kind === "teen"), [data]);
-  const thread = teenThreads.find((t) => t.id === selectedId) ?? teenThreads[0];
+  /* Up here (it reads only the clock): the default selection needs it. */
+  const tiering = useTiering(now);
+  /** ═══ THE ROOM'S RECORD ═══ An open escalation, or a closed one whose
+   *  summary this LENS has not dismissed — what keeps a conversation in the
+   *  focus view (pack v9.1) and the Escalation review tab up (v8.0). */
+  const roomFor = (id: string) => {
+    const open = tiering.openEscalationFor(id);
+    if (open) return open;
+    const last = tiering.escalationFor(id);
+    return last && last.resolvedAt !== null && !(isSupervisorTier(persona) ? last.supervisorWrapSeenAt : last.wrapSeenAt) ? last : undefined;
+  };
+  /* ═══ A DEFAULT IS NEVER THE ROOM (pack v9.1) ═══ With no conversation in
+     the route, `md` and up still shows one beside the list — and a default
+     that was escalated would put the list beside an escalated conversation,
+     which the focus view forbids, and turn "← Chats" into a loop back into
+     the room. So the default skips any conversation in the view; the pinned
+     group is how to enter it. A ROUTE always wins: a deep link or a row
+     lands in the view. */
+  /* ═══ …BUT A RAISE HERE HOLDS IT ═══ Raising on the default conversation
+     makes it the room — the default rule would then hand the pane to the
+     next conversation, mid-raise (measured: the banner never rendered).
+     So a raise holds the default it was raised on, and the view composes
+     around it in place. Set in the Confirm handler, never in an effect. */
+  const [heldDefault, setHeldDefault] = useState<string | null>(null);
+  const thread = personId
+    ? (teenThreads.find((t) => t.id === personId) ?? teenThreads[0])
+    : ((heldDefault ? teenThreads.find((t) => t.id === heldDefault) : undefined) ??
+      (selectedId && !roomFor(selectedId) ? teenThreads.find((t) => t.id === selectedId) : undefined) ??
+      teenThreads.find((t) => !roomFor(t.id)));
 
   /* ═══ OPEN A SUPPORT THREAD IN THE PANEL (SUP-5) ═══ The one door into
      Support from outside it: a deep link to a support thread (anything that
@@ -304,7 +332,6 @@ export function ChatPage({
      above now lives in `useTiering`, which the user record and Monitoring
      read too — so the escalation a mentor sees here is the one in the
      Tier 1 lane. Same rule: the store's record wins, resolved is history. */
-  const tiering = useTiering(now);
   const escalation = thread ? tiering.openEscalationFor(thread.id) : undefined;
   /** ═══ THE MENTOR'S WRAP-UP (M4) ═══ A closed escalation the mentor has
    *  not read yet keeps Care in the exchange until they do. Up here because
@@ -314,9 +341,7 @@ export function ChatPage({
   /* ═══ THE ESCALATION REVIEW TAB'S RECORD (pack v8.0) ═══ The open
      escalation — or a closed one this LENS has not dismissed yet: the closed
      summary is both lenses' now (it was the mentor's alone). */
-  const careEscalation =
-    escalation ??
-    (latest && latest.resolvedAt !== null && !(isSupervisorTier(persona) ? latest.supervisorWrapSeenAt : latest.wrapSeenAt) ? latest : undefined);
+  const careEscalation = thread ? roomFor(thread.id) : undefined;
 
   /** ═══ THE ASSIST LADDER'S INPUTS, AND THE TEEN BEHIND THE THREAD ═══
    *
@@ -395,10 +420,58 @@ export function ChatPage({
   const supportOpen = useSupportOpen();
   const supportThreadId = useSupportThread();
   const beside = supportOpen && !!thread;
-  /** ═══ ESCALATION FOCUS MODE (pack v9.0) ═══ This conversation has an
-   *  OPEN escalation — not the raise flow (nothing is open yet), not a
-   *  closed summary (closing restores the room). */
-  const focus = !!escalation;
+  /** ═══ THE ESCALATION FOCUS VIEW (pack v9.1) ═══ This conversation's
+   *  escalation record is in this lens's hands: OPEN, or closed with its
+   *  summary not yet dismissed here (`careEscalation`). Not the raise flow —
+   *  nothing is open yet. Dismissing the summary is the exit (v9.1 Part 4).
+   *  SUPERSEDES v9.0's `!!escalation`, under which closing restored the room
+   *  while the summary was still on screen. */
+  const focus = !!thread && !!careEscalation;
+  /** "← Chats · N": the OTHER conversations with unreads (v9.1 Part 2). */
+  const unreadElsewhere = threads.filter((t) => t.id !== thread?.id && t.kind === "teen" && t.unreadCount > 0).length;
+  /* ═══ MOTION FOLLOWS AN ACTION (pack v9.1, Phase 0 §5) ═══ The grid may
+     transition only after the reader has pressed something on this page.
+     Every in-place change the pack composes is the reader's own — Confirm
+     opening the escalation mid-chat, Dismiss on the closed summary — while
+     everything a LOAD brings in (the mount-gated thread data, the tiering
+     records, a notification's deep link) arrives before any press, and so
+     swaps: the page lands in the view. A frame count cannot promise that
+     (measured: the records arrive after two frames), an action can. A DOM
+     write, not state — nothing re-renders for it. */
+  const layoutRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const arm = () => layoutRef.current?.setAttribute("data-chat-motion", "");
+    window.addEventListener("pointerdown", arm, { capture: true, once: true });
+    window.addEventListener("keydown", arm, { capture: true, once: true });
+    return () => {
+      window.removeEventListener("pointerdown", arm, { capture: true });
+      window.removeEventListener("keydown", arm, { capture: true });
+    };
+  }, []);
+  /* ═══ ENTERING THE VIEW IS ANNOUNCED ═══ Once per entry (a deep link, a
+     row, a mid-chat open), politely; the changed architecture is the visual
+     signal, so there is no on-screen copy. */
+  const focusSaid = useRef<HTMLParagraphElement>(null);
+  /* The count's quiet tick: a DOM class on change, never on first paint. */
+  const countRef = useRef<HTMLSpanElement>(null);
+  const lastCount = useRef<number | null>(null);
+  useEffect(() => {
+    const el = countRef.current;
+    if (lastCount.current !== null && lastCount.current !== unreadElsewhere && el) {
+      el.classList.remove("tier-settle");
+      void el.offsetWidth;
+      el.classList.add("tier-settle");
+    }
+    lastCount.current = unreadElsewhere;
+  }, [unreadElsewhere]);
+  const focusKey = focus && thread ? thread.id : null;
+  useEffect(() => {
+    if (!focusKey || !focusSaid.current) return;
+    /* TODO-COPY */
+    focusSaid.current.textContent = isSupervisorTier(persona)
+      ? "Escalation focus view."
+      : "Escalation focus view. The conversation list is hidden; Back to chats returns to it.";
+  }, [focusKey, persona]);
   /** ═══ A SUPERVISOR WATCHES (support-beside-hub) ═══ The conversation is
    *  the observed mentor's, read-only. */
   const liveMentor = useLiveMentorRow();
@@ -671,6 +744,7 @@ export function ChatPage({
     openCare("escalation");
   };
   const confirmRaise = ({ target, note }: { target: RaiseTarget; note: string }) => {
+    if (!personId && thread) setHeldDefault(thread.id);
     if (!thread || !raise) return;
     const e = tiering.raise({ teenId: thread.id, target, note, anchorMessageId: raise.anchorMessageId });
     appendChatEvent({
@@ -716,6 +790,7 @@ export function ChatPage({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      <p ref={focusSaid} data-focus-live role="status" aria-live="polite" className="sr-only" />
       {/* ═══ THE GRID IS THE MECHANISM ═══
           Explicit column tracks rather than flex-basis, so the two fixed columns
           cannot be compressed by a long name in the middle one. `minmax(0,1fr)`
@@ -761,18 +836,37 @@ export function ChatPage({
           `--focus-dur`, shared with the Care header's yield. Reduced motion:
           the swap is instant. A breakpoint change alters the track COUNT,
           which never interpolates — so resizing a window does not animate. */}
+      {/* ═══ SUPERSEDED IN PART (pack v9.1, Supersession 1): A ROOM, NOT A
+          SQUEEZE ═══ v9.0 equalized the columns in place with the list still
+          on screen (444 · 480 · 480). The list no longer coexists with an
+          escalated conversation: inside the FOCUS VIEW its track goes to 0
+          and it is inert — chat and Care take v9's equalized proportions
+          (Care ≤ chat, chat ≥ 480 → 50/50, the supervisor's room), and the
+          way out is "← Chats · N" at the top of the conversation.
+          ═══ ONLY AN IN-SESSION CHANGE MOVES ═══ The column transition is
+          enabled (`data-chat-motion`) only once the page has painted its
+          real state — the thread data is mount-gated, so the first commit
+          is always steady. A deep link (a notification) or a fresh load
+          therefore LANDS in the view; measured on v9.0 it animated 43 frames
+          from steady. What still moves is the mid-chat open, and the exit on
+          dismiss — the room composing and releasing in one motion. Entering
+          from the list and "← Chats" are route changes, which remount the
+          page: they land, they do not travel (deferred — see the report). */}
       <div
+        ref={layoutRef}
         data-chat-layout={beside ? "beside" : "list"}
         data-chat-focus={focus ? "" : undefined}
         className={cn(
           // `relative` because the rail is ABSOLUTE wherever it is a drawer.
           "relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]",
           "grid-cols-[minmax(0,1fr)] [grid-template-areas:'banner'_'thread']",
-          "transition-[grid-template-columns] duration-[var(--focus-dur)] ease-[var(--focus-ease)] motion-reduce:transition-none",
-          listless
-            ? "[--focus-list:0px]"
-            : "[--focus-list:max(256px,min(33.333%,calc(100%_-_960px)))]",
-          "[--focus-care:min(calc((100%_-_var(--focus-list))/2),calc(100%_-_var(--focus-list)_-_480px))]",
+          /* `motion-safe:` — a reduced-motion reader gets the swap (a
+             `motion-reduce:` override loses to the data variant's order). */
+          /* Duration and easing INSIDE the variant: unscoped, they would
+             time every property's change (`transition-property` defaults to
+             `all`) — measured: the deep link animated through them. */
+          "motion-safe:data-[chat-motion]:transition-[grid-template-columns] motion-safe:data-[chat-motion]:duration-[var(--focus-dur)] motion-safe:data-[chat-motion]:ease-[var(--focus-ease)]",
+          "[--focus-care:min(50%,calc(100%_-_480px))]",
           beside
             ? focus
               ? /* SUPPORT BESIDE AN ESCALATION: the list is already gone
@@ -794,11 +888,17 @@ export function ChatPage({
                   "xl:@min-[1000px]/canvas:[grid-template-areas:'banner_banner'_'thread_rail']",
                 ]
               : [
-                  "md:@min-[640px]/canvas:grid-cols-[300px_minmax(0,1fr)] md:@min-[640px]/canvas:[grid-template-areas:'list_banner'_'list_thread']",
-                  "xl:@min-[1000px]/canvas:grid-cols-[300px_minmax(0,1fr)_360px] xl:@min-[1000px]/canvas:[grid-template-areas:'list_banner_banner'_'list_thread_rail']",
-                  /* Focus needs 256 + 480 + 360 = 1096 of canvas; below it
-                     the steady tracks stand. */
-                  focus && "xl:@min-[1096px]/canvas:grid-cols-[var(--focus-list)_minmax(0,1fr)_var(--focus-care)]",
+                  /* The list's track stays in the template in the view, at
+                     0 — same track count, so entering is ONE interpolated
+                     motion: the list slides away as Care breathes wider. */
+                  focus
+                    ? "md:@min-[640px]/canvas:grid-cols-[0px_minmax(0,1fr)]"
+                    : "md:@min-[640px]/canvas:grid-cols-[300px_minmax(0,1fr)]",
+                  "md:@min-[640px]/canvas:[grid-template-areas:'list_banner'_'list_thread']",
+                  focus
+                    ? "xl:@min-[1000px]/canvas:grid-cols-[0px_minmax(0,1fr)_var(--focus-care)]"
+                    : "xl:@min-[1000px]/canvas:grid-cols-[300px_minmax(0,1fr)_360px]",
+                  "xl:@min-[1000px]/canvas:[grid-template-areas:'list_banner_banner'_'list_thread_rail']",
                 ]
         )}
       >
@@ -827,6 +927,7 @@ export function ChatPage({
           threads={threads}
           now={now}
           escalations={listEscalations}
+          away={focus}
           selectedId={thread?.id ?? null}
           onSelect={(id) => {
             /* A NAVIGATION, NOT A SETSTATE. Below `md` this hands over the
@@ -841,8 +942,14 @@ export function ChatPage({
             "[grid-area:thread] md:@min-[640px]/canvas:[grid-area:list] row-span-2",
             view === "thread" && "hidden md:flex",
             /* ═══ SUPPORT OPEN: THE LIST COLLAPSES ═══ Not narrowed — gone.
-               Back to chats, in the conversation header, brings it back. */
-            beside && "!hidden"
+               Back to chats, in the conversation header, brings it back.
+               (In the focus view the list is already away — v9.1
+               Supersession 2 — so this only ever acts outside it.) */
+            beside && "!hidden",
+            /* ═══ IN THE FOCUS VIEW THE LIST IS AWAY ═══ Its track is 0; it
+               fades in the same beat as the columns, and is inert. */
+            focus && "min-w-0 overflow-hidden opacity-0",
+            "motion-safe:in-data-[chat-motion]:transition-opacity motion-safe:in-data-[chat-motion]:duration-[var(--focus-dur)] motion-safe:in-data-[chat-motion]:ease-[var(--focus-ease)]"
           )}
         />}
 
@@ -877,6 +984,38 @@ export function ChatPage({
               {/* TODO-COPY */}
               Monitoring
             </Link>
+          ) : focus ? (
+            /* ═══ ← CHATS · N — THE WAY OUT OF THE FOCUS VIEW (pack v9.1) ═══
+               The same bar as the supervisor's "← Monitoring", at every
+               width: both lenses land in the same room, and only the back
+               label differs. A link (the three back gestures, as below); it
+               closes nothing, and the row re-enters the view while the
+               escalation is open. N counts the OTHER conversations with
+               unreads and ticks quietly when it changes (make it magical 3);
+               hidden at 0. First in the conversation's tab order. */
+            <Link
+              href="/app/chat"
+              data-slot="chat-back-chats"
+              aria-label={unreadElsewhere > 0 ? `Back to chats, ${unreadElsewhere} with unread messages` : "Back to chats"}
+              className={cn(
+                "flex min-h-11 shrink-0 items-center gap-1.5 border-b border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-4 text-[var(--text-secondary)]",
+                "hover:text-[var(--text-primary)]",
+                RING
+              )}
+              style={{ font: "var(--type-body)" }}
+            >
+              <ArrowLeft className="size-4 shrink-0" aria-hidden />
+              {/* TODO-COPY */}
+              Chats
+              {unreadElsewhere > 0 && (
+                <span aria-hidden className="tabular-nums text-[var(--text-muted)]">
+                  {" · "}
+                  <span ref={countRef} data-chat-back-count className="inline-block">
+                    {unreadElsewhere}
+                  </span>
+                </span>
+              )}
+            </Link>
           ) : view === "thread" && !beside && (
             /* ═══ A LINK, BECAUSE THREE GESTURES HAVE TO LAND ON THE LIST ═══
                Browser back, the Android system back gesture and iOS swipe-back
@@ -909,7 +1048,7 @@ export function ChatPage({
               <Thread
                 /* The way back to the list while Support has it collapsed:
                    closing Support is what restores it (the pack's rule 4). */
-                onBackToChats={beside ? () => setSupportOpen(false) : undefined}
+                onBackToChats={beside && !focus ? () => setSupportOpen(false) : undefined}
                 observer={observer}
                 thread={thread}
                 messages={messages}

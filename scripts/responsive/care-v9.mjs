@@ -235,15 +235,20 @@ let assessed;
   await setPersona(page, "supervisor");
   const during = await cols(page);
   await page.locator('[data-s1-tier="3"]').click();
-  await sampler(page);
   await page.locator('[data-exchange-primary="confirm-tier"]').click();
+  await page.waitForTimeout(1100);
+  const cells = await page.evaluate(() => ({ cells: document.querySelector('[data-care-yield="cells"]')?.dataset.open, strip: document.querySelector('[data-care-yield="strip"]')?.dataset.open, state: document.querySelector("[data-care-panel]")?.dataset.careState }));
+  /* RETARGETED (pack v9.1, Part 4): closing leaves the closed summary IN
+     the room; Dismiss is the exit — and the restore is one motion. */
+  const held = await cols(page);
+  await sampler(page);
+  await page.locator('[data-exchange-primary="dismiss-summary"]').click();
   await page.waitForTimeout(1100);
   const m = motionOf(await samples(page));
   const after = await cols(page);
-  const cells = await page.evaluate(() => ({ cells: document.querySelector('[data-care-yield="cells"]')?.dataset.open, strip: document.querySelector('[data-care-yield="strip"]')?.dataset.open, state: document.querySelector("[data-care-panel]")?.dataset.careState }));
-  report.layout.push({ who: "supervisor 1512, close", during: during.cols, after: after.cols });
-  check(during.focus && !after.focus && after.cols === "888px 360px", "close: the columns restore (supervisor 1512)", `${during.cols} → ${after.cols}`);
-  check(m.mono && m.between >= 3, `close: the restore is one motion too (${m.between} in-between frames)`, `${m.from} → ${m.to}`);
+  report.layout.push({ who: "supervisor 1512, close → dismiss", during: during.cols, held: held.cols, after: after.cols });
+  check(during.focus && held.focus && !after.focus && after.cols === "888px 360px", "close holds the room on its summary; Dismiss restores the columns (supervisor 1512)", `${during.cols} → ${held.cols} → ${after.cols}`);
+  check(m.mono && m.between >= 3, `the restore is one motion too (${m.between} in-between frames)`, `${m.from} → ${m.to}`);
   check(cells.state === "closed" && cells.cells === "true" && cells.strip === "false", "close: the header cells return and the strip yields", JSON.stringify(cells));
   await ctx.close();
 }

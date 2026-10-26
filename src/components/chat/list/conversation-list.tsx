@@ -120,6 +120,7 @@ export function ConversationList({
   onSelect,
   className,
   escalations,
+  away = false,
 }: {
   threads: ChatThread[];
   /** THREADED THROUGH from the page's mount-fixed clock rather than read here.
@@ -131,6 +132,9 @@ export function ConversationList({
   className?: string;
   /** Open escalations by thread (pack v5.0, C1). */
   escalations?: Record<string, RowEscalation>;
+  /** In the escalation focus view (pack v9.1): out of the room — inert and
+   *  out of the accessibility tree while its track is 0. */
+  away?: boolean;
 }) {
   /* Lazy initialisers, so the read happens once at mount rather than on every
      render — and so a remount picks up where the last one left off. */
@@ -178,6 +182,9 @@ export function ConversationList({
      through this. */
   const effectiveFilter = visible.length === 0 && filter !== "all" ? "all" : filter;
   const rows = applyFilter(inWorkspace, effectiveFilter);
+  /* The partition (pack v9.1): open escalations first, order kept. */
+  const pinned = rows.filter((t) => !!escalations?.[t.id]);
+  const rest = rows.filter((t) => !escalations?.[t.id]);
 
   /* ═══ THE RESTORE HAS TO WAIT FOR THE ROWS ═══
    *
@@ -232,6 +239,9 @@ export function ConversationList({
     <div
       data-slot="conversation-list"
       data-anno-ref="chat-list"
+      data-list-away={away ? "" : undefined}
+      inert={away}
+      aria-hidden={away || undefined}
       className={cn(
         "flex h-full min-h-0 flex-col border-r border-[color:var(--border-subtle)] bg-[var(--surface-card)]",
         className
@@ -336,30 +346,73 @@ export function ConversationList({
             No conversations here yet.
           </p>
         ) : (
-          <ul role="list">
-            {rows.map((t) => (
-              <li key={t.id}>
-                <ConversationRow
-                  thread={t}
-                  now={now}
-                  escalation={escalations?.[t.id]}
-                  selected={t.id === selectedId}
-                  /* ═══ RECORD ON DEPARTURE, NOT ONLY ON SCROLL ═══
-                     Opening a thread is the one exit that always comes back
-                     here, so it is the moment the offset has to be right. The
-                     `onScroll` handler above keeps it fresh, but it depends on
-                     the browser having dispatched a scroll event — measured 0
-                     dispatched for a programmatic scroll inside 150ms, and real
-                     ones coalesce under load. Reading `scrollTop` here needs no
-                     event to have fired at all. */
-                  onSelect={() => {
-                    remember({ top: scrollerRef.current?.scrollTop ?? 0 });
-                    onSelect(t.id);
-                  }}
-                />
-              </li>
-            ))}
-          </ul>
+          /* ═══ THE ACTIVE ESCALATION GROUP (pack v9.1) ═══ A PARTITION of the
+             filtered rows, not a re-sort: conversations with an OPEN
+             escalation pin to the top under one quiet header, the rest
+             follow in their own order. The header renders only when the
+             group has rows (a blocked constant), and there is no new filter
+             tab — each filter partitions the same way. A resolved
+             escalation leaves the group on close. The header arrives with
+             the row shield's one soft pulse when an escalation is new, then
+             holds (make it magical 2; stilled under reduced motion). */
+          <>
+            {pinned.length > 0 && (
+              <section data-list-group="active-escalation" aria-labelledby="list-group-escalation">
+                <h3
+                  id="list-group-escalation"
+                  data-list-group-header
+                  className={cn(
+                    "px-4 pt-3 pb-1.5 text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase",
+                    pinned.some((t) => escalations?.[t.id]?.fresh) && "shield-arrive"
+                  )}
+                >
+                  {/* TODO-COPY */}
+                  Active escalation
+                </h3>
+                <ul role="list">
+                  {pinned.map((t) => (
+                    <li key={t.id}>
+                      <ConversationRow
+                        thread={t}
+                        now={now}
+                        escalation={escalations?.[t.id]}
+                        selected={t.id === selectedId}
+                        onSelect={() => {
+                          remember({ top: scrollerRef.current?.scrollTop ?? 0 });
+                          onSelect(t.id);
+                        }}
+                      />
+                    </li>
+                  ))}
+                </ul>
+                <div aria-hidden className="mx-4 border-t border-[color:var(--border-subtle)]" />
+              </section>
+            )}
+            <ul role="list" data-list-group="conversations">
+              {rest.map((t) => (
+                <li key={t.id}>
+                  <ConversationRow
+                    thread={t}
+                    now={now}
+                    escalation={escalations?.[t.id]}
+                    selected={t.id === selectedId}
+                    /* ═══ RECORD ON DEPARTURE, NOT ONLY ON SCROLL ═══
+                       Opening a thread is the one exit that always comes back
+                       here, so it is the moment the offset has to be right.
+                       The `onScroll` handler above keeps it fresh, but it
+                       depends on the browser having dispatched a scroll event
+                       — measured 0 dispatched for a programmatic scroll inside
+                       150ms, and real ones coalesce under load. Reading
+                       `scrollTop` here needs no event to have fired at all. */
+                    onSelect={() => {
+                      remember({ top: scrollerRef.current?.scrollTop ?? 0 });
+                      onSelect(t.id);
+                    }}
+                  />
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </div>
     </div>
