@@ -140,6 +140,30 @@
   --t1-ink: #b70b1f;
   --t2-ink: #844b04;
   --ok-ink: #0f7542;
+
+  /* ── THE TIER LEGEND (TierSelect, amendment v10.1) — SCOPED, flagged ─────
+     A wash, its hover step and an ink per tier, for ONE component: the tier
+     picker, where every tier shows its identity at decision time. Nothing
+     else may read these — status cards, rows, History and every ambient
+     surface keep the no-wash rule and alert colour on Tiers 1–2 only (the
+     probe greps for it). Bloom ramp steps, named; the pre-existing
+     `--t1-soft` / `--t2-soft` are concept-board values, not ramp steps, so
+     the legend does not reuse them. T3 sunshine and T4 forest were
+     proposed (the mock's hues never arrived as tokens) and kept on
+     instruction, 2026-10-27.
+       wash = the lightest VISIBLE step (apricot/50 is #FFFCF8, ≈ white) */
+  --tier-legend-1-wash: #ffeaee; /* blush/50 */
+  --tier-legend-1-wash-hover: #ffd9df; /* blush/100 */
+  --tier-legend-1-ink: #b70b1f; /* blush/950 — = --t1-ink */
+  --tier-legend-2-wash: #ffe8ca; /* apricot/100 */
+  --tier-legend-2-wash-hover: #ffd49c; /* apricot/200 */
+  --tier-legend-2-ink: #844b04; /* apricot/800 — = --t2-ink */
+  --tier-legend-3-wash: #fff6ce; /* sunshine/100 */
+  --tier-legend-3-wash-hover: #fff0a2; /* sunshine/200 */
+  --tier-legend-3-ink: #625804; /* sunshine/900 */
+  --tier-legend-4-wash: #e8f5e3; /* forest/50 */
+  --tier-legend-4-wash-hover: #cce8c2; /* forest/100 */
+  --tier-legend-4-ink: #406333; /* forest/700 */
   --radius-surface: 16px;
   /* CONTROL RADIUS. Added because four files already referenced
      `--radius-control` and it was NEVER DEFINED — `rounded-[var(--radius-control)]`
@@ -811,6 +835,22 @@
   --t1-ink: #f0695c;
   --t2-ink: #ee9a4a;
   --ok-ink: #5cbf86;
+  /* The tier legend, dark. Bloom's ramps end in saturated colour, not a
+     dark well (the band triad's finding), so the washes are hand-derived
+     to sit clear of the dark panel — T1/T2 start from the board's dark
+     tints — and the inks are real ramp steps, light. Flagged. */
+  --tier-legend-1-wash: #3c221f;
+  --tier-legend-1-wash-hover: #4c2a26;
+  --tier-legend-1-ink: #ffa8b2; /* blush/400 */
+  --tier-legend-2-wash: #3a2a1a;
+  --tier-legend-2-wash-hover: #4a3520;
+  --tier-legend-2-ink: #ffc06e; /* apricot/300 */
+  --tier-legend-3-wash: #36321a;
+  --tier-legend-3-wash-hover: #443f20;
+  --tier-legend-3-ink: #ffec77; /* sunshine/300 */
+  --tier-legend-4-wash: #1f2e1c;
+  --tier-legend-4-wash-hover: #283b24;
+  --tier-legend-4-ink: #94cc82; /* forest/300 */
   --border-contour: rgb(255 255 255 / 18%); /* contour flips light-on-dark; raised with the light value */
 
   /* The same three hues, inverted: fill dark, ink light. Lifted clear of the

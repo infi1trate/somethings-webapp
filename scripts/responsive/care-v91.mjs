@@ -192,11 +192,11 @@ for (const reduce of [false, true]) {
   if (!(await page.locator("[data-care-panel]").count())) { await page.locator('[data-rail-tab="care"]').first().click(); await page.waitForTimeout(300); }
   await page.locator('[data-tier-action="escalate"]').click();
   await page.waitForTimeout(300);
-  await page.locator('[data-raise-option="2"]').click();
-  await page.locator("[data-raise-note]").fill("They said they are not okay tonight.");
+  await page.locator('[data-tier-row="2"]').click();
+  await page.locator("[data-tier-field=note]").fill("They said they are not okay tonight.");
   const before = await room(page);
   await startSampler(page, 1200);
-  await page.locator("[data-raise-confirm]").click();
+  await page.locator("[data-tier-cta=raise]").click();
   await page.waitForTimeout(1300);
   const m = motionOf(await samples(page));
   const after = await room(page);
@@ -219,9 +219,9 @@ for (const reduce of [false, true]) {
   if (!(await page.locator("[data-care-panel]").count())) { await page.locator('[data-rail-tab="care"]').first().click(); await page.waitForTimeout(300); }
   await page.locator('[data-tier-action="escalate"]').click();
   await page.waitForTimeout(300);
-  await page.locator('[data-raise-option="2"]').click();
-  await page.locator("[data-raise-note]").fill("They said they are not okay tonight.");
-  await page.locator("[data-raise-confirm]").click();
+  await page.locator('[data-tier-row="2"]').click();
+  await page.locator("[data-tier-field=note]").fill("They said they are not okay tonight.");
+  await page.locator("[data-tier-cta=raise]").click();
   await page.waitForTimeout(1200);
   const after = await room(page);
   const name = await page.evaluate(() => document.querySelector('[data-slot="chat-thread-name"]')?.textContent);
@@ -237,9 +237,9 @@ for (const reduce of [false, true]) {
   if (!(await page.locator("[data-care-panel]").count())) { await page.locator('[data-rail-tab="care"]').first().click(); await page.waitForTimeout(300); }
   await page.locator('[data-tier-action="escalate"]').click();
   await page.waitForTimeout(300);
-  await page.locator('[data-raise-option="3"]').click();
-  await page.locator("[data-raise-note]").fill("Probe: a second open escalation.");
-  await page.locator("[data-raise-confirm]").click();
+  await page.locator('[data-tier-row="3"]').click();
+  await page.locator("[data-tier-field=note]").fill("Probe: a second open escalation.");
+  await page.locator("[data-tier-cta=raise]").click();
   await page.waitForTimeout(800);
   await page.goto(`${BASE}/app/chat`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1300);
@@ -273,8 +273,8 @@ let closedState;
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
   await page.waitForTimeout(400);
   await setPersona(page, "supervisor");
-  await page.locator('[data-s1-tier="3"]').click();
-  await page.locator('[data-exchange-primary="confirm-tier"]').click();
+  await page.locator('[data-tier-row="3"]').click();
+  await page.locator('[data-tier-cta=confirm]').click();
   await page.waitForTimeout(800);
   let r = await room(page);
   check(r.focus && !r.banner && (await page.evaluate(() => document.querySelector("[data-care-panel]")?.dataset.careState)) === "closed", "supervisor: closed — still in the room on its summary (the banner is gone)", JSON.stringify({ focus: r.focus, banner: r.banner }));

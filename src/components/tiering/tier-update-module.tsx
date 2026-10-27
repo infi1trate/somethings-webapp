@@ -11,8 +11,10 @@
 //
 // What it allows is `placementsFrom` — up anywhere, down one step on the
 // tier's exit document, Tier 1 to Tier 3 only on a "no longer a threat"
-// crisis note. A pending request is pre-selected and quoted, and the
-// supervisor can decline it ("Keep in Tier N") with a reason instead.
+// crisis note. A pending request is pre-selected — checked and tagged
+// "Requested by {mentor} · {time}" in `TierSelect` (pack v10.0), its words
+// quoted into the reason — and the supervisor can decline it ("Keep in
+// Tier N") with a reason instead.
 //
 // Also here, because they are the same dialog grammar: the mentor's
 // step-down REQUEST, and the raise flow's dialog host for the record.
@@ -21,8 +23,9 @@ import { useId, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TierLozenge } from "@/components/ui/tier-lozenge";
 import { RaiseFlow } from "@/components/tiering/raise-flow";
-import { describeEvent, placementsFrom, type TierActor, type TierState } from "@/lib/tiering/events";
-import { EXIT_DOCUMENT, EXITS_TO, TIER_NAME, type RaiseTarget, type Tier } from "@/lib/tiering/tiers";
+import { TierSelect, mentorFirstName } from "@/components/tiering/tier-select";
+import { placementsFrom, type TierActor, type TierState } from "@/lib/tiering/events";
+import { EXIT_DOCUMENT, EXITS_TO, type RaiseTarget, type Tier } from "@/lib/tiering/tiers";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -86,22 +89,13 @@ function PrimaryButton({ children, onClick, slot }: { children: React.ReactNode;
   );
 }
 
-function GhostButton({ children, onClick, slot }: { children: React.ReactNode; onClick: () => void; slot: string }) {
-  return (
-    <button
-      type="button"
-      data-tier-secondary={slot}
-      onClick={onClick}
-      className={cn("inline-flex min-h-10 items-center rounded-full border border-[color:var(--border-contour)] px-4 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
-      style={{ font: "var(--type-body)" }}
-    >
-      {children}
-    </button>
-  );
-}
-
 /** ═══ THE MODULE ═══ Content only, so a host can put it in a dialog, a pane
- *  or a sheet. */
+ *  or a sheet. ═══ SINCE pack v10.0 ═══ it is `TierSelect` in review mode
+ *  (kind `update`): all four tiers with their criteria, the current one
+ *  checked, rows the movement rules refuse visible and disabled with their
+ *  reason, and a CTA that names the move ("Update to Tier 2"). A pending
+ *  request arrives checked and tagged instead, and "Keep in Tier N" declines
+ *  it. The 2×2 grid it replaces is deleted. */
 export function TierUpdateModule({
   state,
   name,
@@ -121,106 +115,47 @@ export function TierUpdateModule({
   /* The "no longer a threat" crisis-note exit retired with the mentor's
      Resolve (Escalation Exchange, pack v2.0); the close-out's own step down
      is `CLOSE_OUT_TIER`. */
-  const options = placementsFrom(state.tier);
-  const [tier, setTier] = useState<Tier | null>(pending && options.find((o) => o.tier === pending.tier)?.allowed ? pending.tier : null);
-  const [reason, setReason] = useState("");
-  const [tried, setTried] = useState(false);
-  const groupId = useId();
-  const choice = options.find((o) => o.tier === tier);
-  const exitDoc = choice?.stepDown && state.tier !== null && state.tier !== 4 ? EXIT_DOCUMENT[state.tier] : null;
-
-  const submit = () => {
-    setTried(true);
-    if (tier === null || !reason.trim()) return;
-    onSetTier({ tier, reason: reason.trim() });
-    onDone();
+  const placements = placementsFrom(state.tier);
+  const by = pending ? mentorFirstName(nameOf(pending.actor)) : null;
+  const exitDocFor = (t: Tier | null) => {
+    const p = placements.find((o) => o.tier === t);
+    return p?.stepDown && state.tier !== null && state.tier !== 4 ? EXIT_DOCUMENT[state.tier] : null;
   };
-  const decline = () => {
-    setTried(true);
-    if (!reason.trim()) return;
-    onDecline(reason.trim());
-    onDone();
-  };
-
   return (
-    <div data-tier-update className="space-y-4">
-      {pending && (
-        <div data-tier-update-pending className="rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2.5">
-          <p className="text-[var(--text-primary)]" style={{ font: "var(--type-body)" }}>
-            {describeEvent(pending, nameOf(pending.actor))}
-          </p>
-          <p className="mt-0.5 text-[var(--text-secondary)]" style={{ font: "var(--type-field-label)" }}>
-            &ldquo;{pending.reason}&rdquo;
-          </p>
-        </div>
-      )}
-
-      <div>
-        <p id={groupId} className="mb-2 text-[var(--text-muted)]" style={{ font: "var(--type-field-label)" }}>
-          {/* TODO-COPY */}
-          {state.tier ? `${name} is in Tier ${state.tier} · ${TIER_NAME[state.tier]}. Move to` : `Place ${name} in`}
-        </p>
-        <div role="radiogroup" aria-labelledby={groupId} className="grid grid-cols-2 gap-2">
-          {options.map((o) => {
-            const selected = o.tier === tier;
-            return (
-              <button
-                key={o.tier}
-                type="button"
-                role="radio"
-                data-tier-option={o.tier}
-                aria-checked={selected}
-                aria-disabled={!o.allowed || undefined}
-                onClick={() => o.allowed && setTier(o.tier)}
-                className={cn(
-                  "flex min-h-11 flex-col items-start gap-1 rounded-[var(--radius-inset)] border px-3 py-2 text-left",
-                  !o.allowed
-                    ? "cursor-not-allowed border-dashed border-[color:var(--border-default)] opacity-70"
-                    : selected
-                      ? "border-[color:var(--text-primary)] bg-[var(--surface-s2)]"
-                      : "border-[color:var(--border-subtle)] bg-[var(--surface-s1)] hover:bg-[var(--tint-hover)]",
-                  RING
-                )}
-              >
-                <TierLozenge tier={o.tier} long />
-                {!o.allowed && o.why && (
-                  <span className="text-[var(--text-secondary)]" style={{ font: "var(--type-field-label)" }}>
-                    {o.why}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-        {tried && tier === null && !pending && (
-          <p role="alert" className="mt-1.5 text-[var(--state-error)]" style={{ font: "var(--type-field-label)" }}>
-            {/* TODO-COPY */}
-            Choose a tier.
-          </p>
-        )}
-      </div>
-
-      <ReasonField
+    <div data-tier-update>
+      <TierSelect
+        mode="review"
+        kind="update"
+        name={name}
+        current={state.tier}
+        request={pending && by ? { tier: pending.tier, by: by.first, at: pending.at } : null}
+        placements={placements}
+        /* TODO-COPY. A request is quoted into the reason, neutrally, so the
+           record keeps what was asked even when the answer differs. */
+        seed={pending && by ? `Reviewed ${by.possessive} request: “${pending.reason}”` : ""}
         /* TODO-COPY. A step down records the tier's exit document. */
-        label={exitDoc ? `${exitDoc} — why ${name} is ready to step down` : "Reason — posted to the record"}
-        value={reason}
-        onChange={setReason}
-        invalid={tried && !reason.trim()}
-        placeholder={exitDoc ? "What has changed, and what support stays in place" : "What you saw and decided"}
+        reasonLabel={(t) => {
+          const doc = exitDocFor(t);
+          return doc ? `${doc} — why ${name} is ready to step down` : "Reason — posted to the record";
+        }}
+        onSubmit={(input) => {
+          onSetTier(input);
+          onDone();
+        }}
+        secondary={
+          pending && state.tier !== null
+            ? {
+                /* TODO-COPY */
+                label: `Keep in Tier ${state.tier}`,
+                slot: "decline",
+                run: (reason) => {
+                  onDecline(reason);
+                  onDone();
+                },
+              }
+            : undefined
+        }
       />
-
-      <div className="flex flex-wrap gap-2">
-        <PrimaryButton slot="post" onClick={submit}>
-          {/* TODO-COPY */}
-          {pending && tier === pending.tier ? `Confirm Tier ${tier}` : "Post update"}
-        </PrimaryButton>
-        {pending && state.tier !== null && (
-          <GhostButton slot="decline" onClick={decline}>
-            {/* TODO-COPY */}
-            Keep in Tier {state.tier}
-          </GhostButton>
-        )}
-      </div>
     </div>
   );
 }

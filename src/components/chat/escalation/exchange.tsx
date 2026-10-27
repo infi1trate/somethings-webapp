@@ -29,6 +29,7 @@ import { announceClose } from "@/components/chat/escalation/close-toast";
 import { Quote } from "@/components/chat/escalation/quote";
 import { WaitingModule, type SupervisorEcho } from "@/components/chat/escalation/waiting-module";
 import { TierLozenge } from "@/components/ui/tier-lozenge";
+import { TierSelect, mentorFirstName } from "@/components/tiering/tier-select";
 import type { EscalationState, MessageOrigin } from "@/lib/chat/types";
 import {
   CLOSE_OUT_TIER,
@@ -44,10 +45,10 @@ import {
 } from "@/lib/tiering/escalation";
 import { noteProgressOf, noteTierOf, orderNodes, timelineNodes, type Lens, type TimelineNode } from "@/lib/tiering/timeline";
 import type { Tiering } from "@/lib/tiering/use-tiering";
-import { PLATFORM, TIER_NAME, isAlertTier, type Tier } from "@/lib/tiering/tiers";
+import { PLATFORM, TIER_NAME, isAlertTier } from "@/lib/tiering/tiers";
 import { cn } from "@/lib/utils";
 import { GuidedAssessment } from "@/components/chat/escalation/guided-assessment";
-import { BODY, Field, LABEL, Primary, RING, RiskChip, TITLE, onRadioKeys, rovingTab } from "@/components/chat/escalation/controls";
+import { BODY, Field, LABEL, Primary, RING, RiskChip, TITLE, onRadioKeys } from "@/components/chat/escalation/controls";
 import { CrisisNoteAccordion } from "@/components/chat/escalation/crisis-note-accordion";
 
 const TIME = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
@@ -389,69 +390,36 @@ function Node({
 
 function ConfirmCard({ e, name, tiering, teenId, onSettled }: { e: EscalationState; name: string; tiering: Tiering; teenId: string; onSettled?: () => void }) {
   const target = escalationTarget(e);
-  const [tier, setTier] = useState<Tier | null>(target === PLATFORM ? null : target);
-  /* TODO-COPY. Prefilled because confirming the request IS the reason; the
-     field stays required and editable, because every tier event has one. */
-  const [reason, setReason] = useState("Confirmed on the mentor's note and assessment.");
-  const [tried, setTried] = useState(false);
+  /* The mentor's request, as the log wrote it — who, and when. */
+  const ask = tiering.eventsFor(teenId).find((x) => x.escalationId === e.id && x.kind === "requested");
+  const by = mentorFirstName(ask ? tiering.nameOf(ask.actor) : tiering.liveMentorName);
+  const at = ask?.at ?? e.openedAt;
+  /* ═══ TierSelect, review mode (pack v10.0) ═══ The request arrives checked
+     and tagged; overriding is checking another row. NEUTRAL UNTIL CONFIRMED
+     (blocked constant): alarm colour lives in the Tier 1–2 lozenges and
+     arrives on the record with the confirmation, in the header. */
   return (
-    <div data-s1 className="space-y-3">
-      {/* ═══ NEUTRAL UNTIL CONFIRMED (blocked constant) ═══ The four matrix
-          tiers, the request pre-selected — in neutral styling. Alarm colour
-          arrives only with the confirmation, in the header's lozenge. */}
-      <div role="radiogroup" aria-label={`Tier for ${name}`} onKeyDown={onRadioKeys} className="grid grid-cols-2 gap-2">
-        {([1, 2, 3, 4] as Tier[]).map((t, i) => {
-          const on = t === tier;
-          return (
-            <button
-              key={t}
-              type="button"
-              role="radio"
-              aria-checked={on}
-              tabIndex={rovingTab(on, i === 0, tier !== null)}
-              data-s1-tier={t}
-              onClick={() => setTier(t)}
-              className={cn(
-                "flex min-h-11 flex-col items-start justify-center rounded-[var(--radius-inset)] border px-3 py-1.5 text-left",
-                on ? "border-[color:var(--text-primary)] bg-[var(--surface-s2)]" : "border-[color:var(--border-subtle)] bg-[var(--surface-s1)] hover:bg-[var(--tint-hover)]",
-                RING
-              )}
-            >
-              <span className="font-mono text-[12px] leading-4 text-[var(--text-secondary)]">Tier {t}</span>
-              <span className="text-[var(--text-primary)]" style={BODY}>
-                {TIER_NAME[t]}
-              </span>
-              {t === target && (
-                <span className="text-[var(--text-muted)]" style={LABEL}>
-                  {/* TODO-COPY */}
-                  Requested
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-      {tier !== null && tier >= 3 && (
-        <p data-s1-exit className="text-[var(--text-secondary)]" style={LABEL}>
-          {/* TODO-COPY */}
-          Tier {tier} is a standard tier update: confirming it closes this escalation, with no crisis note.
-        </p>
-      )}
-      <Field slot="confirm-reason" label="Reason — posted to the record" value={reason} onChange={setReason} invalid={tried && !reason.trim()} />
-      <Primary
-        slot="confirm-tier"
-        onClick={() => {
-          setTried(true);
-          if (tier === null || !reason.trim()) return;
+    <div data-s1>
+      <TierSelect
+        mode="review"
+        kind="confirm"
+        name={name}
+        current={tiering.stateFor(teenId).tier}
+        request={target === PLATFORM ? null : { tier: target, by: by.first, at }}
+        submittedBy={{ name: by.full, at, known: by.known }}
+        /* TODO-COPY. Neutral, so it stays true on an override; it stays
+           required and editable, because every tier event has one. */
+        seed={e.contextNote ? `Reviewed ${by.possessive} note: “${e.contextNote}”` : `Reviewed ${by.possessive} note and assessment.`}
+        consequence={(t) =>
+          t !== null && t >= 3 ? `Tier ${t} is a standard tier update: confirming it closes this escalation, with no crisis note.` : null
+        }
+        onSubmit={({ tier, reason }) => {
           if (tiering.confirm(teenId, tier, reason) && tier >= 3) {
             announceClose(e.id, name, tier);
             onSettled?.();
           }
         }}
-      >
-        {/* TODO-COPY */}
-        {tier === target ? `Confirm Tier ${tier}` : tier !== null ? `Adjust to Tier ${tier}` : "Choose a tier"}
-      </Primary>
+      />
     </div>
   );
 }

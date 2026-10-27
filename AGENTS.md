@@ -364,6 +364,10 @@ exchange's presentation and five v1/v2 rules, each marked in place above.**
   holds the supervisor at S0.
 - **Neutral until confirmed** (blocked constant): the tier picker and Confirm
   carry no alert colour; red arrives with the confirmation, in the header.
+  **SUPERSEDED IN PART by v10.0 / v10.1:** the picker is `TierSelect` — its
+  Tier 1–2 lozenges carry their inks and every card its tier's legend wash
+  (the scoped exception); Confirm and the record stay neutral until the
+  confirmation.
 - **Red in the mentor's escalation view** is the banner, the two escalation
   dots (rail and Overview tab), Tier 1–2 lozenges, and the live raise chip in
   the thread (Workstream E2: alert family while open; clay once closed; the
@@ -466,6 +470,8 @@ upcoming ghosts and the bare waiting line, each in place below.**
 - **Surfaces are a ladder.** The thread on the base (`surface-card`), the Care
   body one step deeper (`surface-s1`), cards lightest (`surface-raised` on
   `--el-soft`). No whole-card tints: a tier's colour lives in its lozenge.
+  (**One scoped exception, v10.1:** `TierSelect`'s cards — the picker is a
+  legend. Nowhere else.)
 - **Exactly one emphasis.** The current node is the only element that is
   raised AND ringed; the ring is `--alert-critical-border` on Tiers 1–2,
   `--border-default` otherwise. One filled button per panel state at most.
@@ -762,6 +768,63 @@ and the Support auto-collapse inside it, each marked in place above.**
   are navigations, which remount the page — a CSS transition cannot span
   them, and React's `<ViewTransition>` needs `experimental.viewTransition`,
   which cross-fades every navigation in the app.
+
+### TierSelect — one tier decision, one component (pack v10.0 + amendment v10.1, feat/tier-select)
+
+Answered 2026-10-27 ("go" on the Phase 0 defaults; v10.1 arrived mid-build
+and was folded in). **Supersedes the three per-role tier controls, v1's
+red-on-T1–2 Confirm escalation, and — inside this component only — v4's
+no-whole-card-tints rule and v3's neutral picker, each marked in place above.**
+
+- **One component, two modes** (`components/tiering/tier-select.tsx`). Raise
+  (mentor): Tiers 1–3, the plain-language lines, empty on load, the platform
+  escape below and outside the group, a required 280-character note,
+  Confirm escalation + Cancel. Review (supervisor): Tiers 1–4, the clinical
+  criteria, the request arriving checked and tagged "Requested by {mentor} ·
+  {time}", a reason seeded from the mentor's note, and a CTA that spells the
+  consequence out ("Confirm Tier 2 · High risk"), relabelled live and
+  announced. Review serves the confirm-tier step (`exchange.tsx`
+  ConfirmCard) and the Update tier flow (`TierUpdateModule`). Deleted, not
+  orphaned: the raise flow's radio list, the confirm grid, the update grid,
+  "Adjust to Tier n", "Post update".
+- **Copy is one file** (`lib/tiering/tiers.ts`), all blocked constants:
+  `TIER_NAME` (T1 Active crisis · T2 High risk · T3 Medium risk · T4
+  General), `RAISE_DESCRIPTION` (the pack's mentor table, verbatim) and
+  `TIER_CRITERIA`. **Provenance, stated:** the tier matrix is not in this
+  repo; the criteria are the pack's words, comma-joined, the first letter
+  capitalised — replace with the matrix's own text when supplied, never
+  paraphrase. The CTA's words are `lib/tiering/tier-cta.ts`, unit-tested.
+- **The lozenge is the selector (v10.1).** A card: lozenge · name ·
+  description, no radio glyph; a native radio per card, visually hidden,
+  the card its label — arrows, one Tab stop and disabled-skipping are the
+  platform's. Selected = FILLED lozenge + 2px ink ring + trailing check;
+  never colour alone, never wash alone. The ring is a border, not a shadow
+  (the timeline node stays the only element raised AND ringed). The
+  accessible name is "Tier n, Name"; the request (or "Current tier"), the
+  description and any refusal are its description.
+- **The scoped wash exception (v10.1).** Each card wears its tier's legend
+  wash — the picker is a legend, so every tier shows its identity at the
+  moment it is chosen. Only here: status cards, rows, History and every
+  ambient surface keep the no-wash rule and alert colour on Tiers 1–2 only.
+  The tokens are scoped by name (`--tier-legend-{n}-wash` / `-wash-hover` /
+  `-ink`, `settings-tokens.css`) and `tier-select.mjs` greps that nothing
+  else reads them. **The hues, answered ("keep the proposed tiers",
+  2026-10-27):** T1 blush, T2 apricot (Bloom steps; `--t1-soft` /
+  `--t2-soft` are concept-board values, not ramp steps), T3 sunshine and T4
+  forest — proposed because the mock's hues never arrived as tokens; dark
+  washes are hand-derived (the band triad's precedent).
+- **Confirm escalation is never red.** Alert inks live on the Tier 1–2
+  lozenges; the two red "Raise an escalation" menu entries remain the named
+  exception, outside this component.
+- **Movement rules still bind in update mode.** All four cards show; the
+  ones `placementsFrom` refuses are disabled with their reason. With the
+  current tier checked the CTA reads "Choose a new tier" and, pressed, names
+  the gap — never a no-op "Update to Tier 3".
+- **An unnamed mentor is "the mentor"**, said once (`mentorFirstName`): a
+  first-name split of the fallback read "Requested by The" (measured).
+- **Motion:** the request settles in one beat (ring + tag); selecting fills
+  the lozenge and lands the check in one beat. Reduced motion: an instant
+  swap. v10's CTA crossfade was replaced by v10.1's card beat.
 
 ### Monitoring asserts only what it can compute (arch-mon)
 

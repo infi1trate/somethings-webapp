@@ -179,8 +179,8 @@ async function raise(page) {
   await page.locator('[data-care-tab="emergency"]').waitFor();
   await page.locator('[data-tier-action="escalate"]').click();
   await page.waitForTimeout(300);
-  await page.locator('[data-raise-option="2"]').click();
-  await page.locator("[data-raise-note]").fill("They said they are not okay tonight.");
+  await page.locator('[data-tier-row="2"]').click();
+  await page.locator("[data-tier-field=note]").fill("They said they are not okay tonight.");
 }
 report.layout = [];
 for (const w of [1512, 1280]) {
@@ -189,7 +189,7 @@ for (const w of [1512, 1280]) {
     const before = await cols(page);
     await raise(page);
     await sampler(page);
-    await page.locator("[data-raise-confirm]").click();
+    await page.locator("[data-tier-cta=raise]").click();
     await page.waitForTimeout(1000);
     const m = motionOf(await samples(page));
     const during = await cols(page);
@@ -234,8 +234,8 @@ let assessed;
   assessed = await store(page);
   await setPersona(page, "supervisor");
   const during = await cols(page);
-  await page.locator('[data-s1-tier="3"]').click();
-  await page.locator('[data-exchange-primary="confirm-tier"]').click();
+  await page.locator('[data-tier-row="3"]').click();
+  await page.locator('[data-tier-cta=confirm]').click();
   await page.waitForTimeout(1100);
   const cells = await page.evaluate(() => ({ cells: document.querySelector('[data-care-yield="cells"]')?.dataset.open, strip: document.querySelector('[data-care-yield="strip"]')?.dataset.open, state: document.querySelector("[data-care-panel]")?.dataset.careState }));
   /* RETARGETED (pack v9.1, Part 4): closing leaves the closed summary IN

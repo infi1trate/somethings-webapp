@@ -64,9 +64,9 @@ async function chat(scenario, width = 1440, height = 1000, { persona = "mentor",
    ORDER — notified at creation, not at the end of a checklist — are kept,
    because Confirm is still the write that notifies. */
 async function completeRaise(p, tier = "1", note = "They said they might not be safe tonight.") {
-  await p.locator(`[data-raise-option="${tier}"]`).click();
-  await p.locator("[data-raise-note]").fill(note);
-  await p.locator("[data-raise-confirm]").click();
+  await p.locator(`[data-tier-row="${tier}"]`).click();
+  await p.locator("[data-tier-field=note]").fill(note);
+  await p.locator("[data-tier-cta=raise]").click();
   await p.waitForTimeout(600);
 }
 
@@ -460,9 +460,9 @@ console.log("\n── closing @ escalation-active");
   const sup = await chat("escalation-active", 1440, 1000, { persona: "supervisor", path: "/app/chat/t13", extra: { escalations: sent.escalations, tierEvents: sent.tierEvents } });
   const noResolve = await sup.evaluate(`!document.querySelector('[data-slot="banner-resolve"]')`);
   check(noResolve, "the supervisor's banner carries no Resolve either — closing is a stage, not a button");
-  await sup.locator('[data-s1-tier="3"]').click();
-  await sup.locator('[data-exchange-field="confirm-reason"]').fill("Aunt is home; Jordan agreed to the plan. A standard update to Tier 3.");
-  await sup.locator('[data-exchange-primary="confirm-tier"]').click();
+  await sup.locator('[data-tier-row="3"]').click();
+  await sup.locator('[data-tier-field=reason]').fill("Aunt is home; Jordan agreed to the plan. A standard update to Tier 3.");
+  await sup.locator('[data-tier-cta=confirm]').click();
   await sup.waitForTimeout(700);
   const st = await sup.evaluate(`JSON.parse(localStorage.getItem("${KEY}")).state`);
   await sup.context().close();
