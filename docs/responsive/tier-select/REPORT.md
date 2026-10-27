@@ -16,7 +16,7 @@
 - **typecheck:** clean.
 - **lint:** one warning, the `mock-api` `_token` one, which is also on `main`.
 - **vitest:** 1,203 passing.
-- **Mutation testing:** __MUT__ (§8).
+- **Mutation testing:** 11 of 11 killed (§8).
 
 ## 1 · Branch, files, retired controls, centralised copy
 
@@ -168,4 +168,18 @@ The skeleton is shared and the register differs, which is what the pack asks.
 
 ## 8 · Mutation testing
 
-__MUTTABLE__
+**11 of 11 killed.** Each mutant was applied to the committed tree, run against the probe or the unit tests, and reverted.
+
+| Mutant | Killed by |
+|---|---|
+| The CTA drops the tier name ("Confirm Tier 2") | unit: "confirm: the checked tier in full" |
+| Update promises a no-op ("Update to Tier 2" on Tier 2) | unit: "update: the current tier is no move" |
+| Confirm escalation turns red on T1–2 | §1: "Confirm escalation stays ink" |
+| The request is not pre-checked | §2: "the request arrives checked" |
+| A radio glyph returns | §1: "no radio glyph" |
+| Washes removed (neutral cards) | §1: "each card wears its tier's legend wash" |
+| The live region stays silent | §2: "the live region says so" |
+| The lozenge does not fill on selection | §1: "the lozenge fills and the check lands" |
+| The movement rules are ignored | §3: "the movement rule shows, disabled" |
+| The check ignores reduced motion | §7: "reduced motion: an instant state swap" |
+| The wash leaks onto the platform link | §1: "the platform escape wears no wash" |
