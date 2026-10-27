@@ -223,9 +223,9 @@ for (const [label, persona, chat] of [
   await page.waitForTimeout(300);
   const raising = await measure(page);
   check(raising.filled.length <= 1, "raising: at most one filled button", raising.filled.join(" · ") || "none");
-  await page.locator('[data-raise-option="3"]').click();
-  await page.locator("[data-raise-note]").fill("Probe: a Tier 3 raise.");
-  await page.locator('[data-raise-confirm]').click();
+  await page.locator('[data-tier-row="3"]').click();
+  await page.locator("[data-tier-field=note]").fill("Probe: a Tier 3 raise.");
+  await page.locator('[data-tier-cta=raise]').click();
   await page.waitForTimeout(600);
   const m = await measure(page);
   check(m.ringed.length === 1 && m.ringed[0] === "node:neutral", "Tier 3: the one emphasis keeps a neutral ring — alert is Tiers 1–2 only", m.ringed.join());
@@ -448,8 +448,8 @@ let closed;
 {
   /* The supervisor adjusts to Tier 3 at S1 — a standard tier update closes it. */
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active", extra: { escalations: assessed.escalations, tierEvents: assessed.tierEvents, chatMessages: assessed.chatMessages } });
-  await page.locator('[data-s1-tier="3"]').click();
-  await page.locator('[data-exchange-primary="confirm-tier"]').click();
+  await page.locator('[data-tier-row="3"]').click();
+  await page.locator('[data-tier-cta=confirm]').click();
   await page.waitForTimeout(350);
   const t = await toasts(page);
   const arc = await page.evaluate(() => ({ state: document.querySelector("[data-care-panel]")?.dataset.careState, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, arriving: !!document.querySelector("[data-tier-cell].tier-cell-arrive"), tier: document.querySelector("[data-tier-cell]")?.dataset.tier }));

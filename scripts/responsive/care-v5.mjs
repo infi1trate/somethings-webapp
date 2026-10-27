@@ -80,8 +80,8 @@ const assessAndClose = async (page) => {
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
   await page.waitForTimeout(300);
   await setPersona(page, "supervisor");
-  await page.locator('[data-s1-tier="3"]').click();
-  await page.locator('[data-exchange-primary="confirm-tier"]').click();
+  await page.locator('[data-tier-row="3"]').click();
+  await page.locator('[data-tier-cta=confirm]').click();
   await page.waitForTimeout(400);
 };
 
@@ -308,9 +308,9 @@ for (const theme of ["light", "dark"]) {
     /* A Tier 3 raise on Sam: neutral, and it arrives with its one pulse. */
     await careOpen(page);
     await page.locator('[data-tier-action="escalate"]').click();
-    await page.locator('[data-raise-option="3"]').click();
-    await page.locator("[data-raise-note]").fill("Probe: Tier 3.");
-    await page.locator("[data-raise-confirm]").click();
+    await page.locator('[data-tier-row="3"]').click();
+    await page.locator("[data-tier-field=note]").fill("Probe: Tier 3.");
+    await page.locator("[data-tier-cta=raise]").click();
     await page.waitForTimeout(500);
     const r3 = (await shields(page)).find((x) => x.id === "t14");
     const sec = await tok(page, "--text-secondary");
@@ -389,7 +389,7 @@ let assessedState;
   await page.goto(`${BASE}/app/chat/t13`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1000);
   await careOpen(page);
-  await page.locator('[data-exchange-primary="confirm-tier"]').click();
+  await page.locator('[data-tier-cta=confirm]').click();
   await page.waitForTimeout(400);
   assessedState = await store(page);
   await ctx.close();

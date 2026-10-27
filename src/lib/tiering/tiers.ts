@@ -39,6 +39,20 @@ export const TIER_DESCRIPTION: Record<Tier, string> = {
   4: "No current concerns. Regular mentorship.",
 };
 
+/** ═══ THE CLINICAL CRITERIA — a supervisor's reading of each tier (pack
+ *  v10.0, `TierSelect` review mode) ═══ BLOCKED CONSTANT. The pack quotes
+ *  the tier matrix; the matrix itself is not in this repo, so these are the
+ *  pack's words, comma-joined, the first letter capitalised and nothing else
+ *  changed. Replace with the matrix's own text when it is supplied (Meg /
+ *  Dr. Nissan) — never paraphrase. A mentor's plain-language lines are
+ *  `RAISE_DESCRIPTION`. */
+export const TIER_CRITERIA: Record<Tier, string> = {
+  1: "Specific plan with means/timeframe, in-progress self-harm, rapid symptom escalation, active command hallucinations.",
+  2: "Passive suicidal ideation, current abuse/neglect disclosures, active eating disorder/substance use without imminence.",
+  3: "Low-level distress, historical mental-health issues with no active high-risk indicators.",
+  4: "No issues that need supervisor intervention.",
+};
+
 /** The Monitoring group header's cadence line — the canon's rules, short.
  *  TODO-COPY. */
 export const TIER_CADENCE: Record<Tier, string> = {
@@ -112,7 +126,9 @@ export const RAISE_LABEL: Record<RaiseTarget, string> = {
 };
 
 /** The picker's plain-language line per option, in FCP-2's voice with the
- *  casing fixed. TODO-COPY. `{name}` is the teen's first name. */
+ *  casing fixed. `{name}` is the teen's first name. ═══ BLOCKED CONSTANT
+ *  (pack v10.0) ═══ Tiers 1–3 are the pack's table verbatim; the mock it
+ *  corrected had T1/T2 swapped and pasted emergency-contact copy into T3. */
 export const RAISE_DESCRIPTION: Record<RaiseTarget, string> = {
   1: "{name} might hurt themselves or someone else, or is in danger right now.",
   2: "Something serious is going on and {name} needs closer support this week.",

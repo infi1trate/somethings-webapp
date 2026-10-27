@@ -1,0 +1,476 @@
+"use client";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TierSelect — every tier decision, one component (micro-pack v10.0)
+//
+// ═══ SUPERSEDES (pack v10.0, Supersession 1) ═══ Three per-role controls:
+// the raise flow's radio list (mentor), the confirm-tier step's 2×2 grid
+// (`exchange.tsx` ConfirmCard) and the Update tier dialog's grid of long
+// lozenges (`TierUpdateModule`). The same decision is the same control now;
+// the MODE changes the register, not the skeleton:
+//
+//   raise    Tiers 1–3, plain-language lines (`RAISE_DESCRIPTION`), empty on
+//            load, the platform-concern escape below the group, a required
+//            note, Confirm escalation + Cancel.
+//   review   Tiers 1–4, the clinical criteria (`TIER_CRITERIA`), the request
+//            arriving checked and tagged, a reason seeded from the mentor's
+//            note, and a CTA that spells out the consequence ("Confirm
+//            Tier 2 · High risk") — relabelled live, announced.
+//
+// ═══ ROW ANATOMY (amendment v10.1 — the lozenge is the selector) ═══ A card:
+// lozenge · name · description, and no leading control glyph. Radiogroup
+// SEMANTICS stay whole: a native radio per card, visually hidden, the card
+// its label — so arrows move the selection, Tab is one stop, and a disabled
+// tier is skipped, all by the platform. (v10.0's row led with a radio mark;
+// it is gone.)
+//
+//   unselected  the tier's identity wash · outline lozenge · hover deepens
+//               the wash one step · focus-visible ring on the card
+//   selected    wash kept · FILLED lozenge · the emphasis ring · a trailing
+//               check — fill + ring + check are the selection signals, so
+//               selection is never colour alone and never wash alone
+//   requested   selected + "Requested by {mentor} · {time}"
+//   current     a quiet "Current" tag
+//
+// The emphasis ring is a 2px ink border, not a raised shadow: in review mode
+// this sits inside the current timeline node, which stays the only element
+// raised AND ringed (v4.0). The padding gives back the extra pixel, so
+// selecting a card moves nothing.
+//
+// ═══ THE SCOPED WASH EXCEPTION (v10.1 — overrides v10 Supersession 2 HERE
+// ONLY) ═══ Tier-identity washes are sanctioned inside TierSelect alone,
+// because the picker is a LEGEND: every tier shows its identity at the moment
+// it is chosen. It reopens washes nowhere else — status cards, list rows,
+// History and every ambient surface keep the no-wash rule and alert colour on
+// Tiers 1–2 only. The washes read `--tier-legend-{n}-*`, tokens scoped by
+// name to this component; `tier-select.mjs` greps that no other surface
+// reads them. The platform-concern escape is not a tier, so it has no wash.
+//
+// ═══ THE CTA IS NEVER RED ═══ v1 turned Confirm escalation alert-red on a
+// Tier 1–2 pick; the v10 blocked constant puts alert colour on the Tier 1–2
+// lozenges only. The two red "Raise an escalation" menu entries are the
+// named exception, and they live outside this component.
+//
+// ═══ CONFIRM IS ALWAYS ENABLED ═══ (v1's rule, kept): a disabled button in a
+// crisis says "no" without saying why. Pressing it with a gap names the gap
+// inline and moves focus to it.
+
+import { useId, useRef, useState } from "react";
+import { Check } from "lucide-react";
+import { RecordAvatar } from "@/components/record/record-avatar";
+import { TierLozenge } from "@/components/ui/tier-lozenge";
+import type { Placement } from "@/lib/tiering/events";
+import { tierCta as ctaFor, type TierCtaContext } from "@/lib/tiering/tier-cta";
+import { RAISE_TIERS, TIER_CRITERIA, TIER_NAME, TIERS, raiseDescription, type Tier } from "@/lib/tiering/tiers";
+import { cn } from "@/lib/utils";
+
+const RING =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+const BODY = { font: "var(--type-body)" } as const;
+const LABEL = { font: "var(--type-field-label)" } as const;
+
+const TIME = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+
+/** The raise note's ceiling. Short on purpose: the supervisor reads it
+ *  first, and the conversation itself is right there. */
+export const CONTEXT_NOTE_MAX = 280;
+
+/** The mentor, as the request tag and the reason seed say them. A store with
+ *  no signed-in name hands back the role ("The mentor"), and a first-name
+ *  split of that read "Requested by The" (measured) — so the role stays
+ *  whole, lower-cased mid-sentence. TODO-COPY. */
+export function mentorFirstName(named: string | null | undefined): { first: string; full: string; possessive: string; known: boolean } {
+  const n = (named ?? "").trim();
+  if (!n || /^the /i.test(n) || n === "You") return { first: "the mentor", full: "The mentor", possessive: "the mentor’s", known: false };
+  const first = n.split(/\s+/)[0];
+  return { first, full: n, possessive: `${first}’s`, known: true };
+}
+
+type RaiseTier = Exclude<Tier, 4>;
+
+interface Common {
+  /** The teen's first name. */
+  name: string;
+  /** The teen's tier now — the row that carries the quiet "Current" tag. */
+  current: Tier | null;
+}
+
+export interface RaiseProps extends Common {
+  mode: "raise";
+  onConfirm: (input: { tier: RaiseTier; note: string }) => void;
+  onCancel: () => void;
+  /** Opens the platform-concern report — never a tier option. */
+  onPlatform: () => void;
+}
+
+export interface ReviewProps extends Common {
+  mode: "review";
+  /** `confirm`: the supervisor's confirm-tier step on an escalation.
+   *  `update`: the steady-state Update tier flow. */
+  kind: "confirm" | "update";
+  /** The tier a mentor asked for: it arrives checked and tagged. */
+  request: { tier: Tier; by: string; at: number } | null;
+  /** The header row — confirm-tier only. */
+  submittedBy?: { name: string; at: number; known: boolean } | null;
+  /** The movement rules (`placementsFrom`); rows they refuse stay visible,
+   *  disabled, with the reason. Omitted: all four are allowed. */
+  placements?: Placement[];
+  /** The reason's starting text — neutral, so it stays true on an override. */
+  seed: string;
+  /** A step down records the tier's exit document; the label says which. */
+  reasonLabel?: (tier: Tier | null) => string;
+  /** One quiet line under the group about what the checked tier will do. */
+  consequence?: (tier: Tier | null) => string | null;
+  onSubmit: (input: { tier: Tier; reason: string }) => void;
+  /** A secondary (ghost) action that also needs the reason — "Keep in Tier N". */
+  secondary?: { label: string; slot: string; run: (reason: string) => void };
+}
+
+export type TierSelectProps = RaiseProps | ReviewProps;
+
+export function TierSelect(props: TierSelectProps) {
+  const { mode, name, current } = props;
+  const review = mode === "review" ? props : null;
+  const ctx: TierCtaContext = review
+    ? { mode: "review", kind: review.kind, current, requested: review.request?.tier ?? null }
+    : { mode: "raise" };
+  const tierCta = (t: Tier | null) => ctaFor(ctx, t);
+
+  const tiers: readonly Tier[] = mode === "raise" ? RAISE_TIERS : TIERS;
+  /** Per row: can it be checked, and if not, why. In raise mode the current
+   *  tier is information, not a choice (v1); in review the movement rules
+   *  decide, and the current tier stays checkable — it is where update
+   *  mode starts. */
+  const rule = (t: Tier): { ok: boolean; why?: string } => {
+    if (mode === "raise") return { ok: t !== current };
+    if (t === current) return { ok: true };
+    const p = review?.placements?.find((x) => x.tier === t);
+    return p && !p.allowed ? { ok: false, why: p.why } : { ok: true };
+  };
+
+  const initial: Tier | null =
+    review === null
+      ? null
+      : review.request && rule(review.request.tier).ok
+        ? review.request.tier
+        : review.kind === "update"
+          ? current
+          : null;
+  const [tier, setTier] = useState<Tier | null>(initial);
+  const [text, setText] = useState(review?.seed ?? "");
+  const [tried, setTried] = useState(false);
+  /** The live region's line — written by the handler that relabels the CTA,
+   *  never on mount, so the page does not announce its own first paint. */
+  const [live, setLive] = useState("");
+  const [gap, setGap] = useState<string | null>(null);
+
+  const uid = useId();
+  const groupRef = useRef<HTMLDivElement>(null);
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
+
+  const enabled = tiers.filter((t) => rule(t).ok);
+  const choose = (t: Tier) => {
+    if (!rule(t).ok) return;
+    setTier(t);
+    setGap(null);
+    if (review && tierCta(t) !== tierCta(tier)) setLive(`Button now reads ${tierCta(t)}`);
+  };
+
+  /* The tab stop is explicit, so it is measurable: the checked card, else
+     the first enabled one. The arrows are the platform's — native radios
+     sharing a name move AND select, and skip a disabled tier. */
+  const tabStop = tier !== null && rule(tier).ok ? tier : enabled[0];
+  const focusGroup = () => groupRef.current?.querySelector<HTMLElement>(`[data-tier-input="${tabStop}"]`)?.focus();
+
+  const missingText = text.trim().length === 0;
+  const submit = () => {
+    setTried(true);
+    if (tier === null) {
+      setGap(mode === "raise" ? "Choose how serious it is." : "Choose a tier.");
+      focusGroup();
+      return;
+    }
+    if (review?.kind === "update" && tier === current && review.request?.tier !== tier) {
+      setGap(`Tier ${tier} is current — choose another tier.`);
+      focusGroup();
+      return;
+    }
+    if (missingText) {
+      fieldRef.current?.focus();
+      return;
+    }
+    if (props.mode === "raise") props.onConfirm({ tier: tier as RaiseTier, note: text.trim() });
+    else props.onSubmit({ tier, reason: text.trim() });
+  };
+
+  const cta = tierCta(tier);
+  const groupLabel =
+    mode === "raise"
+      ? "How serious is it?"
+      : review!.kind === "confirm"
+        ? `Tier for ${name}`
+        : current
+          ? `${name} is in Tier ${current} · ${TIER_NAME[current]}. Move to`
+          : `Place ${name} in`;
+  const fieldLabel =
+    mode === "raise" ? "What’s happening? Your supervisor will read this." : (review!.reasonLabel?.(tier) ?? "Reason — posted to the record");
+  const consequence = review?.consequence?.(tier) ?? null;
+
+  return (
+    <div data-tier-select={mode} data-tier-kind={review?.kind} className="space-y-4">
+      {/* ── THE HEADER ROW (confirm-tier only) ───────────────────────── */}
+      {review?.kind === "confirm" && review.submittedBy && (
+        <div data-tier-submitted className="flex items-center gap-2">
+          <RecordAvatar name={review.submittedBy.name} size={24} />
+          <p className="min-w-0 flex-1 text-[var(--text-secondary)]" style={LABEL}>
+            {/* TODO-COPY */}
+            {/* Unnamed, the role IS the name — said once, not "The mentor · Mentor". */}
+            Submitted by <span className="text-[var(--text-primary)]">{review.submittedBy.known ? review.submittedBy.name : "the mentor"}</span>
+            {review.submittedBy.known && " · Mentor"}
+          </p>
+          <span className="shrink-0 tabular-nums text-[var(--text-muted)]" style={LABEL}>
+            {TIME.format(review.submittedBy.at)}
+          </span>
+        </div>
+      )}
+
+      {/* ── THE RADIOGROUP ───────────────────────────────────────────── */}
+      <div>
+        <p id={`${uid}-group`} className="mb-2 text-[var(--text-muted)]" style={LABEL}>
+          {/* TODO-COPY */}
+          {groupLabel}
+        </p>
+        <div
+          ref={groupRef}
+          role="radiogroup"
+          aria-labelledby={`${uid}-group`}
+          aria-required
+          aria-describedby={gap ? `${uid}-gap` : undefined}
+          className="space-y-2"
+        >
+          {tiers.map((t) => {
+            const r = rule(t);
+            const checked = t === tier;
+            const requested = review?.request?.tier === t;
+            const isCurrent = t === current;
+            const tag = requested
+              ? `Requested by ${review!.request!.by} · ${TIME.format(review!.request!.at)}`
+              : isCurrent
+                ? "Current"
+                : null;
+            const description = mode === "raise" ? raiseDescription(t as RaiseTier, name) : TIER_CRITERIA[t];
+            return (
+              <label
+                key={t}
+                data-tier-row={t}
+                data-tier-checked={checked}
+                data-tier-disabled={!r.ok || undefined}
+                data-tier-requested={requested || undefined}
+                className={cn(
+                  "group/tier relative flex w-full items-start gap-3 rounded-[var(--radius-inset)] text-left transition-colors duration-150 motion-reduce:transition-none",
+                  "bg-[var(--wash)]",
+                  checked
+                    ? "border-2 border-[color:var(--text-primary)] px-[11px] py-[9px]"
+                    : "border border-[color:var(--border-default)] px-3 py-2.5",
+                  !r.ok ? "cursor-not-allowed border-dashed" : cn("cursor-pointer", "hover:bg-[var(--wash-hover)]"),
+                  /* Focus lands on the hidden input; the ring is drawn on its card. */
+                  "has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-[color:var(--focus-ring)]",
+                  /* ═══ THE REQUEST ARRIVES HELD (Magic 1) ═══ The ring draws
+                     in on the requested card in one beat with its tag. */
+                  requested && checked && "motion-safe:animate-[tier-hold_280ms_cubic-bezier(0.2,0.8,0.2,1)]"
+                )}
+                style={{ "--wash": `var(--tier-legend-${t}-wash)`, "--wash-hover": `var(--tier-legend-${t}-wash-hover)` } as React.CSSProperties}
+              >
+                <input
+                  type="radio"
+                  name={`${uid}-tier`}
+                  value={t}
+                  data-tier-input={t}
+                  className="sr-only"
+                  checked={checked}
+                  disabled={!r.ok}
+                  tabIndex={t === tabStop ? 0 : -1}
+                  onChange={() => choose(t)}
+                  /* ═══ NAME, THEN STATE, THEN DESCRIPTION ═══ "Tier 1, Active
+                     crisis" — "radio button, checked" from the platform — then
+                     the request (or Current), the description and any reason
+                     it is unavailable. */
+                  aria-label={`Tier ${t}, ${TIER_NAME[t]}`}
+                  aria-describedby={[tag ? `${uid}-t${t}` : null, `${uid}-d${t}`, r.why ? `${uid}-w${t}` : null].filter(Boolean).join(" ")}
+                />
+                <span className={cn("min-w-0 flex-1", !r.ok && "opacity-70")}>
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {/* The tier itself becomes the choice: outline → filled. */}
+                    <TierLozenge tier={t} legend={checked ? "filled" : "outline"} />
+                    <span className="text-[var(--text-primary)]" style={BODY}>
+                      {TIER_NAME[t]}
+                    </span>
+                    {tag && (
+                      <span
+                        data-tier-row-tag={requested ? "requested" : "current"}
+                        aria-hidden
+                        className={cn(
+                          "rounded-full bg-[var(--surface-raised)] px-2 py-0.5 text-[var(--text-secondary)]",
+                          requested && "tier-settle"
+                        )}
+                        style={LABEL}
+                      >
+                        {/* TODO-COPY */}
+                        {tag}
+                      </span>
+                    )}
+                    {/* The spoken tag: "at", where the eye reads "·". */}
+                    {tag && (
+                      <span id={`${uid}-t${t}`} className="sr-only">
+                        {requested ? `Requested by ${review!.request!.by} at ${TIME.format(review!.request!.at)}.` : "Current tier."}
+                      </span>
+                    )}
+                  </span>
+                  <span id={`${uid}-d${t}`} data-tier-row-description className="mt-0.5 block text-[var(--text-secondary)]" style={LABEL}>
+                    {description}
+                  </span>
+                  {r.why && (
+                    <span id={`${uid}-w${t}`} data-tier-why className="mt-0.5 block text-[var(--text-secondary)]" style={LABEL}>
+                      {r.why}
+                    </span>
+                  )}
+                </span>
+                {/* ═══ THE CHECK LANDS (Magic, v10.1) ═══ With the lozenge's
+                    fill, in one beat. A fixed 16px slot, so it moves nothing. */}
+                <span aria-hidden className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
+                  {checked && (
+                    <Check
+                      data-tier-check
+                      strokeWidth={2.5}
+                      className="size-4 text-[var(--text-primary)] motion-safe:animate-[tier-check_180ms_cubic-bezier(0.2,0.8,0.2,1)]"
+                    />
+                  )}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+        {tried && gap && (
+          <p id={`${uid}-gap`} role="alert" data-tier-error="tier" className="mt-1.5 text-[var(--state-error)]" style={LABEL}>
+            {/* TODO-COPY */}
+            {gap}
+          </p>
+        )}
+        {consequence && (
+          <p data-tier-consequence className="mt-2 text-[var(--text-secondary)]" style={LABEL}>
+            {consequence}
+          </p>
+        )}
+        {/* ═══ SOMETHING ELSE ═══ Outside the radiogroup and its tab stop:
+            a platform concern is never a tier. Quiet on purpose. TODO-COPY. */}
+        {props.mode === "raise" && (
+          <button
+            type="button"
+            data-raise-platform
+            onClick={props.onPlatform}
+            className={cn("mt-2 inline-flex min-h-8 items-center rounded-sm text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]", RING)}
+            style={LABEL}
+          >
+            Something else? Report a platform concern.
+          </button>
+        )}
+      </div>
+
+      {/* ── THE NOTE / THE REASON ────────────────────────────────────── */}
+      <div>
+        <label htmlFor={`${uid}-field`} className="mb-1.5 block text-[var(--text-muted)]" style={LABEL}>
+          {/* TODO-COPY */}
+          {fieldLabel}
+        </label>
+        <textarea
+          id={`${uid}-field`}
+          ref={fieldRef}
+          data-tier-field={mode === "raise" ? "note" : "reason"}
+          rows={3}
+          maxLength={mode === "raise" ? CONTEXT_NOTE_MAX : undefined}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          aria-invalid={tried && missingText ? true : undefined}
+          aria-describedby={mode === "raise" ? `${uid}-count` : undefined}
+          className={cn(
+            "block w-full resize-none rounded-[var(--radius-control)] border bg-[var(--surface-card)] px-3 py-2 text-[var(--text-primary)] placeholder:text-[var(--text-muted)]",
+            tried && missingText ? "border-[color:var(--state-error)]" : "border-[color:var(--border-subtle)]",
+            RING
+          )}
+          style={BODY}
+          /* TODO-COPY */
+          placeholder={mode === "raise" ? `What did ${name} say or do?` : "What you saw and decided"}
+        />
+        <div className="mt-1 flex items-start justify-between gap-3">
+          {tried && missingText ? (
+            <p role="alert" data-tier-error="field" className="text-[var(--state-error)]" style={LABEL}>
+              {/* TODO-COPY */}
+              {mode === "raise" ? "Add a line about what’s going on." : "A reason is required — it is the record."}
+            </p>
+          ) : (
+            <span />
+          )}
+          {mode === "raise" && (
+            <span id={`${uid}-count`} className="shrink-0 tabular-nums text-[var(--text-muted)]" style={LABEL}>
+              {text.length}/{CONTEXT_NOTE_MAX}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ── THE CTA — one filled button ──────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          data-tier-cta={review?.kind ?? "raise"}
+          onClick={submit}
+          className={cn(
+            "inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--text-primary)] px-5 text-[var(--text-inverse)] transition-opacity hover:opacity-90",
+            review?.kind === "confirm" && "w-full",
+            RING
+          )}
+          style={{ font: "var(--type-button)" }}
+        >
+          {/* ═══ THE CTA KEEPS UP ═══ It relabels with the selection and the
+              live region says so. v10.1 moved the motion to the card — the
+              lozenge fills and the check lands — so the words simply change. */}
+          {cta}
+        </button>
+        {props.mode === "raise" ? (
+          <button
+            type="button"
+            data-tier-cancel
+            onClick={props.onCancel}
+            className={cn("inline-flex min-h-11 items-center rounded-full px-3 text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]", RING)}
+            style={BODY}
+          >
+            Cancel
+          </button>
+        ) : (
+          review?.secondary && (
+            <button
+              type="button"
+              data-tier-secondary={review.secondary.slot}
+              onClick={() => {
+                setTried(true);
+                if (missingText) {
+                  fieldRef.current?.focus();
+                  return;
+                }
+                review.secondary!.run(text.trim());
+              }}
+              className={cn("inline-flex min-h-11 items-center rounded-full border border-[color:var(--border-contour)] px-4 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
+              style={BODY}
+            >
+              {review.secondary.label}
+            </button>
+          )
+        )}
+      </div>
+      {/* The relabel, said once per change. */}
+      <p data-tier-live aria-live="polite" className="sr-only">
+        {live}
+      </p>
+    </div>
+  );
+}

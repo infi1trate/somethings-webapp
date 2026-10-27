@@ -96,8 +96,8 @@ let tier1Closed;
     return { mode: r?.dataset.gaMode, controls: r ? r.querySelectorAll("[data-yes-no], textarea, [data-exchange-primary]").length : -1, quote: !!r?.querySelector('[data-quote="mentor-summary"], [data-slot="mentor-summary"]') || /Talking it through/.test(r?.innerText ?? "") };
   });
   check(ro.mode === "readonly" && ro.controls === 0 && ro.quote, "post-submit: the assessment reads back read-only, with the mentor's summary", JSON.stringify(ro));
-  await page.locator('[data-s1-tier="1"]').click();
-  await page.locator('[data-exchange-primary="confirm-tier"]').click();
+  await page.locator('[data-tier-row="1"]').click();
+  await page.locator('[data-tier-cta=confirm]').click();
   await page.waitForTimeout(600);
 
   const note = () =>
@@ -226,8 +226,8 @@ let tier1Closed;
 console.log("\n── 4b · the Close gate holds in the store");
 {
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", extra: { escalations: submittedState.escalations, tierEvents: submittedState.tierEvents } });
-  await page.locator('[data-s1-tier="1"]').click();
-  await page.locator('[data-exchange-primary="confirm-tier"]').click();
+  await page.locator('[data-tier-row="1"]').click();
+  await page.locator('[data-tier-cta=confirm]').click();
   await page.waitForTimeout(500);
   const closeNodes = await page.locator("[data-node='close'][data-node-state='current']").count();
   check(closeNodes === 0, "an incomplete note offers no Close action anywhere");

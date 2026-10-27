@@ -99,18 +99,19 @@ const contrastOf = (page, sel) =>
     return out;
   }, [ENGINE, sel]);
 /** Does anything under `sel` compute to an alert colour? */
-const alertHits = (page, sel) =>
-  page.evaluate((sel) => {
+const alertHits = (page, sel, except = null) =>
+  page.evaluate(([sel, except]) => {
     const probe = (v) => { const e = document.createElement("span"); e.style.color = `var(${v})`; document.body.appendChild(e); const c = getComputedStyle(e).color; e.remove(); return c.slice(4, -1); };
     const red = ["--t1", "--t2", "--t1-ink", "--t2-ink", "--alert-critical-accent", "--alert-critical-fg", "--alert-critical-bg", "--t1-soft", "--t2-soft"].map(probe);
     const hits = [];
     for (const root of document.querySelectorAll(sel))
       for (const el of [root, ...root.querySelectorAll("*")]) {
+        if (except && el.closest(except)) continue;
         const s = getComputedStyle(el);
         for (const c of [s.color, s.backgroundColor, s.borderTopColor]) if (red.some((x) => c.includes(x))) hits.push(`${el.tagName}.${(el.className?.baseVal ?? el.className).toString().slice(0, 40)}`);
       }
     return hits;
-  }, sel);
+  }, [sel, except]);
 
 // ── 1 · CARE FOR EVERY TEEN, EVERY SCENARIO ────────────────────────────────
 console.log("\n── 1 · Care is present for every teen");
@@ -233,9 +234,9 @@ async function raiseVia(page, door, tier, note = "They said they are not okay to
     await page.locator("[data-platform-note]").fill(note);
     await page.locator("[data-platform-send]").click();
   } else {
-    await page.locator(`[data-raise-option="${tier}"]`).click();
-    await page.locator("[data-raise-note]").fill(note);
-    await page.locator("[data-raise-confirm]").click();
+    await page.locator(`[data-tier-row="${tier}"]`).click();
+    await page.locator("[data-tier-field=note]").fill(note);
+    await page.locator("[data-tier-cta=raise]").click();
   }
   await page.waitForTimeout(600);
   return before;
@@ -272,22 +273,24 @@ for (const door of Object.keys(DOORS)) {
   const { ctx, page } = await open("/app/chat/t14");
   await DOORS.care(page);
   await page.waitForTimeout(300);
-  const enabled = await page.locator("[data-raise-confirm]").isEnabled();
-  await page.locator("[data-raise-confirm]").click();
+  const enabled = await page.locator("[data-tier-cta=raise]").isEnabled();
+  await page.locator("[data-tier-cta=raise]").click();
   await page.waitForTimeout(200);
-  const errs = await page.evaluate(() => ({ errs: [...document.querySelectorAll("[data-raise-error]")].map((e) => e.dataset.raiseError), focus: document.activeElement?.dataset.raiseOption ?? document.activeElement?.tagName, banner: !!document.querySelector('[data-slot="status-banner"]') }));
-  check(enabled && errs.errs.join() === "tier,note" && !errs.banner, "Confirm is always enabled; pressed empty it names both gaps and writes nothing", JSON.stringify(errs));
+  const errs = await page.evaluate(() => ({ errs: [...document.querySelectorAll("[data-tier-error]")].map((e) => e.dataset.tierError), focus: document.activeElement?.closest("[data-tier-row]")?.dataset.tierRow ?? document.activeElement?.tagName, banner: !!document.querySelector('[data-slot="status-banner"]') }));
+  /* RETARGETED (pack v10.0): TierSelect — the field's error is `field` in both modes. */
+  check(enabled && errs.errs.join() === "tier,field" && !errs.banner, "Confirm is always enabled; pressed empty it names both gaps and writes nothing", JSON.stringify(errs));
   /* Keyboard through the tier picker. */
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowDown");
   await page.waitForTimeout(100);
-  const picked = await page.evaluate(() => document.querySelector('[data-raise-option][aria-checked="true"]')?.dataset.raiseOption);
+  const picked = await page.evaluate(() => document.querySelector('[data-tier-row][data-tier-checked="true"]')?.dataset.tierRow);
   check(!!picked, "arrow keys select in the tier picker", String(picked));
-  const cur = await page.evaluate(() => [...document.querySelectorAll("[data-raise-option]")].map((o) => o.dataset.raiseOption));
+  const cur = await page.evaluate(() => [...document.querySelectorAll("[data-tier-row]")].map((o) => o.dataset.tierRow));
   check(cur.join() === "1,2,3", "the picker offers strictly Tiers 1–3 — never Tier 4, and no Platform option", cur.join(","));
   /* ═══ SOMETHING ELSE ═══ The platform concern, as a quiet link below. */
   const link = await page.evaluate(() => { const l = document.querySelector("[data-raise-platform]"); const g = document.querySelector('[data-raise-flow] [role="radiogroup"]'); return { text: l?.textContent, after: !!(l && g && g.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING), radio: l?.getAttribute("role") }; });
-  check(link.text === "Something else? Report a platform concern" && link.after && link.radio === null, "below the tiers: a quiet link, not a radio, opens the platform report", JSON.stringify(link));
+  /* RETARGETED (pack v10.0): TierSelect — the pack's sentence, with its full stop. */
+  check(link.text === "Something else? Report a platform concern." && link.after && link.radio === null, "below the tiers: a quiet link, not a radio, opens the platform report", JSON.stringify(link));
   await page.locator("[data-raise-platform]").click();
   await page.waitForTimeout(150);
   const rep = await page.evaluate(() => ({ form: !!document.querySelector("[data-platform-report]"), lozenge: document.querySelectorAll("[data-platform-report] [data-tier-lozenge]").length }));
@@ -297,7 +300,8 @@ for (const door of Object.keys(DOORS)) {
   const j = await open("/app/chat/t13");
   await DOORS.care(j.page);
   await j.page.waitForTimeout(300);
-  const current = await j.page.evaluate(() => { const o = document.querySelector('[data-raise-option="3"]'); return { disabled: o?.getAttribute("aria-disabled"), tag: /Current/.test(o?.innerText ?? "") }; });
+  /* RETARGETED (amendment v10.1): a native radio, disabled. */
+  const current = await j.page.evaluate(() => { const o = document.querySelector('[data-tier-row="3"]'); return { disabled: o?.querySelector("input")?.disabled ? "true" : null, tag: /Current/.test(o?.innerText ?? "") }; });
   check(current.disabled === "true" && current.tag, "the teen's current tier is shown disabled, tagged Current", JSON.stringify(current));
   await j.page.screenshot({ path: `${OUT}/02-raise-flow.png` });
   await j.ctx.close();
@@ -484,28 +488,34 @@ let closed;
   const note = await expandNode(page, "raised");
   check(/Jordan said/.test(note) && (await page.evaluate(() => !!document.querySelector('[data-node="raised"] [data-quote="mentor-note"] figcaption'))), "the mentor's note is quote-framed with attribution", note.slice(0, 60));
   const s1 = await page.evaluate(() => ({
-    checked: document.querySelector('[data-s1-tier][aria-checked="true"]')?.dataset.s1Tier,
-    tabStops: [...document.querySelectorAll("[data-s1-tier]")].filter((b) => b.tabIndex === 0).length,
-    label: document.querySelector('[data-exchange-primary="confirm-tier"]')?.textContent,
-    reason: document.querySelector('[data-exchange-field="confirm-reason"]')?.value,
+    checked: document.querySelector('[data-tier-row][data-tier-checked="true"]')?.dataset.tierRow,
+    /* RETARGETED (amendment v10.1): the stop is the card's hidden radio. */
+    tabStops: [...document.querySelectorAll("[data-tier-input]")].filter((b) => b.tabIndex === 0).length,
+    label: document.querySelector('[data-tier-cta=confirm]')?.textContent,
+    reason: document.querySelector('[data-tier-field=reason]')?.value,
     line: document.querySelector("[data-tier-line-text]")?.textContent,
   }));
-  check(s1.checked === "1" && s1.tabStops === 1 && s1.label === "Confirm Tier 1" && !!s1.reason && s1.line === "Awaiting confirmation", "the request is pre-selected, one tab stop, a prefilled reason", JSON.stringify(s1));
+  check(s1.checked === "1" && s1.tabStops === 1 && s1.label === "Confirm Tier 1 · Active crisis" && !!s1.reason && s1.line === "Awaiting confirmation", "the request is pre-selected, one tab stop, a prefilled reason", JSON.stringify(s1));
   /* ═══ NEUTRAL UNTIL CONFIRMED (blocked constant) ═══ */
-  const neutral = await alertHits(page, "[data-s1]");
-  check(neutral.length === 0, "the tier picker and Confirm are neutral — no alert colour before the confirmation", neutral.slice(0, 3).join(", "));
-  await page.locator('[data-s1-tier="1"]').focus();
+  /* RETARGETED (pack v10.0, Supersession 2): a tier's colour lives in its
+     lozenge — the Tier 1–2 lozenges carry it in the picker now; the rows,
+     the CTA and everything else stay neutral until the confirmation. */
+  const neutral = await alertHits(page, "[data-s1]", '[data-tier-lozenge="1"], [data-tier-lozenge="2"]');
+  const lozRed = await alertHits(page, '[data-s1] [data-tier-lozenge="1"], [data-s1] [data-tier-lozenge="2"]');
+  check(neutral.length === 0 && lozRed.length > 0, "neutral before the confirmation — alert colour on the Tier 1–2 lozenges only, never the rows or Confirm", neutral.slice(0, 3).join(", "));
+  await page.locator('[data-tier-input="1"]').focus();
   await page.keyboard.press("ArrowRight");
   await page.waitForTimeout(100);
-  const moved = await page.evaluate(() => ({ checked: document.querySelector('[data-s1-tier][aria-checked="true"]')?.dataset.s1Tier, focus: document.activeElement?.dataset.s1Tier, label: document.querySelector('[data-exchange-primary="confirm-tier"]')?.textContent }));
-  check(moved.checked === "2" && moved.focus === "2" && moved.label === "Adjust to Tier 2", "ArrowRight moves focus and selection together; the button says Adjust", JSON.stringify(moved));
+  const moved = await page.evaluate(() => ({ checked: document.querySelector('[data-tier-row][data-tier-checked="true"]')?.dataset.tierRow, focus: document.activeElement?.closest("[data-tier-row]")?.dataset.tierRow, label: document.querySelector('[data-tier-cta=confirm]')?.textContent }));
+  /* RETARGETED (pack v10.0): TierSelect — the CTA spells out the override; "Adjust to" is retired. */
+  check(moved.checked === "2" && moved.focus === "2" && moved.label === "Confirm Tier 2 · High risk", "ArrowRight moves focus and selection together; the button names the override", JSON.stringify(moved));
   await page.keyboard.press("ArrowLeft");
-  await page.locator('[data-exchange-field="confirm-reason"]').fill("");
-  await page.locator('[data-exchange-primary="confirm-tier"]').click();
+  await page.locator('[data-tier-field=reason]').fill("");
+  await page.locator('[data-tier-cta=confirm]').click();
   await page.waitForTimeout(200);
   check((await store(page)).tierEvents.length === assessed.tierEvents.length, "no reason, no event", "");
-  await page.locator('[data-exchange-field="confirm-reason"]').fill("Plan and preparatory behaviour. Tier 1 while we stabilise.");
-  await page.locator('[data-exchange-primary="confirm-tier"]').click();
+  await page.locator('[data-tier-field=reason]').fill("Plan and preparatory behaviour. Tier 1 while we stabilise.");
+  await page.locator('[data-tier-cta=confirm]').click();
   await page.waitForTimeout(500);
   let st = await store(page);
   const ev = st.tierEvents.at(-1);
@@ -671,11 +681,11 @@ console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 e
      assessment must arrive first (S0) — seed it submitted. */
   const seed = { t13: { ...assessed.escalations.t13 } };
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active", extra: { escalations: seed, tierEvents: assessed.tierEvents } });
-  await page.locator('[data-s1-tier="3"]').click();
+  await page.locator('[data-tier-row="3"]').click();
   await page.waitForTimeout(100);
-  const exit = await page.evaluate(() => ({ note: document.querySelector("[data-s1-exit]")?.textContent, label: document.querySelector('[data-exchange-primary="confirm-tier"]')?.textContent }));
-  check(/standard tier update/.test(exit.note ?? "") && exit.label === "Adjust to Tier 3", "choosing Tier 3 says it is a standard tier update and closes", JSON.stringify(exit));
-  await page.locator('[data-exchange-primary="confirm-tier"]').click();
+  const exit = await page.evaluate(() => ({ note: document.querySelector("[data-tier-consequence]")?.textContent, label: document.querySelector('[data-tier-cta=confirm]')?.textContent }));
+  check(/standard tier update/.test(exit.note ?? "") && exit.label === "Confirm Tier 3 · Medium risk", "choosing Tier 3 says it is a standard tier update and closes", JSON.stringify(exit));
+  await page.locator('[data-tier-cta=confirm]').click();
   await page.waitForTimeout(500);
   const st = await store(page);
   const e = st.escalations.t13 ?? st.escalationHistory.find((x) => x.id === "esc-t13");
@@ -691,7 +701,7 @@ console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 e
   const raised = await store(r.page);
   await r.ctx.close();
   const { ctx, page } = await open("/app/chat/t14", { persona: "supervisor", extra: { escalations: raised.escalations, tierEvents: raised.tierEvents } });
-  const p0 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, current: document.querySelector('[data-node-state="current"]')?.dataset.node, radios: document.querySelectorAll("[data-s1-tier]").length, line: !!document.querySelector("[data-tier-line-text]") }));
+  const p0 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, current: document.querySelector('[data-node-state="current"]')?.dataset.node, radios: document.querySelectorAll("[data-tier-row]").length, line: !!document.querySelector("[data-tier-line-text]") }));
   check(p0.stage === "S1" && p0.current === "review" && p0.radios === 0 && !p0.line, "the supervisor's review node for Platform safety: no tier picker, no tier line", JSON.stringify(p0));
   await page.locator('[data-exchange-field="review-reason"]').fill("Spam account, removed.");
   await page.locator('[data-exchange-primary="mark-reviewed"]').click();

@@ -858,6 +858,20 @@ html[data-motion="reduce"] *::after {
   --focus-dur: 360ms;
   --focus-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+/* ═══ TierSelect (pack v10.0 · amendment v10.1) ═══ `tier-hold`: the
+   requested card's ring draws in from the card's own hairline, in the same
+   beat as its tag's `tier-settle` — the mentor's judgment arriving held.
+   `tier-check`: the trailing check lands as the lozenge fills (its colour
+   transition, 150ms) — the tier itself visibly becomes the choice. Both are
+   applied under `motion-safe:` only; reduced motion is an instant swap. */
+@keyframes tier-hold {
+  from { border-color: var(--border-default); }
+  to { border-color: var(--text-primary); }
+}
+@keyframes tier-check {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
 @keyframes ga-rise {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }

@@ -148,7 +148,7 @@ const STATES = [];
   STATES.push(["Tier 1 · assessment sent", await store(m.page)]);
   await m.ctx.close();
   const s = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active", extra: { escalations: STATES[1][1].escalations, tierEvents: STATES[1][1].tierEvents } });
-  await s.page.locator('[data-exchange-primary="confirm-tier"]').click();
+  await s.page.locator('[data-tier-cta=confirm]').click();
   await s.page.waitForTimeout(400);
   STATES.push(["Tier 1 · confirmed", await store(s.page)]);
   await noteThrough(s.page, ["subtype", "safety-plan", "resources", "referral"]);
@@ -196,9 +196,9 @@ for (const [label, st] of STATES) {
         const r = await open(path, { chat });
         await r.page.locator('[data-rail-tab="care"]').click();
         await r.page.locator('[data-tier-action="escalate"]').click();
-        await r.page.locator(`[data-raise-option="${raise}"]`).click();
-        await r.page.locator("[data-raise-note]").fill("Worried about school this week.");
-        await r.page.locator("[data-raise-confirm]").click();
+        await r.page.locator(`[data-tier-row="${raise}"]`).click();
+        await r.page.locator("[data-tier-field=note]").fill("Worried about school this week.");
+        await r.page.locator("[data-tier-cta=raise]").click();
         await r.page.waitForTimeout(500);
         const st = await store(r.page);
         extra = { escalations: st.escalations, tierEvents: st.tierEvents };
@@ -236,9 +236,11 @@ for (const theme of ["light", "dark"]) {
   const seed = STATES[1][1];
   const c = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active", theme, extra: { escalations: seed.escalations, tierEvents: seed.tierEvents } });
   const r2 = await contrast(c.page, [
-    ["neutral selected tier · number", '[data-s1-tier][aria-checked="true"] span'],
-    ["neutral selected tier · name", '[data-s1-tier][aria-checked="true"] span:nth-child(2)'],
-    ["neutral selected tier · border (UI)", '[data-s1-tier][aria-checked="true"]', "border"],
+    /* RETARGETED (amendment v10.1): the selected card — its filled lozenge
+       and its name on the tier's legend wash, and the ink ring. */
+    ["selected tier card · filled lozenge", '[data-tier-row][data-tier-checked="true"] [data-tier-lozenge]'],
+    ["selected tier card · name on its wash", '[data-tier-row][data-tier-checked="true"] [data-tier-lozenge] + span'],
+    ["selected tier card · ring (UI)", '[data-tier-row][data-tier-checked="true"]', "border"],
   ]);
   await c.ctx.close();
   const last = STATES.at(-1)[1];
