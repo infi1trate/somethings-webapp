@@ -319,7 +319,9 @@ mentor safety check, the mentor Resolve dialog — each marked in place above.**
   never a tier, never a subtype.
 - **Time-to-confirm is recorded, never shown.** `meta.timeToConfirmMs` is on
   the record for the response-time metric and is absent from every rendered
-  surface — a supervisor is not timed on screen.
+  surface — a supervisor is not timed on screen. **SUPERSEDED IN PART by
+  Monitoring v4:** the Tier 1 queue's Response cell shows it ("Confirmed by
+  Sarah · 0:48"); the chat and the record still never do.
 - **`REFERRAL_TYPE` is the pack's list** (988 · mobile crisis · ED · therapist
   / psychiatrist · PCP · school counselor). It replaced the old list on every
   host.
@@ -429,7 +431,9 @@ the code.**
 
 - **Header parity is structural.** Monitoring uses the shared `PageHeader`
   (32/40 title, 16/24 sans date line) and its new toolbar slot, 40px below
-  the rule — where Care Reviews' toolbar sits (both measured at y=213). Watch
+  the rule — where Care Reviews' toolbar sits (both measured at y=213).
+  **SUPERSEDED IN PART by Monitoring v4:** the rule is gone from both pages
+  (`PageHeader rule={false}`); the toolbar holds its y. Watch
   · Events IS Care Reviews' Open/Closed, extracted to `ui/pill-segments.tsx`
   (a tablist here, a radiogroup there). Care Reviews' own markup is unchanged.
 - **A tab switch moves nothing.** The toggle hides in place on Events
@@ -441,7 +445,9 @@ the code.**
   widened a 320 canvas by 31px.
 - **Cards: tier by contour, not fill.** White cards; Tier 1 the t1 hue at
   50%, Tier 2 the t2 hue at 45%, Tier 3 border-default, Tier 4 border-subtle.
-  Fill only in the live Tier 1 lane. `--t2` is unchanged — as a contour it
+  Fill only in the live Tier 1 lane. **SUPERSEDED by Monitoring v4:** no
+  amber or red fill on the page but the Tier 1 queue's 40% container and
+  Join; Tier 2 LIST rows are contoured too. `--t2` is unchanged — as a contour it
   does not read muddy, and Bloom has no cooler warm to move to.
 - **Tier 4 is a registry:** the list's 64px rows inside the card view.
 - **Events is a log:** one toolbar row, filters in a popover with a count
@@ -455,11 +461,62 @@ the code.**
   `text-muted` (AA), as v2 answered.
 - **The alert's answer is a state:** acknowledged keeps the strip with the
   clock stopped; joined is a slim bar and the lane says "You in session";
-  held by another supervisor offers Observe · Hand to me.
+  held by another supervisor offers Observe · Hand to me. **SUPERSEDED by
+  Monitoring v4:** the strips are deleted; the queue's Holder and Action
+  (Join · Observe · Resume) and the tray's Needs you now carry it.
 - **Scenarios are data** (`lib/monitoring/monitoring.mock.ts`), twenty, in
   the dev bar's "Monitoring · Watch" / "Monitoring · Events" groups, each a
   transform of the real derived data. `monitoring-scenarios.mjs` picks all
-  twenty through the bar and asserts each.
+  twenty through the bar and asserts each. **SUPERSEDED IN PART by
+  Monitoring v4:** still twenty, but the five strip scenarios are the
+  queue's five states now, and `AlertMock` is deleted.
+
+### Monitoring v4 — no strips, a real Tier 1 queue, the tray (proto/monitoring-v4)
+
+Answered 2026-10-28 ("go" on the context report, "go" after §2). Local
+only. **Supersedes v3's alert states, v3's lane fill, the scenario set, the
+page rule, v2's unclickable hero (a code-level rule), and pack v2.0's
+"time-to-confirm never shown" on this one surface, each marked in place.**
+
+- **No strips.** `tier1-alert-strip.tsx` and `alert-clock.ts` are deleted,
+  not orphaned. What was the strip's: the response state (the queue), the
+  announcement (one polite `Tier1Arrivals` line per arrival, never
+  `role="alert"` for a state that persists), the sound (the tray).
+- **The queue is one derivation, two hosts** (`lib/monitoring/t1-queue.ts`,
+  `t1Rows`): the Monitoring queue and the bell's Needs you now read the same
+  rows in the same order. A soft 20px container at `t1-soft` 40%, white
+  rows with a 50% t1 contour, six columns (Teen · Stage · Signals ·
+  Response · Holder · Action). Tier 1 is never cards.
+- **The stepper is the product's order** — Requested → Assessment →
+  Confirmed → Note — not the brief's (the mentor assesses before a
+  supervisor confirms, pack v3.0).
+- **A response is a state, never a countdown past zero:** "0:42 to
+  confirm" · "Overdue 14m" · "Confirmed by Sarah · 0:48". "0:00 left"
+  cannot be produced (unit-tested). The sort is by that state: overdue
+  longest first, then least time left, then confirmed oldest first.
+- **Holder is derived, never invented:** you (joined this session, or
+  confirmed), the confirmer, a scenario's holder, or nobody — and Join ·
+  Observe · Resume follow from it. Joined is presence, session-only.
+- **The hero's counted cells are buttons** (In crisis → the queue's first
+  row, focused; High risk → Tier 2; Risk flags and Escalations → Events,
+  `?tab=events&type=…`). Active teens has nowhere to go, so it is a figure.
+  The In-crisis dot exists only above zero.
+- **Fills, defined:** a surface at least 24px on both axes. The only warm
+  fills on the page are the queue container and Join (measured in both
+  themes and both views); dots and lozenges are marks.
+- **Needs you now** heads the tray for a supervisor: every unconfirmed
+  Tier 1, from the record, never from a seen state — a look cannot clear
+  one, confirmation does. Counted in the badge; the matching "raised Tier 1"
+  notice steps aside so it is said once. One target per row (the action,
+  stretched).
+- **The cue** (`lib/monitoring/t1-cue.ts`): Web Audio, two soft sine notes,
+  no asset, no dependency, on an arrival after the baseline — what was
+  waiting at load is not news. The browser allows audio only after a
+  gesture; an arrival before one is silent, and said so. The mute is the
+  tray header's pressed toggle, per persona (`t1CueMuted`, store v58).
+- **`--t1-text`** is a text-only token: in light it is `--t1-ink`; in dark
+  blush/500, because the board's dark ink measured 4.36:1 on the queue row.
+  Fills, glyphs and lozenges keep `--t1-ink`; the chat is untouched.
 
 ### Care Panel & Escalation — Elevation (pack v4.0, feat/care-elevation)
 

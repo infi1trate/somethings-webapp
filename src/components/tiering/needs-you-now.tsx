@@ -58,7 +58,7 @@ export function NeedsYouNow({ rows, onNavigate }: { rows: T1Row[]; onNavigate: (
                 </span>
               </span>
               <span className="flex shrink-0 flex-col items-end gap-1">
-                <span data-needs-response={r.response.kind} className={cn("font-mono text-[12px] leading-[16px] tabular-nums", overdue ? "text-[var(--t1-ink)]" : "text-[var(--text-secondary)]")}>
+                <span data-needs-response={r.response.kind} className={cn("font-mono text-[12px] leading-[16px] tabular-nums", overdue ? "text-[var(--t1-text)]" : "text-[var(--text-secondary)]")}>
                   {responseText(r.response)}
                 </span>
                 {link && (

@@ -81,7 +81,7 @@ console.log("\n── 1 · one container; the header is its sticky first row");
   /* Tailwind v4's shadow utility prepends four transparent ring layers;
      the token is what it ENDS with. */
   check(c.radius === "24px" && c.bg === raised && c.shadow.endsWith(elSoft) && c.pad === "16px 16px 16px" && c.inBox, "the whole list in one raised container: 24px, soft elevation, 16px in", JSON.stringify({ r: c.radius, pad: c.pad }));
-  check(c.sticky === "sticky" && c.hair === `1px ${subtle}` && c.gapAbove === 12 && c.headFs === "12px" && c.headColor === tertiary, "the header row: sticky, 12/16 tertiary, 12px above a border-subtle hairline", JSON.stringify({ sticky: c.sticky, gap: c.gapAbove, hair: c.hair }));
+  check(c.sticky === "sticky" && c.hair === `1px ${subtle}` && c.gapAbove === 16 && c.headFs === "12px" && c.headColor === tertiary, "the header row: sticky, 12/16 tertiary, 16px above a border-subtle hairline (v4 §3: was 12)", JSON.stringify({ sticky: c.sticky, gap: c.gapAbove, hair: c.hair }));
   /* Aligned to the cells, in every tier. */
   const align = await page.evaluate(() => {
     const hx = [...document.querySelectorAll('[data-list-header] [role="columnheader"]')].map((h) => Math.round(h.getBoundingClientRect().left));

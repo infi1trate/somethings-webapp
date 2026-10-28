@@ -21,6 +21,12 @@
 //   · Storage that throws is scoped to the layout key: this app's persona lives
 //     in storage too, and blocking all of it measures the persona gate instead.
 //
+// RETARGETED (Monitoring v4): the hero's four counted cells are buttons; the
+// In-crisis cell has no fill and its dot exists only above zero; the Tier 1
+// lane is the structured queue (40% t1-soft container, white rows, six
+// columns, a filled Join); and step 5 asserts there is NO strip in any
+// state — the queue and the bell carry what the strip did.
+//
 // ADDED IN THE PORT (step 7): the nav names Monitoring and Chats under the
 // Monitoring group and nothing else; the badge is teens needing review and
 // follows the scenario; the retired routes land here in one hop with their
@@ -177,9 +183,12 @@ const AVATAR = "[data-tier-ring] > span";
   check(hero.cols === 5 && hero.gap === "1px" && hero.bg === subtle, "five across, divided by 1px border-subtle hairlines", `${hero.cols} · ${hero.gap} · ${hero.bg}`);
   check(hero.cells.every((c) => c.nfs === "32px" && c.nlh === "36px" && /tabular-nums/.test(c.nnum)), "numerals 32/36, tabular");
   check(hero.cells.every((c) => c.lfs === "13px" && c.lc === secondary && c.dfs === "11px" && /mono/i.test(c.dff)), "labels 13px secondary, details 11px mono");
-  check(hero.cells.every((c) => !c.clickable), "not clickable");
+  /* MONITORING v4 §1: WAS "not clickable". A cell with somewhere to go is
+     a button; Active teens has nowhere, so it stays a figure. */
+  check(hero.cells.slice(0, 4).every((c) => c.clickable) && !hero.cells[4].clickable, "the four counted cells are buttons; Active teens is a figure", hero.cells.map((c) => c.clickable).join(","));
   const crisis0 = hero.cells[0];
-  check(crisis0.value === "0" && !crisis0.hot && crisis0.dot?.w === 10 && crisis0.dot.anim === "none", "Monitor: In crisis 0, a quiet 10px dot, no pulse", JSON.stringify(crisis0.dot));
+  /* WAS "a quiet 10px dot": zero is muted with no dot (v4 §3). */
+  check(crisis0.value === "0" && !crisis0.hot && crisis0.dot === null, "Monitor: In crisis 0, muted, no dot", JSON.stringify(crisis0.dot));
   check(hero.cells[1].value === "2" && /1 review due/.test(hero.cells[1].detail), "High risk 2, with its 1 review due — derived", hero.cells[1].detail);
   check(hero.cells[4].value === "106", "Monitor: 106 active teens — every record teen plus Tier 4's generated rows", hero.cells[4].value);
   await page.screenshot({ path: `${OUT}/01-monitor-1512.png` });
@@ -193,8 +202,11 @@ const AVATAR = "[data-tier-ring] > span";
   });
   const t1 = await tok(page, "--t1");
   const t1soft = await tok(page, "--t1-soft", "bg");
-  check(hot.value === "1" && hot.hot === "true" && hot.bg === t1soft && hot.nc === t1 && hot.dbg === t1 && hot.anim !== "none", "Alert: In crisis 1, the cell tints t1-soft, numeral and dot t1, the dot pulses", JSON.stringify({ v: hot.value, bg: hot.bg, anim: hot.anim }));
-  check(hot.dc === secondary, "its detail falls back to secondary on t1-soft (tertiary is 4.39:1)", hot.dc);
+  /* WAS "the cell tints t1-soft": no amber or red fill but the queue's
+     container and Join (v4) — the numeral and the dot carry it. */
+  void t1soft;
+  check(hot.value === "1" && hot.hot === "true" && hot.bg === raised && hot.nc === t1 && hot.dbg === t1 && hot.anim !== "none", "Alert: In crisis 1, no fill, numeral and dot t1, the dot pulses", JSON.stringify({ v: hot.value, bg: hot.bg, anim: hot.anim }));
+  check(hot.dc === secondary, "its detail is the queue's sentence, in secondary", hot.dc);
   check(hot.active === "106", "Alert: still 106 — the Tier 1 teen MOVED into the lane, derived, not typed", hot.active);
   await page.screenshot({ path: `${OUT}/02-alert-1512.png` });
   await ctx.close();
@@ -214,7 +226,7 @@ const AVATAR = "[data-tier-ring] > span";
     const h = g.querySelector("h3");
     const e = g.querySelector("[data-t1-empty]");
     const s = e && getComputedStyle(e);
-    return { h3: h?.textContent.replace(/\s+/g, " ").trim(), text: e?.textContent.trim(), bg: s?.backgroundColor, border: s && `${s.borderTopWidth} ${s.borderTopColor}`, color: s?.color, live: !!g.querySelector("[data-t1-live]") };
+    return { h3: h?.textContent.replace(/\s+/g, " ").trim(), text: e?.textContent.trim(), bg: s?.backgroundColor, border: s && `${s.borderTopWidth} ${s.borderTopColor}`, color: s?.color, live: !!g.querySelector("[data-t1-row]") };
   });
   const [tertiary, borderDefault, raised, canvas] = [await tok(page, "--text-tertiary"), await tok(page, "--border-default"), await tok(page, "--surface-raised", "bg"), await tok(page, "--surface-canvas", "bg")];
   check(/^Tier 1 · Active crisis\s*0/.test(empty.h3 ?? ""), "its own h3 group header, naming the tier", empty.h3);
@@ -226,37 +238,31 @@ const AVATAR = "[data-tier-ring] > span";
      dashed border-default contour, no fill, 15 text-secondary. */
   check(empty.text === "Nothing in crisis" && empty.bg === "rgba(0, 0, 0, 0)" && /^1px/.test(empty.border) && !empty.live, "Monitor: a dashed contour, no fill, 'Nothing in crisis'", JSON.stringify(empty));
   await setMode(page, "alert");
-  const live = await page.evaluate(() => {
-    const r = document.querySelector("[data-t1-live]");
-    const s = getComputedStyle(r);
-    const ring = r.querySelector("[data-tier-ring]");
-    const dot = r.querySelector("[data-presence-dot]");
-    const join = r.querySelector("[data-t1-join]");
-    const rec = r.querySelector("[data-requested-tier]");
-    const flags = r.querySelector("[data-t1-flags]");
-    return {
-      bg: s.backgroundColor, border: `${s.borderTopWidth} ${s.borderTopColor}`, leftBorder: s.borderLeftWidth === s.borderTopWidth && s.borderLeftColor === s.borderTopColor,
-      ring: !!ring, dot: !!dot,
+  /* ═══ MONITORING v4 §2: THE QUEUE ═══ WAS the live lane (t1-soft card, a
+     keyline, "Join · 0:42"). Now a soft container at 40% t1-soft holding
+     white rows under six column headers; Join is the one filled pill, and
+     the clock is the Response cell's, never the button's. */
+  const qd = await page.evaluate(() => {
+    const c = document.querySelector("[data-t1-queue]");
+    const r = c?.querySelector("[data-t1-row]");
+    const j = r?.querySelector("[data-t1-action]");
+    return c && {
+      bg: getComputedStyle(c).backgroundColor, radius: getComputedStyle(c).borderRadius,
+      heads: [...c.querySelectorAll('[data-t1-headers] [role="columnheader"]')].map((h) => h.textContent.trim()),
+      rowBg: getComputedStyle(r).backgroundColor, rowBorder: getComputedStyle(r).borderTopColor, h: Math.round(r.getBoundingClientRect().height),
+      steps: r.querySelectorAll("[data-step]").length, response: r.querySelector("[data-t1-response]")?.textContent.trim(),
+      join: j && { kind: j.dataset.t1Action, bg: getComputedStyle(j).backgroundColor, color: getComputedStyle(j).color, text: j.textContent.trim(), h: Math.round(j.getBoundingClientRect().height) },
       text: r.textContent.replace(/\s+/g, " ").trim(),
-      rec: rec && { color: getComputedStyle(rec).color, border: `${getComputedStyle(rec).borderTopStyle} ${getComputedStyle(rec).borderTopColor}`, text: rec.textContent.trim() },
-      flags: flags && { color: getComputedStyle(flags).color, text: flags.textContent.replace(/\s+/g, " ").trim() },
-      join: join && { bg: getComputedStyle(join).backgroundColor, color: getComputedStyle(join).color, text: join.textContent.trim(), label: join.getAttribute("aria-label"), h: Math.round(join.getBoundingClientRect().height) },
     };
   });
-  const [t1, t1soft, t1ink, ok, okink] = [await tok(page, "--t1"), await tok(page, "--t1-soft", "bg"), await tok(page, "--t1-ink"), await tok(page, "--ok"), await tok(page, "--ok-ink")];
-  check(live.bg === t1soft && live.border === `1px ${t1}` && live.leftBorder, "Alert: t1-soft with a 1px t1 keyline, all round (no left bar)", `${live.bg} · ${live.border}`);
-  /* ═══ MONITORING v2 (Part B) ═══ WAS "the avatar carries the t1 ring". No rings anywhere; the
-     only one is the green presence dot, and Jordan's mentor is in session. */
-  check(!live.ring && live.dot, "no avatar ring — the live lane's one keyline, and the presence dot", JSON.stringify({ ring: live.ring, dot: live.dot }));
-  check(/Jordan T\./.test(live.text) && /The mentor/.test(live.text) && /Mentor in session/.test(live.text), "teen, mentor, presence — a record teen", live.text.slice(0, 80));
-  const secondaryInk = await tok(page, "--text-secondary");
-  check(live.rec?.text === "Requested: Tier 1" && /^dashed/.test(live.rec.border) && live.rec.color === secondaryInk, "Requested: Tier 1 — dashed, in words, awaiting a supervisor", JSON.stringify(live.rec));
-  check(live.flags?.text.startsWith("4 · 24h") && live.flags.color === t1ink, "the flag signal in t1-ink", JSON.stringify(live.flags));
-  check(/^Join · [01]:[0-5]\d$/.test(live.join?.text ?? "") && live.join.bg === t1ink && live.join.color === "rgb(255, 255, 255)" && live.join.h >= 24, "a red Join with the response clock", JSON.stringify(live.join));
-  const t0 = await page.locator("[data-t1-join]").textContent();
-  await page.waitForTimeout(2100);
-  const t1txt = await page.locator("[data-t1-join]").textContent();
-  check(t0 !== t1txt, "and the clock runs", `${t0} → ${t1txt}`);
+  const [t1, t1ink] = [await tok(page, "--t1"), await tok(page, "--t1-ink")];
+  void t1ink;
+  check(qd && /0\.4\)$|\/ 0\.4\)$/.test(qd.bg) && qd.radius === "20px", "Alert: the queue is a 20px soft container at 40% t1-soft", qd?.bg);
+  check(qd?.heads.length === 6, "six column headers", qd?.heads.join(" · "));
+  check(qd?.rowBg === "rgb(255, 255, 255)" && qd.rowBorder !== qd.rowBg && qd.h >= 64, "rows are white, contoured, 64 tall", JSON.stringify({ bg: qd?.rowBg, h: qd?.h }));
+  check(qd?.steps === 4 && /^(Overdue |\d:\d\d to confirm)/.test(qd.response ?? "") && !/0:00|left/.test(qd.response ?? ""), "a four-step stepper and a response state — never “0:00 left”", qd?.response);
+  check(/Jordan T\./.test(qd?.text ?? "") && /The mentor/.test(qd?.text ?? ""), "teen and mentor — a record teen", qd?.text.slice(0, 80));
+  check(qd?.join?.kind === "join" && qd.join.text === "Join" && qd.join.bg === t1 && qd.join.color === "rgb(255, 255, 255)" && qd.join.h === 36, "Join: filled t1, white, 36px, no timer in it", JSON.stringify(qd?.join));
   await page.screenshot({ path: `${OUT}/03-lane-alert-1512.png` });
   await ctx.close();
 }
@@ -278,7 +284,8 @@ const ENGINE = `(() => {
   const { ctx, page } = await open(1512, { dpr: 2, scenario: "tiers-alert" });
   const t = await page.evaluate(() => {
     const table = document.querySelector('[data-monitoring-list][role="table"]');
-    const heads = [...table.querySelectorAll('[role="columnheader"]')].map((h) => h.textContent.trim());
+    /* The Tier 1 queue has column headers of its own (v4 §2); these are the table's. */
+    const heads = [...table.querySelectorAll('[role="columnheader"]')].filter((h) => !h.closest("[data-t1-queue]")).map((h) => h.textContent.trim());
     const rows = [...table.querySelectorAll("[data-monitoring-row]")];
     const geo = rows.map((r) => {
       const b = r.getBoundingClientRect();
@@ -302,7 +309,7 @@ const ENGINE = `(() => {
   /* AND THE TRACKS ARE THE TABLE'S, not each row's own (seven equal columns
      would align too, which is why alignment alone is not the check). */
   const tracks = await page.evaluate(() => {
-    const hx = [...document.querySelectorAll('[data-monitoring-list] [role="columnheader"]')].map((h) => Math.round(h.getBoundingClientRect().left));
+    const hx = [...document.querySelectorAll('[data-monitoring-list] [role="columnheader"]')].filter((h) => !h.closest("[data-t1-queue]")).map((h) => Math.round(h.getBoundingClientRect().left));
     const row = document.querySelector("[data-monitoring-row]");
     const cells = [...row.querySelectorAll(':scope > [role="cell"]')].map((c) => c.getBoundingClientRect());
     return { hx, cx: cells.map((c) => Math.round(c.left)), teen: Math.round(cells[0].width), mentor: Math.round(cells[1].width) };
@@ -311,7 +318,10 @@ const ENGINE = `(() => {
   check(tracks.teen > tracks.mentor * 1.8, "Teen holds its wide track against Mentor's", `${tracks.teen} vs ${tracks.mentor}`);
   const [t2, t2soft, borderSubtle, secondary, raised, elSoft, canvas, sunken, t1ink, t2inkBg] = [await tok(page, "--t2"), await tok(page, "--t2-soft", "bg"), await tok(page, "--border-subtle"), await tok(page, "--text-secondary"), await tok(page, "--surface-raised", "bg"), await tok(page, "--el-soft", "shadow"), await tok(page, "--surface-canvas", "bg"), await tok(page, "--surface-sunken", "bg"), await tok(page, "--t1-ink", "bg"), await tok(page, "--t2-ink", "bg")];
   const by = (tier) => body.filter((r) => r.tier === tier);
-  check(by(2).length > 0 && by(2).every((r) => r.bg === t2soft && (/^0px/.test(r.bt) || /rgba\(0, 0, 0, 0\)$/.test(r.bt)) && r.shadow === "none"), "T2: t2-soft, no keyline (nothing visible at its edge)", JSON.stringify(by(2)[0] && { bg: by(2)[0].bg, bt: by(2)[0].bt }));
+  /* MONITORING v4 §3: WAS "t2-soft, no keyline". No amber fill but the
+     queue's: Tier 2 is white with the t2 hue at 45% as its contour. */
+  void t2soft;
+  check(by(2).length > 0 && by(2).every((r) => r.bg === raised && /^1px /.test(r.bt) && /0\.45\)$/.test(r.bt)), "T2: white, a 1px t2 contour at 45% — tier by contour, not fill", JSON.stringify(by(2)[0] && { bg: by(2)[0].bg, bt: by(2)[0].bt }));
   /* ═══ MONITORING v2 (Part B) ═══ T3 WAS Elevation 1; T4 WAS transparent on border-default. */
   check(by(3).length > 0 && by(3).every((r) => r.bg === raised && wears(r.shadow, elSoft)), "T3: surface-raised with the soft elevation — elevation is the signifier");
   check(by(4).length > 0 && by(4).every((r) => r.bg === canvas && r.bt === `1px ${borderSubtle}` && r.shadow === "none"), "T4: surface-canvas, a border-subtle hairline, no shadow", JSON.stringify(by(4)[0] && { bg: by(4)[0].bg, bt: by(4)[0].bt }));
@@ -361,14 +371,16 @@ const ENGINE = `(() => {
   check(tintZero === secondary, "on a t2 tint a zero falls back to secondary", tintZero);
   check(/↗/.test(tones.theo), "Simone's slow-burn reads ↗, in neutral ink", tones.theo);
   check(tones.second === "From T1 · Fri · Day 3 of 7" && !/mono/i.test(tones.secondFf ?? "mono"), "the second line: review reason · Day N of M, in the sans — mono retreats", `${tones.second} · ${tones.secondFf?.slice(0, 30)}`);
-  check(tones.spark.length === 7 && tones.spark.every((b) => b.w === 4 && b.bg === sparkInk) && tones.spark.slice(1).every((b, i) => b.x - tones.spark[i].x === 6) && tones.sparkH === 18, "the sparkline: 7 bars, 4px, 2px apart, 18 tall, border-strong", JSON.stringify(tones.spark.slice(0, 2)));
+  /* MONITORING v4 §3: WAS 4px bars, 6px pitch, 18 tall. The row variant:
+     3px bars 2px apart, 16 tall, the last (today) in ink. */
+  check(tones.spark.length === 7 && tones.spark.every((b) => b.w === 3) && tones.spark.slice(0, 6).every((b) => b.bg === sparkInk) && tones.spark[6].bg === primary && tones.spark.slice(1).every((b, i) => b.x - tones.spark[i].x === 5) && tones.sparkH === 16, "the sparkline: 7 bars, 3px, 2px apart, 16 tall, border-strong ending in ink", JSON.stringify(tones.spark.slice(5)));
 
   /* TEXT ON THE TINTS ≥ 4.5:1 — every text node on a T1 or T2 surface. */
   const contrast = await page.evaluate(([ENGINE]) => {
     eval(ENGINE);
     const { rgba, ratio, bgOf } = window.__c;
     const out = [];
-    for (const r of document.querySelectorAll('[data-monitoring-row][data-tier="2"], [data-t1-live]')) {
+    for (const r of document.querySelectorAll('[data-monitoring-row][data-tier="2"], [data-t1-row], [data-t1-headers]')) {
       const w = document.createTreeWalker(r, NodeFilter.SHOW_TEXT);
       for (let n = w.nextNode(); n; n = w.nextNode()) {
         const el = n.parentElement;
@@ -420,7 +432,7 @@ const ENGINE = `(() => {
   const c = await page.evaluate(() => {
     const root = document.querySelector("[data-monitoring-cards]");
     const cards = [...root.querySelectorAll("[data-monitoring-card]")].map((a) => ({ tier: +a.dataset.tier, tagName: a.tagName, name: document.getElementById(a.getAttribute("aria-labelledby"))?.textContent.trim() }));
-    return { list: !!document.querySelector("[data-monitoring-list]"), lane: !!root.querySelector('[data-tier-group="1"] [data-t1-live]'), cards };
+    return { list: !!document.querySelector("[data-monitoring-list]"), lane: !!root.querySelector('[data-tier-group="1"] [data-t1-queue], [data-tier-group="1"] [data-t1-empty]'), cards };
   });
   check(!c.list && c.lane, "the cards replace the list in place; the Tier 1 lane stays", JSON.stringify({ list: c.list, lane: c.lane }));
   const cs = c.cards;
@@ -468,85 +480,31 @@ const ENGINE = `(() => {
   await blocked.ctx.close();
 }
 
-// ── STEP 5 · the alert strip ───────────────────────────────────────────────
+// ── STEP 5 · no strip, in any state (Monitoring v4 §1) ─────────────────────
+// WAS the alert strip's anatomy, Acknowledge, joined-as-a-slim-bar and a
+// fresh clock per alert. The strips are deleted; what they did is the
+// queue's (the response state, Join → Resume) and the bell's (the cue).
 {
-  console.log("\n── step 5 · the alert strip (1512)");
+  console.log("\n── step 5 · no strip; Join goes in and comes back as Resume (1512)");
   const { ctx, page } = await open(1512, { dpr: 2 });
   check(!(await page.$("[data-alert-strip]")), "Monitor: no strip");
   await setMode(page, "alert");
-  const st = await page.evaluate(([ENGINE]) => {
-    eval(ENGINE);
-    const { rgba, ratio, bgOf } = window.__c;
-    const el = document.querySelector("[data-alert-strip]");
-    if (!el) return null;
-    const s = getComputedStyle(el);
-    const h1 = document.querySelector("[data-monitoring] h1").getBoundingClientRect();
-    const r = el.getBoundingClientRect();
-    const texts = [];
-    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    for (let n = w.nextNode(); n; n = w.nextNode()) { const e = n.parentElement; if (!n.textContent.trim() || e.closest('[aria-hidden="true"]')) continue; texts.push({ t: n.textContent.trim().slice(0, 18), r: Math.round(ratio(rgba(getComputedStyle(e).color), bgOf(e)) * 100) / 100 }); }
-    const dot = el.querySelector("[data-alert-dot]");
-    return {
-      role: el.getAttribute("role"), bg: s.backgroundColor, text: el.querySelector("[data-alert-text]").textContent.replace(/\s+/g, " ").trim(),
-      timer: el.querySelector("[data-alert-timer]").textContent.replace(/\s+/g, " ").trim(), timerFf: getComputedStyle(el.querySelector("[data-alert-timer]")).fontFamily,
-      lane: document.querySelector("[data-t1-join]")?.textContent.trim(),
-      dot: getComputedStyle(dot).animationName,
-      join: (() => { const j = el.querySelector("[data-alert-join]"); return { bg: getComputedStyle(j).backgroundColor, c: getComputedStyle(j).color, t: j.textContent.trim() }; })(),
-      ack: el.querySelector("[data-alert-ack]")?.textContent.trim(),
-      above: r.bottom <= h1.top,
-      sound: /sound/i.test(el.textContent),
-      texts,
-    };
-  }, [ENGINE]);
-  const errBg = await tok(page, "--state-error", "bg");
-  const errFg = await tok(page, "--state-error");
-  check(st?.role === "alert" && st.bg === errBg, "Alert: role=alert, on --state-error", st?.bg);
-  check(/^Tier 1 · The mentor flagged Jordan T\. · unconfirmed · note \+ C-SSRS · \d{1,2}:\d{2} (AM|PM)$/.test(st?.text ?? ""), "the pack's sentence, from the data", st?.text);
-  check(/^\d:\d\d left$/.test(st?.timer ?? "") && /mono/i.test(st.timerFf) && !st.sound, "a mono response timer chip, and no sound toggle", st?.timer);
-  check(st?.lane?.endsWith(st.timer.split(" ")[0]), "the strip and the lane show one clock", `${st?.timer.split(" ")[0]} / ${st?.lane}`);
-  check(st?.dot !== "none", "the dot pulses");
-  check(st?.join.bg === "rgb(255, 255, 255)" && st.join.c === errFg && st.join.t === "Join session" && st.ack === "Acknowledge", "Join session white and primary, then Acknowledge", JSON.stringify(st?.join));
-  check(st?.above, "above the page title, at the top of the canvas");
-  const low = (st?.texts ?? []).filter((x) => x.r < 4.5);
-  check(st?.texts.length > 0 && low.length === 0, "every text on the strip is ≥ 4.5:1", low.length ? JSON.stringify(low) : `${st?.texts.length} texts, lowest ${Math.min(...(st?.texts ?? []).map((x) => x.r))}:1`);
-  await page.screenshot({ path: `${OUT}/06-strip-alert-1512.png` });
-
-  /* ACKNOWLEDGE ends it; the lane stays live; Join from the lane does not bring it back. */
-  await page.locator("[data-alert-ack]").click();
-  await page.waitForTimeout(300);
-  /* RETARGETED (Monitoring v3, §6): acknowledging is a state, not a
-     dismissal — the strip stays, the clock stops, it says so. */
-  const acked = await page.evaluate(() => ({ s: document.querySelector("[data-alert-strip]")?.dataset.alertStrip, who: document.querySelector("[data-alert-holder]")?.textContent.trim(), stopped: !!document.querySelector("[data-alert-timer][data-stopped]") }));
-  check(acked.s === "acknowledged" && acked.who === "· Acknowledged by you" && acked.stopped && !!(await page.$("[data-t1-live]")), "Acknowledge: the strip stays, its clock stopped, “Acknowledged by you”; the lane stays live", JSON.stringify(acked));
-  /* ═══ JOIN GOES INTO THE CONVERSATION (pack v3.0, Workstream A) ═══ It
-     was a no-op with a TODO; with Chats gone from a supervisor's nav it is
-     their door into the chat. So the claim is now two: it lands on the
-     conversation, and coming back does not raise the answered strip. */
-  await page.locator("[data-t1-join]").click();
-  await page.waitForURL(/\/app\/chat\/t13$/, { timeout: 8000 }).catch(() => {});
+  check(!(await page.$("[data-alert-strip]")) && !(await page.$('[data-monitoring] [role="alert"]')), "Alert: no strip and no role=alert — the queue states it");
+  const pre = await page.evaluate(() => [...document.querySelectorAll("[data-t1-response]")].map((r) => r.textContent.trim()));
+  check(pre.length === 1 && !pre.some((t) => /0:00|left/.test(t)), "one response state, never “0:00 left”", pre.join(" | "));
+  await page.locator('[data-t1-row="t13"] [data-t1-action="join"]').click();
+  await page.waitForURL(/\/app\/chat\/t13/, { timeout: 8000 }).catch(() => {});
   check(new URL(page.url()).pathname === "/app/chat/t13", "Join lands on Jordan's conversation", new URL(page.url()).pathname);
-  /* BACK, not a fresh load: the answered state is this session's, and a
-     reload is a new session. */
+  /* BACK, not a fresh load: who joined is this session's presence. */
   await page.goBack({ waitUntil: "networkidle" });
   await page.waitForTimeout(800);
-  check((await page.evaluate(() => document.querySelector("[data-alert-strip]")?.dataset.alertStrip)) === "joined", "and back on Monitoring, the joined alert is the slim bar — the full strip does not come back");
-
-  /* A NEW ALERT is a new strip, on a fresh clock. */
-  await setMode(page, "monitor");
-  check(!(await page.$("[data-alert-strip]")) && !!(await page.$("[data-t1-empty]")), "back to Monitor: no strip, the lane calm");
-  await setMode(page, "alert");
-  const again = await page.evaluate(() => document.querySelector("[data-alert-timer]")?.textContent.trim());
-  check(/^(1:00|0:59|0:58) left/.test(again ?? ""), "Monitor then Alert again: a new strip, the clock from 1:00", again);
-
-  /* JOIN from the strip answers the alert (the session hand-off is TODO). */
-  await page.locator("[data-alert-join]").click();
-  await page.waitForTimeout(500);
-  check((await page.evaluate(() => document.querySelector("[data-alert-strip]")?.dataset.alertStrip)) === "joined" && new URL(page.url()).pathname === PATH, "Join session collapses the strip to the slim bar and stays on the page (navigation is TODO(monitoring))", page.url());
+  check((await page.evaluate(() => document.querySelector('[data-t1-row="t13"] [data-t1-action]')?.dataset.t1Action)) === "resume", "and back on Monitoring, the row offers Resume");
+  check(!(await page.$("[data-alert-strip]")), "still no strip");
   await ctx.close();
 
   const rm = await open(1512, { reducedMotion: "reduce", scenario: "tiers-alert" });
-  const a = await rm.page.evaluate(() => { const d = document.querySelector("[data-alert-dot]"); return d && { anim: getComputedStyle(d).animationName, w: Math.round(d.getBoundingClientRect().width) }; });
-  check(a?.anim === "none" && a.w === 10, "reduced motion: no pulse, the dot still there", JSON.stringify(a));
+  const a = await rm.page.evaluate(() => { const d = document.querySelector("[data-crisis-dot]"); return d && { anim: getComputedStyle(d).animationName, w: Math.round(d.getBoundingClientRect().width) }; });
+  check(a?.anim === "none" && a.w === 10, "reduced motion: the In-crisis dot does not pulse, and is still there", JSON.stringify(a));
   await rm.ctx.close();
 }
 
@@ -599,7 +557,7 @@ for (const layout of ["list", "cards"]) {
   check(last.includes("teen-gen-79") && last.length < 100, "scrolled to the end: the last teen is there, the window still small", `${last.length} rendered, last ${last.at(-1)}`);
   if (layout === "list") {
     const align = await page.evaluate(() => {
-      const hx = [...document.querySelectorAll('[data-monitoring-list] [role="columnheader"]')].map((h) => Math.round(h.getBoundingClientRect().left));
+      const hx = [...document.querySelectorAll('[data-monitoring-list] [role="columnheader"]')].filter((h) => !h.closest("[data-t1-queue]")).map((h) => Math.round(h.getBoundingClientRect().left));
       const r = document.querySelector('[data-tier-group="4"] [data-monitoring-row]');
       return { hx, cx: [...r.querySelectorAll(':scope > [role="cell"]')].map((c) => Math.round(c.getBoundingClientRect().left)) };
     });
@@ -678,19 +636,21 @@ for (const layout of ["list", "cards"]) {
       const m = await page.evaluate(() => {
         const canvas = document.querySelector("[data-monitoring]").parentElement.closest('[class*="@container/canvas"]');
         const reg = document.querySelector("[data-monitoring-list-scroll]");
-        const strip = document.querySelector("[data-alert-strip]");
+        const q = document.querySelector("[data-t1-queue]");
         const grid = document.querySelector('[data-tier-group="2"] [data-card-grid]');
         return {
           canvas: canvas ? [canvas.scrollWidth, canvas.clientWidth] : null,
           doc: [document.documentElement.scrollWidth, innerWidth],
-          strip: strip && [strip.scrollWidth, strip.clientWidth],
+          queue: q && { sw: q.scrollWidth, cw: q.clientWidth, x: getComputedStyle(q).overflowX },
           region: reg && { sw: reg.scrollWidth, cw: reg.clientWidth, tab: reg.tabIndex, role: reg.getAttribute("role"), name: reg.getAttribute("aria-label") },
           cols: grid ? getComputedStyle(grid).gridTemplateColumns.split(" ").length : null,
           hero: getComputedStyle(document.querySelector("[data-hero-metrics]")).gridTemplateColumns.split(" ").length,
         };
       });
       check(m.canvas && m.canvas[0] <= m.canvas[1] && m.doc[0] <= m.doc[1], `${layout}: the canvas and the page do not scroll sideways`, `canvas ${m.canvas?.join("/")} · doc ${m.doc.join("/")}`);
-      check(m.strip && m.strip[0] <= m.strip[1], `${layout}: the strip wraps inside its width`, m.strip?.join("/"));
+      /* WAS "the strip wraps": no strip; the queue's table scrolls inside its
+         own container, the page does not (v4). */
+      check(m.queue && m.queue.x === "auto" && m.queue.sw >= m.queue.cw, `${layout}: the queue scrolls inside its own container`, JSON.stringify(m.queue));
       check(m.hero === (width < 600 ? 2 : 3), `${layout}: the hero wraps to ${width < 600 ? 2 : 3} across`, `${m.hero}`);
       if (layout === "list") check(m.region && m.region.sw > m.region.cw && m.region.tab === 0 && m.region.role === "region" && m.region.name, "list: the table scrolls inside a focusable, named region", JSON.stringify(m.region));
       else check(m.cols === (width < 600 ? 1 : 2), `cards: ${width < 600 ? 1 : 2} across`, `${m.cols}`);

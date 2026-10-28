@@ -91,7 +91,7 @@ function Stepper({ stage }: { stage: T1Stage }) {
  *  the word, never the colour alone; confirmed, the quiet tertiary line. */
 function Response({ r }: { r: T1Response }) {
   return (
-    <p data-t1-response={r.kind} className={cn("flex min-w-0 items-center gap-1.5 text-[13px] leading-[16px] tabular-nums", r.kind === "overdue" ? "font-display text-[var(--t1-ink)]" : r.kind === "window" ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]")}>
+    <p data-t1-response={r.kind} className={cn("flex min-w-0 items-center gap-1.5 text-[13px] leading-[16px] tabular-nums", r.kind === "overdue" ? "font-display text-[var(--t1-text)]" : r.kind === "window" ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]")}>
       {r.kind === "overdue" && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-[var(--t1-ink)]" />}
       <span className="truncate">{responseText(r)}</span>
     </p>
@@ -122,10 +122,10 @@ function Holder({ h }: { h: T1Holder }) {
 }
 
 /** ═══ ONE ACTION ═══ A 36px pill, right-aligned. JOIN is the one red
- *  fill on the page besides the container (`t1`, white text — 4.9:1; in
- *  dark the light `t1` fails under white, so it fills `t1-ink`, as the
- *  lozenges do). Observe and Resume are outlined. No timer in the button:
- *  the Response cell says it. */
+ *  fill on the page besides the container: `t1` under `--text-inverse` —
+ *  white on #d2372a, 4.86:1. In dark `--text-inverse` turns near-black and
+ *  `t1-ink` equals `t1`, so it reads 6.3:1 (measured). Observe and Resume
+ *  are outlined. No timer in the button: the Response cell says it. */
 const ACTION_LABEL: Record<T1Action, string> = { join: "Join", observe: "Observe", resume: "Resume" };
 function Action({ action, teen, onGo }: { action: T1Action; teen: string; onGo: () => void }) {
   return (
@@ -199,7 +199,8 @@ function Row({ row }: { row: QueueRow }) {
         <span data-t1-flags className={cn("inline-flex items-center gap-1 font-mono text-[13px] tabular-nums", t.riskFlags.count ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]")}>
           <Flag aria-hidden className="size-3.5" strokeWidth={2} />
           {t.riskFlags.count}
-          {t.riskFlags.window && <span className="text-[var(--text-secondary)]">· {t.riskFlags.window}</span>}
+          {/* The window is a word, not a figure: the sans (mono is for numerals). */}
+          {t.riskFlags.window && <span className="font-sans text-[var(--text-secondary)]">· {t.riskFlags.window}</span>}
           <span className="sr-only"> risk flags</span>
         </span>
       </div>
@@ -245,7 +246,10 @@ export function Tier1Lane({ teens, heldBy, now }: { teens: MonitoringTeen[]; hel
       ) : (
         <div
           data-t1-queue
-          className="overflow-x-auto rounded-[20px] bg-[color-mix(in_srgb,var(--t1-soft)_40%,transparent)] p-3"
+          /* RELATIVE: the rows' sr-only spans are absolute, and without a
+             containing block inside the scroller they escape its clip and
+             widen a 375 canvas to 753 (measured). */
+          className="relative overflow-x-auto rounded-[20px] bg-[color-mix(in_srgb,var(--t1-soft)_40%,transparent)] p-3"
         >
           <div role="table" aria-label="Tier 1 queue" className="min-w-[880px] space-y-2">
             <div role="rowgroup">

@@ -196,7 +196,7 @@ export function GlyphCount({
   onTint?: boolean;
 }) {
   const zero = count === 0;
-  const toneInk = !zero && tone === "t1" ? "text-[var(--t1-ink)]" : !zero && tone === "t2" ? "text-[var(--t2-ink)]" : null;
+  const toneInk = !zero && tone === "t1" ? "text-[var(--t1-text)]" : !zero && tone === "t2" ? "text-[var(--t2-ink)]" : null;
   const glyphInk = toneInk ?? (onTint ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]");
   const numInk = toneInk ?? (zero ? (onTint ? "text-[var(--text-secondary)]" : "text-[var(--text-muted)]") : "text-[var(--text-primary)]");
   return (
