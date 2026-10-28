@@ -112,15 +112,39 @@ export function seedEscalations(now: number, chatScenarioId: string, monitoringS
      gets an open crisis escalation — Jordan's own fixture, or a clone of it on
      the teen's thread (the second strip of "Two Tier 1s"). */
   const mock = monitoringMock(monitoringScenarioId);
+  SEED_CONFIRMERS.clear();
   if (mock?.tier1) {
-    mock.tier1.forEach((teenId, i) => {
+    mock.tier1.forEach((entry, i) => {
+      const spec = typeof entry === "string" ? { teen: entry } : entry;
+      const teenId = spec.teen;
       if (out[teenId]) return;
-      const base = crisisEscalationFixture(now - i * 4 * 60_000);
-      out[teenId] = teenId === "t13" ? base : { ...base, id: `esc-${teenId}-m3`, threadId: teenId, anchorMessageId: null };
+      const base0 = crisisEscalationFixture(now - i * 4 * 60_000);
+      let base: EscalationState = teenId === "t13" ? base0 : { ...base0, id: `esc-${teenId}-m3`, threadId: teenId, anchorMessageId: null };
+      /* ═══ THE RECORD'S OWN FIELDS (Monitoring v4) ═══ A spec sets when it
+         was raised and how far it has got — the queue reads nothing else. */
+      if (spec.ageSec !== undefined) {
+        const opened = now - spec.ageSec * 1000;
+        base = { ...base, openedAt: opened, supervisorNotifiedAt: opened };
+      }
+      if (spec.stage === "awaiting" || spec.stage === "confirmed") {
+        const answeredAt = base.openedAt + 30_000;
+        const answers = Object.fromEntries(["q1", "q2", "q3", "q4", "q5", "q6"].map((q, k) => [q, { value: k < 3 ? ("yes" as const) : ("no" as const), at: answeredAt }]));
+        base = { ...base, safetyCheck: { answers, submittedAt: answeredAt }, mentorSummary: base.mentorSummary ?? "Safe in their room for now; talking." };
+      }
+      if (spec.stage === "confirmed") {
+        const ttc = (spec.ttcSec ?? 48) * 1000;
+        base = { ...base, confirmedTier: 1, confirmedAt: base.openedAt + ttc, meta: { timeToConfirmMs: ttc } };
+        SEED_CONFIRMERS.set(base.id, spec.confirmedBy === "you" || !spec.confirmedBy ? { id: "staff-supervisor", name: "", role: "supervisor" } : { id: `staff-${spec.confirmedBy.toLowerCase()}`, name: spec.confirmedBy, role: "supervisor" });
+      }
+      out[teenId] = base;
     });
   } else if (tierAlertLive(monitoringScenarioId) && !out.t13) out.t13 = crisisEscalationFixture(now);
   return out;
 }
+
+/** Who confirmed a scenario's seeded Tier 1 — the confirmation event's
+ *  actor, by escalation id. Rebuilt on every seed. */
+const SEED_CONFIRMERS = new Map<string, TierActor>();
 
 /** The tier request an open fixture escalation carries — the mentor's raise,
  *  awaiting a supervisor. Platform safety carries none. */
@@ -140,6 +164,11 @@ export function seedEscalationEvents(escalations: Record<string, EscalationState
             reason: e.contextNote || "Raised an escalation.",
             escalationId: e.id,
           },
+          /* A scenario's confirmation, by its seeded supervisor (v4) —
+             after the request, so the log reads in order. */
+          ...(SEED_CONFIRMERS.has(e.id) && e.confirmedAt
+            ? [{ id: `tier-confirm-${e.id}`, teenId: e.threadId, at: e.confirmedAt, kind: "confirmed" as const, tier: 1 as Tier, fromTier: 3 as Tier, actor: SEED_CONFIRMERS.get(e.id)!, reason: "Confirmed on the mentor's note and assessment.", escalationId: e.id }]
+            : []),
         ]
   );
 }

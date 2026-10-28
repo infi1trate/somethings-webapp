@@ -71,7 +71,11 @@ function Cell({
         </span>
       </div>
       <span data-hero-label className="truncate whitespace-nowrap text-[13px] leading-[16px] font-medium text-[var(--text-secondary)]">{label}</span>
-      <span data-hero-detail className={cn("truncate whitespace-nowrap font-mono text-[11px] leading-[14px]", hot ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]")}>
+      {/* The In-crisis detail is a SENTENCE about the queue ("4 awaiting ·
+          oldest 14m overdue") and set in the sans at 12 — the mono's width
+          cut it at "over…" in a 236px cell (measured). The other details
+          stay mono figures. */}
+      <span data-hero-detail className={cn("truncate whitespace-nowrap leading-[14px]", hot ? "text-[12px] tabular-nums text-[var(--text-secondary)]" : "font-mono text-[11px] text-[var(--text-tertiary)]")}>
         {detail}
       </span>
     </Tag>

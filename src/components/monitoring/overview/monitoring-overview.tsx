@@ -214,9 +214,9 @@ function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | un
           <EventsTab events={filtered} filter={filter} setFilter={setFilter} now={now} mentors={mentors} supervisors={supervisors} exportedOnArrival={!!mock?.exported} />
         ) : /* ── THE TIERS, from the same array either way ───────────── */
         layout === "cards" ? (
-          <MonitoringCards teens={teens} tier4Open={!!mock?.tier4Open} />
+          <MonitoringCards teens={teens} tier4Open={!!mock?.tier4Open} now={now} heldBy={mock?.holders} />
         ) : (
-          <MonitoringList teens={teens} tier4Open={!!mock?.tier4Open} />
+          <MonitoringList teens={teens} tier4Open={!!mock?.tier4Open} now={now} heldBy={mock?.holders} />
         )}
       </div>
     </div>

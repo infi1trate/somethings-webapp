@@ -193,12 +193,13 @@ function TierCards({ tier, teens }: { tier: Tier; teens: MonitoringTeen[] }) {
   );
 }
 
-export function MonitoringCards({ teens, tier4Open = false }: { teens: MonitoringTeen[]; tier4Open?: boolean }) {
+export function MonitoringCards({ teens, tier4Open = false, now, heldBy }: { teens: MonitoringTeen[]; tier4Open?: boolean; now: number; heldBy?: Readonly<Record<string, string>> }) {
   const of = (tier: Tier) => teens.filter((t) => t.tier === tier);
   const t4 = of(4);
   return (
     <div data-monitoring-cards>
-      <Tier1Lane teens={teens} />
+      {/* Tier 1 is never cards: the same queue as the list (Monitoring v4). */}
+      <Tier1Lane teens={teens} now={now} heldBy={heldBy} />
       <TierCards tier={2} teens={of(2)} />
       <TierCards tier={3} teens={of(3)} />
       {/* TIER 4 — the registry's rows, inside the card view */}

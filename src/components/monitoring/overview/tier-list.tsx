@@ -265,7 +265,7 @@ export function Tier4Registry({ teens, defaultOpen = false }: { teens: Monitorin
   );
 }
 
-export function MonitoringList({ teens, tier4Open = false }: { teens: MonitoringTeen[]; tier4Open?: boolean }) {
+export function MonitoringList({ teens, tier4Open = false, now, heldBy }: { teens: MonitoringTeen[]; tier4Open?: boolean; now: number; heldBy?: Readonly<Record<string, string>> }) {
   const of = (tier: Tier) => teens.filter((t) => t.tier === tier);
   const t4 = of(4);
   const [t4Open, setT4Open] = useState(tier4Open);
@@ -301,11 +301,13 @@ export function MonitoringList({ teens, tier4Open = false }: { teens: Monitoring
           </div>
         </div>
 
-        {/* TIER 1: the lane, in its own full-width row */}
+        {/* TIER 1: the queue, in its own full-width row, under column
+            headers of its own (Monitoring v4, §2) — the table's global
+            headers describe Tiers 2–4. */}
         <div role="rowgroup" className={ROW}>
           <div role="row" className={ROW}>
             <div role="cell" className="col-span-full">
-              <Tier1Lane teens={teens} />
+              <Tier1Lane teens={teens} now={now} heldBy={heldBy} />
             </div>
           </div>
         </div>

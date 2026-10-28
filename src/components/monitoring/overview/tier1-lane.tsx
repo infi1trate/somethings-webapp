@@ -1,91 +1,238 @@
 "use client";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// THE TIER 1 LANE (proto/monitoring-merge) — always rendered, in both views
+// THE TIER 1 QUEUE (Monitoring v4, §2) — the same in list and card view
 //
-// Its own group header, then one of two things. Empty: a white surface with
-// a hairline and "Nothing in crisis". Live (Alert): the teen on `t1-soft`
-// with a 1px `t1` keyline — red ring, name, mentor, the ★ Recommended T1
-// chip (display only; confirming is out of scope), the flag signal, the
-// presence chip, and a red Join with the response clock running down from
-// the 60s window.
+// ═══ SUPERSEDES the live lane (proto/monitoring-merge → v3) ═══ Its rows were
+// a run-on of mixed elements — status text, chips, flags, a dashed
+// "Requested" tag — with no column discipline, and its "0:00 left" was a
+// failure shown as a countdown. The section is an escalation queue now:
 //
-// JOIN answers the alert (the strip goes) and will open the session; that
-// layer (mitigation) is out of scope here — see the TODO on the button.
+//   CONTAINER  ONE soft region for the whole section — `t1-soft` at 40%,
+//              20px radius, 12px in, no border — so the alarm lives in one
+//              place, not six. Rows inside: white (`surface-raised`), 14px,
+//              a 1px `t1` contour at 50%, 8px apart, `--el-soft`.
+//   ROW, 64    Teen · Stage · Signals · Response · Holder · Action, under
+//              column headers of its own (12/16 tertiary) aligned to the
+//              cells — the table's global headers do not describe these.
+//   SORT       by response state: overdue (longest first), awaiting (least
+//              time first), confirmed (oldest first) — `compareT1`.
+//
+// Tier 1 is NEVER cards: card view renders this same queue (cards are for
+// Tiers 2–3). The empty state is the dashed lane, "Nothing in crisis".
 
 import { Flag } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { monitoringEntryHref } from "@/lib/monitoring/entry-href";
-import { RequestedChip } from "@/components/tiering/requested-chip";
 import type { Tier } from "@/lib/monitoring/tiers";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
-import { markJoined } from "@/lib/monitoring/t1-live";
+import { markJoined, useJoined, useNowTick } from "@/lib/monitoring/t1-live";
+import {
+  T1_STEPS,
+  T1_STEP_LABEL,
+  compareT1,
+  responseText,
+  t1Action,
+  t1Holder,
+  t1Response,
+  t1Stage,
+  type T1Action,
+  type T1Holder,
+  type T1Response,
+  type T1Stage,
+} from "@/lib/monitoring/t1-queue";
 import { TierAvatar, TierGroupHeader, TierTag } from "@/components/monitoring/overview/tier-bits";
 import { cn } from "@/lib/utils";
 
 const RING = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
-/* The response clock is the alert's one clock (`alert-clock.ts`), shared
-   with the strip so the two always agree. */
+/** The six columns, shared by the header row and every row, so the cells
+ *  align. Below the queue's width the container scrolls sideways. */
+const COLS = "grid grid-cols-[minmax(190px,1.6fr)_minmax(200px,1.5fr)_minmax(84px,0.6fr)_minmax(150px,1.1fr)_minmax(96px,0.7fr)_112px] items-center gap-x-4";
+/** TODO-COPY. */
+const HEADERS = ["Teen", "Stage", "Signals", "Response", "Holder", ""] as const;
+
+/* A presence chip still exists for Tiers 2–3's cards (the coaching line),
+   kept here as their one definition. */
 export function PresenceChip({ text }: { text: string }) {
   return (
-    /* Monitoring v2: sans, and no dot of its own — the avatar's presence dot
-       is the one ring; the chip says who. */
-    /* ═══ IT SHRINKS (Monitoring v3, §6) ═══ It was `shrink-0`, and the long-
-       names scenario measured a chip 122px past its card. It truncates now,
-       the whole text on hover. */
     <span data-presence-chip title={text} className="inline-block h-5 max-w-full min-w-0 shrink truncate rounded-full bg-[var(--surface-sunken)] px-2 text-[12px] leading-5 text-[var(--text-secondary)]">
       {text}
     </span>
   );
 }
 
-function LiveRow({ teen }: { teen: MonitoringTeen }) {
+/** ═══ THE STAGE STEPPER ═══ Four 8px dots on a 1px line. Done: filled
+ *  `text-primary`. Current: `t1`, and LARGER (10px) — so the state is never
+ *  colour alone — with its label under the row. Future: an outlined
+ *  `border-strong` ring. Spoken as one line ("Step 3 of 4, Confirmed:
+ *  Awaiting confirmation"). */
+function Stepper({ stage }: { stage: T1Stage }) {
+  const at = T1_STEPS.indexOf(stage.step);
+  return (
+    <div data-t1-stage={stage.step} className="min-w-0">
+      <div aria-hidden className="flex items-center">
+        {T1_STEPS.map((s, i) => (
+          <span key={s} className="flex items-center">
+            {i > 0 && <span className={cn("h-px w-5", i <= at ? "bg-[var(--text-primary)]" : "bg-[var(--border-strong)]")} />}
+            <span
+              data-step={s}
+              data-step-state={i < at ? "done" : i === at ? "current" : "future"}
+              title={T1_STEP_LABEL[s]}
+              className={cn(
+                "shrink-0 rounded-full",
+                i < at && "size-2 bg-[var(--text-primary)]",
+                i === at && "size-2.5 bg-[var(--t1)]",
+                i > at && "size-2 border border-[color:var(--border-strong)] bg-[var(--surface-raised)]"
+              )}
+            />
+          </span>
+        ))}
+      </div>
+      <p data-t1-stage-label className="mt-1 truncate text-[13px] leading-[16px] text-[var(--text-secondary)]">
+        <span className="sr-only">
+          Step {at + 1} of {T1_STEPS.length}, {T1_STEP_LABEL[stage.step]}:{" "}
+        </span>
+        {stage.label}
+      </p>
+    </div>
+  );
+}
+
+/** ═══ THE RESPONSE, AS A STATE ═══ "0:42 to confirm" (tabular, secondary);
+ *  past the window "Overdue 14m" in `t1-ink` with a small dot — the dot and
+ *  the word, never the colour alone; confirmed, the quiet tertiary line. */
+function Response({ r }: { r: T1Response }) {
+  return (
+    <p data-t1-response={r.kind} className={cn("flex min-w-0 items-center gap-1.5 text-[13px] leading-[16px] tabular-nums", r.kind === "overdue" ? "font-display text-[var(--t1-ink)]" : r.kind === "window" ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]")}>
+      {r.kind === "overdue" && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-[var(--t1-ink)]" />}
+      <span className="truncate">{responseText(r)}</span>
+    </p>
+  );
+}
+
+/** Who has it: "You", another supervisor's name in a soft chip, or "—". */
+function Holder({ h }: { h: T1Holder }) {
+  if (h.kind === "you")
+    return (
+      <span data-t1-holder="you" className="text-[13px] leading-[16px] text-[var(--text-primary)]">
+        {/* TODO-COPY */}
+        You
+      </span>
+    );
+  if (h.kind === "other")
+    return (
+      <span data-t1-holder="other" title={h.name} className="inline-flex h-6 max-w-full min-w-0 items-center truncate rounded-full bg-[var(--surface-sunken)] px-2.5 text-[13px] text-[var(--text-secondary)]">
+        {h.name}
+      </span>
+    );
+  return (
+    <span data-t1-holder="none" className="text-[13px] text-[var(--text-muted)]">
+      <span aria-hidden>—</span>
+      <span className="sr-only">Nobody yet</span>
+    </span>
+  );
+}
+
+/** ═══ ONE ACTION ═══ A 36px pill, right-aligned. JOIN is the one red
+ *  fill on the page besides the container (`t1`, white text — 4.9:1; in
+ *  dark the light `t1` fails under white, so it fills `t1-ink`, as the
+ *  lozenges do). Observe and Resume are outlined. No timer in the button:
+ *  the Response cell says it. */
+const ACTION_LABEL: Record<T1Action, string> = { join: "Join", observe: "Observe", resume: "Resume" };
+function Action({ action, teen, onGo }: { action: T1Action; teen: string; onGo: () => void }) {
+  return (
+    <button
+      type="button"
+      data-t1-action={action}
+      onClick={onGo}
+      /* TODO-COPY */
+      aria-label={`${ACTION_LABEL[action]} — ${teen}`}
+      className={cn(
+        "inline-flex h-9 shrink-0 items-center justify-center rounded-full px-4 text-[14px] leading-none transition",
+        action === "join"
+          ? "bg-[var(--t1)] font-display text-[var(--text-inverse)] hover:brightness-110 dark:bg-[var(--t1-ink)]"
+          : "border border-[color:var(--border-contour)] bg-[var(--surface-raised)] text-[var(--text-primary)] hover:bg-[var(--tint-hover)]",
+        RING
+      )}
+    >
+      {ACTION_LABEL[action]}
+    </button>
+  );
+}
+
+interface QueueRow {
+  teen: MonitoringTeen;
+  id: string;
+  openedAt: number;
+  stage: T1Stage;
+  response: T1Response;
+  holder: T1Holder;
+  action: T1Action;
+}
+
+function Row({ row }: { row: QueueRow }) {
   const router = useRouter();
-  const link = monitoringEntryHref(teen);
+  const t = row.teen;
+  const link = monitoringEntryHref(t);
+  /* Presence on the avatar only (§3): the mentor or a supervisor is in
+     the session. */
+  const present = !!t.presence || row.holder.kind !== "none";
+  const go = () => {
+    if (row.action === "join") markJoined(row.id);
+    if (link) router.push(link.href);
+  };
   return (
     <div
-      data-t1-live={teen.id}
-      /* THE ONE KEYLINE (Monitoring v2): the live Tier 1 lane keeps its t1
-         line; every other surface is tint and elevation. */
-      className="flex min-h-16 flex-wrap items-center gap-x-3 gap-y-2 rounded-[14px] border border-[color:var(--t1)] bg-[var(--t1-soft)] px-4 py-3"
+      role="row"
+      data-t1-row={t.id}
+      data-t1-escalation={row.id}
+      /* The hero's In-crisis button lands focus here. */
+      tabIndex={-1}
+      aria-label={`${t.teen}, Tier 1 — ${row.stage.label}, ${responseText(row.response)}`}
+      className={cn(
+        COLS,
+        "min-h-16 rounded-[14px] border border-[color:color-mix(in_srgb,var(--t1)_50%,transparent)] bg-[var(--surface-raised)] px-4 py-2 shadow-[var(--el-soft)] outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+      )}
     >
-      <TierAvatar name={teen.teen} live={!!teen.presence} />
-      <span className="truncate font-display text-[15px] leading-[20px] font-bold text-[var(--text-primary)]">{teen.teen}</span>
-      <TierTag tier={1} />
-      {/* Secondary, not tertiary: tertiary is 4.39:1 on t1-soft. */}
-      <span className="truncate text-[13px] text-[var(--text-secondary)]">{teen.mentor}</span>
-      {/* The live stage (pack v5.0, C4), one quiet fragment. */}
-      {teen.stage && <span data-teen-stage className="truncate text-[13px] text-[var(--text-secondary)]">· {teen.stage}</span>}
-      {/* ═══ SUPERSEDED: "★ Recommended T1" → "Requested: Tier 1" ═══ The
-          canon's flagged-but-unconfirmed chip, shared with the chat and the
-          record. The teen is in this lane at once; the chip is the placement
-          still waiting for a supervisor. */}
-      {teen.requestedTier !== undefined && <RequestedChip tier={teen.requestedTier} />}
-      <span data-t1-flags className="inline-flex shrink-0 items-center gap-1 font-mono text-[13px] tabular-nums text-[var(--t1-ink)]">
-        <Flag aria-hidden className="size-3.5" strokeWidth={2} />
-        {teen.riskFlags.count} · {teen.riskFlags.window}
-        <span className="sr-only"> risk flags</span>
-      </span>
-      {teen.presence && <PresenceChip text={teen.presence} />}
-      <button
-        type="button"
-        data-t1-join
-        onClick={() => {
-          if (teen.t1) markJoined(teen.t1.escalation.id);
-          /* pack v3.0: and goes into the conversation — the supervisor's
-             only door into a chat now that Chats left their nav. */
-          if (link) router.push(link.href);
-        }}
-        /* TODO-COPY */
-        aria-label={`Join session with ${teen.teen}`}
-        className={cn(
-          "ml-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[var(--t1-ink)] px-4 text-[13px] font-semibold text-[var(--text-inverse)] tabular-nums transition hover:brightness-110",
-          RING
-        )}
-      >
-        Join
-      </button>
+      <div role="cell" className="flex min-w-0 items-center gap-3">
+        <TierAvatar name={t.teen} live={present} />
+        <div className="min-w-0">
+          <p className="flex min-w-0 items-center gap-2">
+            {/* "15 semibold": weight is not a channel (Lausanne ships 400
+                only), so the emphasis is the face. */}
+            <span data-t1-name className="truncate font-display text-[15px] leading-[20px] font-bold text-[var(--text-primary)]">
+              {t.teen}
+            </span>
+            <TierTag tier={1} />
+          </p>
+          <p data-t1-mentor className="truncate text-[13px] leading-[16px] text-[var(--text-secondary)]">
+            {t.mentor}
+          </p>
+        </div>
+      </div>
+      <div role="cell" className="min-w-0">
+        <Stepper stage={row.stage} />
+      </div>
+      <div role="cell" className="min-w-0">
+        {/* Icon-led, as elsewhere; zero in `text-muted` (AA — Bloom's
+            text/disabled is ~1.5:1, and `--text-disabled` does not exist). */}
+        <span data-t1-flags className={cn("inline-flex items-center gap-1 font-mono text-[13px] tabular-nums", t.riskFlags.count ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]")}>
+          <Flag aria-hidden className="size-3.5" strokeWidth={2} />
+          {t.riskFlags.count}
+          {t.riskFlags.window && <span className="text-[var(--text-secondary)]">· {t.riskFlags.window}</span>}
+          <span className="sr-only"> risk flags</span>
+        </span>
+      </div>
+      <div role="cell" className="min-w-0">
+        <Response r={row.response} />
+      </div>
+      <div role="cell" className="min-w-0">
+        <Holder h={row.holder} />
+      </div>
+      <div role="cell" className="flex justify-end">
+        <Action action={row.action} teen={t.teen} onGo={go} />
+      </div>
     </div>
   );
 }
@@ -98,7 +245,8 @@ export function EmptyTierLane({ tier }: { tier: Tier }) {
     <div
       data-t1-empty={tier === 1 || undefined}
       data-tier-empty={tier}
-      className="flex min-h-16 items-center justify-center rounded-[20px] border border-dashed border-[color:var(--border-default)] px-4 text-[15px] leading-[20px] text-[var(--text-secondary)]"
+      tabIndex={tier === 1 ? -1 : undefined}
+      className="flex min-h-16 items-center justify-center rounded-[20px] border border-dashed border-[color:var(--border-default)] px-4 text-[15px] leading-[20px] text-[var(--text-secondary)] outline-none"
     >
       {/* TODO-COPY */}
       {EMPTY_LINE[tier]}
@@ -106,20 +254,53 @@ export function EmptyTierLane({ tier }: { tier: Tier }) {
   );
 }
 
-export function Tier1Lane({ teens }: { teens: MonitoringTeen[] }) {
-  const live = teens.filter((t) => t.tier === 1);
+export function Tier1Lane({ teens, heldBy, now }: { teens: MonitoringTeen[]; heldBy?: Readonly<Record<string, string>>; now: number }) {
+  const tick = useNowTick(now);
+  const joined = useJoined();
+  const rows: QueueRow[] = teens
+    .filter((t) => t.tier === 1 && t.t1)
+    .map((t) => {
+      const e = t.t1!.escalation;
+      const mine = joined.has(e.id);
+      const holder = t1Holder({ joinedByYou: mine, heldBy: heldBy?.[t.id] ?? null, confirmedBy: t.t1!.confirmedBy });
+      return {
+        teen: t,
+        id: e.id,
+        openedAt: e.openedAt,
+        stage: t1Stage(e),
+        response: t1Response(e, tick, t.t1!.confirmedBy),
+        holder,
+        action: t1Action(holder, mine),
+      };
+    })
+    .sort(compareT1);
   return (
+    /* The section header sits ABOVE the soft container, not inside it. */
     <section aria-labelledby="tier-1-heading" data-tier-group={1}>
-      <TierGroupHeader tier={1} count={live.length} id="tier-1-heading" />
-      {live.length === 0 ? (
-        /* ═══ THE SAME EMPTY LANE IN BOTH VIEWS (Monitoring v3, §3) ═══ The
-           canvas fill was invisible on the cards view's canvas. */
+      <TierGroupHeader tier={1} count={rows.length} id="tier-1-heading" />
+      {rows.length === 0 ? (
         <EmptyTierLane tier={1} />
       ) : (
-        <div className="space-y-1">
-          {live.map((t) => (
-            <LiveRow key={t.id} teen={t} />
-          ))}
+        <div
+          data-t1-queue
+          className="overflow-x-auto rounded-[20px] bg-[color-mix(in_srgb,var(--t1-soft)_40%,transparent)] p-3"
+        >
+          <div role="table" aria-label="Tier 1 queue" className="min-w-[880px] space-y-2">
+            <div role="rowgroup">
+              <div role="row" data-t1-headers className={cn(COLS, "px-4 pt-1 pb-0.5")}>
+                {HEADERS.map((h, i) => (
+                  <div key={i} role="columnheader" className={cn("text-[12px] leading-[16px] font-medium text-[var(--text-tertiary)]", i === HEADERS.length - 1 && "sr-only")}>
+                    {h || "Action"}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div role="rowgroup" className="space-y-2">
+              {rows.map((r) => (
+                <Row key={r.id} row={r} />
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </section>

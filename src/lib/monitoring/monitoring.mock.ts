@@ -29,14 +29,34 @@ export interface AlertMock {
   heldBy?: string;
 }
 
+/** ═══ A SEEDED TIER 1 (Monitoring v4) ═══ The queue's states are made from
+ *  the record's own fields, so a scenario seeds those: how long ago it was
+ *  raised, how far it has got, and who confirmed it. */
+export interface T1Spec {
+  teen: string;
+  /** Seconds since it was raised (the 60s window counts from here). */
+  ageSec?: number;
+  /** assessing: S0 (mid-assessment) · awaiting: assessed, unconfirmed ·
+   *  confirmed: confirmed, the crisis note under way. */
+  stage?: "assessing" | "awaiting" | "confirmed";
+  /** Who confirmed it: "you" (the supervisor persona) or a supervisor's name. */
+  confirmedBy?: string;
+  /** Seconds from raise to confirmation. */
+  ttcSec?: number;
+}
+
 export interface MonitoringMock {
   id: string;
   label: string;
   /** The tab the scenario opens on. */
   tab: "watch" | "events";
-  /** Teens with an open Tier 1 escalation, seeded (t13 is Jordan's crisis). */
-  tier1?: string[];
+  /** Teens with an open Tier 1 escalation, seeded (t13 is Jordan's crisis) —
+   *  a teen id, or a spec of the record's state (Monitoring v4). */
+  tier1?: (string | T1Spec)[];
   alert?: AlertMock;
+  /** Tier 1 escalations another supervisor holds, by teen (Monitoring v4):
+   *  the queue's Holder chip and Observe. */
+  holders?: Readonly<Record<string, string>>;
   roster?: (teens: MonitoringTeen[]) => MonitoringTeen[];
   events?: (events: MonitoringEvent[], now: number) => MonitoringEvent[];
   filter?: (now: number) => Partial<EventFilter>;
@@ -70,7 +90,23 @@ export const MONITORING_MOCKS: MonitoringMock[] = [
   { id: "m3-alert-acked", label: "Alert · acknowledged", tab: "watch", tier1: ["t13"], alert: { answer: "acknowledged" } },
   { id: "m3-alert-joined", label: "Alert · joined", tab: "watch", tier1: ["t13"], alert: { answer: "joined" } },
   { id: "m3-two-t1", label: "Two Tier 1s", tab: "watch", tier1: ["t13", "t15"], alert: { answer: "none" } },
-  { id: "m3-alert-other", label: "Alert · other supervisor", tab: "watch", tier1: ["t13"], alert: { answer: "none", heldBy: "Sarah" } },
+  /* ═══ SIX TIER 1s (Monitoring v4) ═══ The queue's whole case: mixed
+     stages, mixed holders, sorted by response state — no strips anywhere. */
+  {
+    id: "m4-six-t1",
+    label: "Six Tier 1s",
+    tab: "watch",
+    tier1: [
+      { teen: "t13", ageSec: 15 * 60, stage: "awaiting" },
+      { teen: "t15", ageSec: 18, stage: "assessing" },
+      { teen: "t17", ageSec: 3 * 60 + 20, stage: "assessing" },
+      { teen: "t19", ageSec: 42 * 60, stage: "confirmed", confirmedBy: "Sarah", ttcSec: 48 },
+      { teen: "t21", ageSec: 9 * 60, stage: "confirmed", confirmedBy: "you", ttcSec: 36 },
+      { teen: "t22", ageSec: 40, stage: "assessing" },
+    ],
+    holders: { t17: "Sarah" },
+  },
+  { id: "m3-alert-other", label: "Alert · other supervisor", tab: "watch", tier1: ["t13"], alert: { answer: "none", heldBy: "Sarah" }, holders: { t13: "Sarah" } },
   {
     id: "m3-recommended",
     label: "Recommended tier pending",
