@@ -237,7 +237,7 @@ let assessed;
   await page.locator('[data-tier-row="3"]').click();
   await page.locator('[data-tier-cta=confirm]').click();
   await page.waitForTimeout(1100);
-  const cells = await page.evaluate(() => ({ cells: document.querySelector('[data-care-yield="cells"]')?.dataset.open, strip: document.querySelector('[data-care-yield="strip"]')?.dataset.open, state: document.querySelector("[data-care-panel]")?.dataset.careState }));
+  const cells = await page.evaluate(() => ({ hero: !!document.querySelector("[data-care-hero] [data-care-brief]"), yields: document.querySelectorAll("[data-care-yield], [data-diagnosis-strip]").length, state: document.querySelector("[data-care-panel]")?.dataset.careState }));
   /* RETARGETED (pack v9.1, Part 4): closing leaves the closed summary IN
      the room; Dismiss is the exit — and the restore is one motion. */
   const held = await cols(page);
@@ -247,9 +247,11 @@ let assessed;
   const m = motionOf(await samples(page));
   const after = await cols(page);
   report.layout.push({ who: "supervisor 1512, close → dismiss", during: during.cols, held: held.cols, after: after.cols });
-  check(during.focus && held.focus && !after.focus && after.cols === "888px 360px", "close holds the room on its summary; Dismiss restores the columns (supervisor 1512)", `${during.cols} → ${held.cols} → ${after.cols}`);
+  check(during.focus && held.focus && !after.focus && after.cols === "828px 420px", "close holds the room on its summary; Dismiss restores the columns (supervisor 1512)", `${during.cols} → ${held.cols} → ${after.cols}`);
   check(m.mono && m.between >= 3, `the restore is one motion too (${m.between} in-between frames)`, `${m.from} → ${m.to}`);
-  check(cells.state === "closed" && cells.cells === "true" && cells.strip === "false", "close: the header cells return and the strip yields", JSON.stringify(cells));
+  /* RETARGETED (pack v11.0, Supersession 1): nothing yields, so nothing
+     returns — the full hero, diagnosis last, through the close. */
+  check(cells.state === "closed" && cells.hero && cells.yields === 0, "close: the full hero holds (it never yielded)", JSON.stringify(cells));
   await ctx.close();
 }
 
@@ -379,8 +381,13 @@ check(capture.every((s) => s.focused === 1), `focus proof: exactly one focused q
 check(zero.every((s) => s.review) && states.filter((s) => s.review).every((s) => s.focused === 0), `focus proof: review is the only zero-focus state (${zero.length} seen)`);
 report.states = states;
 
-// ── 6 · HERO YIELD ─────────────────────────────────────────────────────────
-console.log("\n── 6 · the hero yields");
+// ── 6 · THE HERO HOLDS (RETARGETED, pack v11.0 Supersession 1) ────────────
+/* v9 measured the hero YIELDING while an escalation was open — the mentor's
+   hidden, the supervisor's a one-line diagnosis strip. v11 reverses it: the
+   full hero persists in every state, both lenses, and the strip is deleted.
+   The same probe asks the reversed question, and keeps the contrast reading
+   on what replaced the strip — the hero's diagnosis section. */
+console.log("\n── 6 · the hero holds (pack v11.0)");
 const CONTRAST = () => {
   const lin = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
   const ok2 = (L, a, b) => { const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3, m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3, s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3; return [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s]; };
@@ -395,23 +402,22 @@ for (const theme of ["light", "dark"]) {
     const { ctx, page } = await open("/app/chat/t13", { persona, theme });
     await page.evaluate(CONTRAST);
     const y = await page.evaluate(() => {
-      const strip = document.querySelector('[data-care-yield="strip"][data-open="true"] [data-diagnosis-strip]');
-      const cells = document.querySelector('[data-care-yield="cells"]');
+      const hero = document.querySelector("[data-care-hero]");
+      const brief = hero?.querySelector("[data-care-brief] [data-anchor-headline]");
       return {
-        cells: cells?.dataset.open, cellsH: Math.round(cells?.getBoundingClientRect().height ?? -1), inert: cells?.inert,
-        strip: !!strip, stripH: strip ? Math.round(strip.getBoundingClientRect().height) : 0,
-        lines: strip ? Math.round(strip.querySelector("p").getBoundingClientRect().height / 20) : 0,
-        text: strip ? window.__ratio(strip.querySelector("p")) : null, chip: strip ? window.__ratio(strip.querySelector("[data-icd]")) : null,
-        icd: !!document.querySelector("[data-icd]:not([inert] [data-icd])"),
-        working: document.querySelector('[data-care-tabpanel="escalation"] [data-care-hero="escalation"]') ? true : false,
-        emergency: !!document.querySelector('[data-care-tab="emergency"]'),
+        hero: !!hero && hero.getBoundingClientRect().height > 100,
+        yields: document.querySelectorAll("[data-care-yield], [data-diagnosis-strip]").length,
+        icd: !!document.querySelector("[data-icd]"),
+        text: brief ? window.__ratio(brief) : null,
+        chip: brief ? window.__ratio(brief.querySelector("[data-icd]")) : null,
+        working: !!document.querySelector('[data-care-tabpanel="escalation"] [data-care-hero="escalation"]'),
       };
     });
-    if (persona === "mentor") check(y.cells === "false" && y.cellsH === 0 && y.inert && !y.strip && !y.icd && y.working, `${theme} · mentor: the header hides entirely (0px, inert); no diagnosis anywhere; the status block is the header`, JSON.stringify(y));
+    if (persona === "mentor") check(y.hero && y.yields === 0 && !y.icd && y.working, `${theme} · mentor: the full hero holds while open; no diagnosis anywhere; the status block below it`, JSON.stringify(y));
     else {
       report.contrast[theme] = { text: y.text, chip: y.chip };
-      check(y.cells === "false" && y.strip && y.lines === 1 && y.working && y.emergency, `${theme} · supervisor: the cells yield to a one-line strip (${y.stripH}px)`, JSON.stringify({ cells: y.cells, lines: y.lines }));
-      check(y.text >= 4.5 && y.chip >= 4.5, `${theme} · supervisor strip contrast: diagnosis ${y.text}:1, ICD chip ${y.chip}:1`);
+      check(y.hero && y.yields === 0 && y.icd && y.working, `${theme} · supervisor: the full hero holds, the diagnosis its last section`, JSON.stringify(y));
+      check(y.text >= 4.5 && y.chip >= 4.5, `${theme} · supervisor diagnosis contrast: diagnosis ${y.text}:1, ICD chip ${y.chip}:1`);
     }
     await ctx.close();
   }

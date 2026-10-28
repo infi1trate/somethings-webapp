@@ -9,12 +9,34 @@
 // count; `CHECK_INS_30D` holds one per record teen (completed check-ins in the
 // last 30 days, "this window"). TODO-DATA: every value. A teen without a row
 // omits the fragment; nothing is invented at render.
-// The identity strip's age and `teenIdentity` were deleted with the strip
-// (pack v8.0, Supersession 2).
+// ═══ AGE RETURNS (pack v11.0, Supersession 2) ═══ v8 deleted the identity
+// strip and its age with it; the Care hero's identity section brings both
+// back — the SAME v7 fixture values, restored from history (`175d4e6`), not
+// new ones. TODO-DATA: every value; a teen without a row shows no age.
 
 import { DEMO_PEOPLE, DEMO_TEENS } from "@/lib/record/people-demo";
 import { relLength } from "@/lib/record/mentees-demo";
 import { LIVE_ID } from "@/lib/record/subject";
+import { teenDisplayName } from "@/lib/record/teen-name";
+
+const AGE: Record<string, number> = {
+  t1: 15, t2: 16, t3: 14, t4: 17, t5: 15, t6: 16, t7: 13, t8: 16, t9: 15,
+  t10: 17, t11: 14, t12: 16, t13: 15, t14: 16, t15: 15, t16: 14, t17: 16,
+  t18: 16, t19: 17, t20: 15, t21: 16, t22: 14, t23: 17, t24: 15, t25: 16, t26: 15,
+};
+
+export interface TeenIdentity {
+  name: string;
+  age: number | null;
+  pronouns: string | null;
+}
+
+/** The Care hero's identity section: name, age, pronouns — facts on file. */
+export function teenIdentity(teenId: string): TeenIdentity | null {
+  const t = DEMO_TEENS.find((x) => x.id === teenId);
+  if (!t) return null;
+  return { name: teenDisplayName(t), age: AGE[teenId] ?? null, pronouns: t.pronouns ?? null };
+}
 
 const CHECK_INS_30D: Record<string, number> = {
   t1: 9, t2: 11, t3: 4, t4: 8,

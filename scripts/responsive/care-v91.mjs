@@ -170,7 +170,10 @@ console.log("\n── 3 · entering the focus view");
   await page.waitForTimeout(2000);
   const r = await room(page);
   check(r.url === "/app/chat/t13" && r.focus && r.list.away && r.back === "Chats · 4", "from the list: the row opens the focus view — list away, “← Chats · 4”", JSON.stringify({ url: r.url, back: r.back }));
-  check(r.cells === "false" && r.banner, "the hero yields inside the view (mentor: cells hidden); the banner is on", `${r.cells} · ${r.banner}`);
+  /* RETARGETED (pack v11.0, Supersession 1): the hero holds its ground —
+     no yield wrapper exists; the hero is on screen with the banner. */
+  const hero = await page.evaluate(() => !!document.querySelector("[data-care-hero]"));
+  check(r.cells === null && hero && r.banner, "the hero holds inside the view (no yield); the banner is on", `${r.cells} · ${hero} · ${r.banner}`);
   check(/^Escalation focus view\./.test(r.said), "entry is announced", r.said);
   check(errors.length === 0, "no page errors", errors.slice(0, 2).join(" | "));
   await ctx.close();
@@ -283,7 +286,8 @@ let closedState;
   await page.waitForTimeout(1300);
   r = await room(page);
   const ms = motionOf(await samples(page));
-  check(!r.focus && r.cols === "888px 360px", "supervisor: dismiss leaves the room — steady columns, in one motion", `${r.cols} · ${ms.between} frames`);
+  /* RETARGETED (pack v11.0 §3.1): steady Care is 420. */
+  check(!r.focus && r.cols === "828px 420px", "supervisor: dismiss leaves the room — steady columns, in one motion", `${r.cols} · ${ms.between} frames`);
   closedState = await store(page);
   await setPersona(page, "mentor", "/app/chat/t13");
   r = await room(page);
@@ -338,9 +342,12 @@ console.log("\n── 6 · one room, two lenses");
   };
   const m = await shape("mentor");
   const s = await shape("supervisor");
-  check(m.tracks.length === 2 && s.tracks.length === 2 && Math.abs(m.tracks[0] - m.tracks[1]) <= 1 && Math.abs(s.tracks[0] - s.tracks[1]) <= 1, "both lenses: chat · Care, equalized", `${m.r.cols} | ${s.r.cols}`);
+  /* RETARGETED (pack v11.0 §3.2): an even split with Care clamped
+     480–680 and chat ≥ 520 — the mentor's Care meets its 680 cap. */
+  check(m.tracks.join() === "724,680" && s.tracks.join() === "624,624", "both lenses: chat · Care, an even split clamped (mentor 724 · 680 at Care's cap, supervisor 624 · 624)", `${m.r.cols} | ${s.r.cols}`);
   check(m.first === "chat-back-chats" && s.first === "chat-back-monitoring" && m.r.back.startsWith("Chats") && s.r.back === "Monitoring", "the same back bar first in the conversation — only its label differs", `${m.r.back} | ${s.r.back}`);
-  check(m.r.cells === "false" && m.r.strip === null && s.r.cells === "false" && s.r.strip === "true", "the hero yields per lens (mentor hidden, supervisor the strip)", `${m.r.strip} | ${s.r.strip}`);
+  /* RETARGETED (pack v11.0, Supersession 1): no yield in either lens. */
+  check(m.r.cells === null && m.r.strip === null && s.r.cells === null && s.r.strip === null, "the hero holds in both lenses (no yield, no strip)", `${m.r.strip} | ${s.r.strip}`);
 }
 
 // ── 7 · KEYBOARD AND SCREEN READER ─────────────────────────────────────────

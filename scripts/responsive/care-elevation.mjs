@@ -131,7 +131,9 @@ const measure = (page) =>
         let n = kids[0]?.nextElementSibling;
         if (n?.matches('[data-care-yield="strip"]')) n = n.nextElementSibling;
         return {
-          heroFirst: !!kids[0]?.matches('[data-care-yield="cells"]') && !!header && kids[0].contains(header),
+          /* RETARGETED (pack v11.0, Supersession 1): no yield — the hero's
+             own wrapper leads the panel. */
+          heroFirst: !!header && !!kids[0]?.contains(header),
           tabsAfterHero: !!n?.querySelector("[data-care-tabs]") || !!n?.matches("[data-care-tabs-bar]"),
           yielded: kids[0]?.dataset.open === "false",
           yieldStrip: panel?.querySelector('[data-care-yield="strip"]')?.dataset.open ?? null,
@@ -151,6 +153,7 @@ const measure = (page) =>
       unselUnderline: tabs.filter((t) => t !== sel).every((t) => getComputedStyle(t).borderBottomColor === "rgba(0, 0, 0, 0)"),
       overflowX: tabRow ? getComputedStyle(tabRow).overflowX : null,
       fade: !!document.querySelector("[data-care-tabs-fade]"),
+      overflows: tabRow ? tabRow.scrollWidth > tabRow.clientWidth + 1 : null,
       pill: tabs.some((t) => parseFloat(getComputedStyle(t).borderTopLeftRadius) > 4),
       notifiedInPanel: /notified/i.test(panel?.textContent ?? ""),
       notifiedInBanner: banner ? /notified/i.test(banner.textContent) : null,
@@ -181,7 +184,10 @@ for (const [label, extra] of [["Tier 4", {}], ["Tier 2", T2]]) {
   if (label === "Tier 4") {
     check(m.careFirst && m.careLabel === "Care" && m.divider, "the Care control is first, labelled, behind a divider", JSON.stringify({ f: m.careFirst, l: m.careLabel, d: m.divider }));
     check(m.tabTops === 1 && m.underline && m.unselUnderline && !m.pill, "the Care tabs: one row, the selected tab underlined 2px in the ink, no pills", JSON.stringify({ rows: m.tabTops, u: m.underline, pill: m.pill }));
-    check(m.overflowX === "auto" && m.fade, "on overflow the row scrolls sideways under an edge fade", JSON.stringify({ o: m.overflowX, f: m.fade }));
+    /* RETARGETED (pack v11.0 §3.1): at 420 the steady tabs FIT, and a fade
+       renders only on a side with more (v5.0) — so the claim is the rule:
+       scrollable, and faded exactly when it overflows. */
+    check(m.overflowX === "auto" && m.fade === m.overflows, "the row scrolls sideways, under an edge fade exactly when it overflows", JSON.stringify({ o: m.overflowX, f: m.fade, over: m.overflows }));
     /* Keyboard: the arrows move selection along the one row. */
     await page.locator('[data-care-tab="emergency"]').focus();
     await page.keyboard.press("ArrowRight");
@@ -208,7 +214,9 @@ for (const [label, persona, chat] of [
   /* RETARGETED (pack v9.0, Supersession 3): open, the cells YIELD — the
      mentor's hide, the supervisor's compress to the one-line strip — and
      the Escalation review status block is the working header. */
-  check(m.heroKind === "escalation" && m.heroFirst && m.tabsAfterHero && m.yielded && m.yieldStrip === (persona === "mentor" ? null : "true"), `${label}: the header yields (${persona === "mentor" ? "hidden" : "the one-line strip"}); the escalation hero inside Escalation review`, JSON.stringify({ k: m.heroKind, f: m.heroFirst, y: m.yielded, s: m.yieldStrip }));
+  /* RETARGETED (pack v11.0, Supersession 1): the header HOLDS in both
+     lenses — no yield, no strip. */
+  check(m.heroKind === "escalation" && m.heroFirst && m.tabsAfterHero && !m.yielded && m.yieldStrip === null, `${label}: the full header holds (pack v11.0); the escalation hero inside Escalation review`, JSON.stringify({ k: m.heroKind, f: m.heroFirst, y: m.yielded, s: m.yieldStrip }));
   check(m.ringed.length === 1 && m.ringed[0] === "node:alert" && m.ringColor?.includes(m.alertRing.replace(/\)$/, "")), `${label}: exactly one raised + ringed element — the current node, alert-ringed at Tier 1–2`, `${m.ringed.join()} · ${m.ringColor}`);
   check(m.filled.length <= 1, `${label}: at most one filled button in the panel`, m.filled.join(" · ") || "none");
   check(!m.notifiedInPanel && m.notifiedInBanner !== false, `${label}: "notified" is the banner's alone`, JSON.stringify({ panel: m.notifiedInPanel, banner: m.notifiedInBanner }));
@@ -294,8 +302,10 @@ const timeline = (page) =>
       question: card?.querySelector('[data-zone="ask"] [data-question-text]')?.textContent.trim(),
     };
   });
-  check(q.zones.join() === "ask,answer" && q.labels[0] === "Ask Jordan" && q.labels[1] === "Jordan’s answer", "two zones: Ask Jordan, then Jordan’s answer", JSON.stringify(q.labels));
-  check(q.hint === "Record what Jordan tells you." && q.yesNoInAnswer === 2 && !q.disabled, "zone 2 carries the microcopy and Yes / No — never disabled", JSON.stringify({ h: q.hint, n: q.yesNoInAnswer, d: q.disabled }));
+  /* RETARGETED (pack v11.0, Phase 4): the Figma's card — the quote is the
+     ask (no "Ask Jordan" label), and the record row is one line. */
+  check(q.zones.join() === "ask,answer" && !q.labels[0] && !q.labels[1], "two zones: the quoted question, then the record row — no zone labels", JSON.stringify(q.labels));
+  check(q.hint === "Record Jordan’s answer here" && q.yesNoInAnswer === 2 && !q.disabled, "the record row: \"Record Jordan's answer here\" and Yes / No — never disabled", JSON.stringify({ h: q.hint, n: q.yesNoInAnswer, d: q.disabled }));
   /* RETARGETED (pack v9.0, Part 2.2): the focused question wears the
      emphasis ring — a 2px ink BORDER, never a raised shadow, so the node
      stays the only element raised AND ringed (counted above). */
@@ -342,16 +352,18 @@ const timeline = (page) =>
   const CLINICAL = /\b(suicid\w*|kill\w*|die|dying|dead|death|harm\w*|safe(ty)?|plan\w*|risk\w*|assess\w*|crisis|emergency|911|988|hospital|diagnos\w*|therap\w*|medic\w*|pills?)\b/i;
   const mod = () =>
     page.evaluate(() => {
-      const m = document.querySelector("[data-waiting-module]");
+      /* RETARGETED (pack v11.0 §7): the post-submit card replaced the
+         waiting module (Supersession 6). */
+      const m = document.querySelector("[data-post-submit]");
       const ink = (() => { const e = document.createElement("span"); e.style.color = "var(--text-primary)"; document.body.appendChild(e); const c = getComputedStyle(e).color; e.remove(); return c; })();
       return {
         title: document.querySelector('[data-node-state="current"] [data-node-title]')?.textContent.trim(),
-        door: !!m?.querySelector("[data-waiting-open-support]"),
+        door: !!m?.querySelector('[data-exchange-primary="post-submit-support"]'),
         heroDoor: !!document.querySelector("[data-timeline-support]"),
         holderInHero: /has this/.test(document.querySelector("[data-care-hero]")?.textContent ?? ""),
         echo: m?.querySelector('[data-quote="supervisor-echo"] figcaption')?.textContent.trim(),
-        label: m?.querySelector("#nudges-label")?.textContent.trim(),
-        nudges: [...(m?.querySelectorAll("[data-nudge]") ?? [])].map((n) => ({ id: n.dataset.nudge, text: n.querySelector("span")?.textContent.trim(), used: n.dataset.nudgeUsed === "true" })),
+        label: m?.querySelector("[data-ava-mark]")?.textContent.trim(),
+        nudges: [...(m?.querySelectorAll("[data-suggestion]") ?? [])].map((n) => ({ id: n.dataset.suggestion, text: n.querySelector("span")?.textContent.trim(), used: n.dataset.suggestionUsed === "true" })),
         steady: m?.querySelector("[data-steadying]")?.textContent.trim(),
         presence: document.querySelector("[data-hero-presence]")?.textContent.trim() ?? null,
         filled: [...(document.querySelector("[data-care-panel]")?.querySelectorAll("button, a") ?? [])].filter((b) => getComputedStyle(b).backgroundColor === ink).length,
@@ -359,26 +371,30 @@ const timeline = (page) =>
     });
   const m0 = await mod();
   /* RETARGETED (pack v5.0, Supersessions 1–2). */
-  check(m0.title === "Brandy has this. Stay with Jordan." && !m0.holderInHero, "the holder's one home is the waiting node's title, not the hero", JSON.stringify({ t: m0.title, hero: m0.holderInHero }));
-  check(!m0.door && m0.heroDoor, "one Support door: the hero's ghost button, in this state too", JSON.stringify({ door: m0.door, hero: m0.heroDoor }));
-  check(/^Brandy, /.test(m0.echo ?? ""), "the supervisor’s latest Support message, quote-framed and attributed", String(m0.echo));
+  /* RETARGETED (pack v11.0 §7): "Assessment sent." is the node's title;
+     the card's filled button is the one Support door (the hero's steps
+     aside); the quoted supervisor message is deleted — it fabricated a
+     presence in a space that would usually hold none. */
+  check(m0.title === "Assessment sent." && !m0.holderInHero, "the waiting node's title is the confirmation: Assessment sent.", JSON.stringify({ t: m0.title, hero: m0.holderInHero }));
+  check(m0.door && !m0.heroDoor, "one Support door: the post-submit card's button; the hero's ghost steps aside", JSON.stringify({ door: m0.door, hero: m0.heroDoor }));
+  check(!m0.echo, "no quoted supervisor message", String(m0.echo));
   check(m0.label === "Suggested by Ava" && m0.nudges.length >= 2 && m0.nudges.length <= 3, "2–3 nudges, labelled Suggested by Ava", `${m0.label} · ${m0.nudges.length}`);
   check(m0.nudges.every((n) => !CLINICAL.test(n.text ?? "")), "no nudge is clinical", m0.nudges.map((n) => n.text).join(" | "));
   check(m0.nudges.some((n) => n.id === "home") && m0.nudges.some((n) => n.id === "tired"), "grounded in what Jordan said: home, and tired", m0.nudges.map((n) => n.id).join());
-  check(m0.filled === 0, "waiting holds no filled button", String(m0.filled));
+  check(m0.filled === 1, "post-submit holds ONE filled button — Message Brandy in Support", String(m0.filled));
   const before = await page.evaluate((k) => localStorage.getItem(k), KEY);
-  await page.locator('[data-nudge="home"]').click();
+  await page.locator('[data-suggestion-use="home"]').click();
   await page.waitForTimeout(300);
   const after = await page.evaluate((k) => ({ box: document.querySelector('[data-slot="composer"] textarea')?.value ?? null, store: localStorage.getItem(k) }), KEY);
   const m1 = await mod();
   const home = m0.nudges.find((n) => n.id === "home")?.text;
   check(after.box === home && m1.nudges.find((n) => n.id === "home")?.used, "a nudge fills the message box and marks itself used", JSON.stringify({ box: after.box?.slice(0, 30), used: m1.nudges.find((n) => n.id === "home")?.used }));
   check(JSON.parse(after.store).state.chatMessages?.length === JSON.parse(before).state.chatMessages?.length && !after.store.includes(home ?? "§"), "nothing is sent, and the nudge is in no record", "");
-  await page.waitForTimeout(12_500);
-  const m2 = await mod();
-  check(!!m0.steady && !!m2.steady && m2.steady !== m0.steady && !CLINICAL.test(m2.steady), "the steadying line rotates", `${m0.steady} → ${m2.steady}`);
+  /* RETIRED (pack v11.0, Supersession 6): the rotating steadying line is
+     deleted — filler in a crisis panel. */
+  check(!m0.steady, "no steadying line", String(m0.steady));
   await page.screenshot({ path: `${OUT}/04-waiting-module.png` });
-  await page.locator("[data-timeline-support]").click();
+  await page.locator('[data-exchange-primary="post-submit-support"]').click();
   await page.waitForTimeout(500);
   const m3 = await mod();
   check(m3.presence === "Brandy is here", "Support open: the hero says Brandy is here", JSON.stringify({ p: m3.presence }));
@@ -398,7 +414,8 @@ const timeline = (page) =>
   const t = await timeline(page);
   /* RETARGETED (pack v6.1): a completed section is a row in the note's
      accordion, its summary on the row's second line. */
-  const sub = await page.evaluate(() => [...document.querySelectorAll('[data-note-row][data-note-state="complete"] [data-note-summary]')].map((s) => s.textContent.trim()));
+  /* RETARGETED (pack v11.0, Supersession 5): the deck's recorded rows. */
+  const sub = await page.evaluate(() => [...document.querySelectorAll('[data-deck-row][data-deck-state="recorded"] [data-deck-summary]')].map((s) => s.textContent.trim()));
   check(t.cut.length === 0 && t.variant === "action" && t.pulse, "a supervisor's note step is an ACTION node, and nothing is ellipsised", JSON.stringify({ cut: t.cut, v: t.variant }));
   check(sub.length >= 1, "a completed note section states its summary on a second line, whole", sub.join(" | "));
   await ctx.close();
@@ -434,12 +451,14 @@ let assessed;
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
   await page.waitForTimeout(500);
   /* A nudge, sent: no origin, no glyph. */
-  await page.locator('[data-nudge="here"]').click();
+  await page.locator('[data-suggestion-use="here"]').click();
   await page.locator('[data-slot="composer"] textarea').focus();
   await page.keyboard.press("Enter");
   await page.waitForTimeout(400);
   const nudged = await page.evaluate((k) => (JSON.parse(localStorage.getItem(k)).state.chatMessages.t13 ?? []).at(-1), KEY);
-  check(/still here with you/.test(nudged?.text ?? "") && !nudged.origin, "a sent nudge is the mentor's own line — no origin", JSON.stringify({ t: nudged?.text?.slice(0, 24), o: nudged?.origin }));
+  /* RETARGETED (pack v11.0 §7.2): still no origin (that is the assessment's
+     tag), and now its provenance — Ava's line, sent as written. */
+  check(/still here with you/.test(nudged?.text ?? "") && !nudged.origin && nudged.provenance === "ai_inserted", "a sent suggestion: no origin, provenance ai_inserted", JSON.stringify({ t: nudged?.text?.slice(0, 24), o: nudged?.origin, p: nudged?.provenance }));
   check((await toasts(page)).length === 0, "no toast anywhere before a close", (await toasts(page)).join(" | "));
   assessed = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)).state, KEY);
   await ctx.close();

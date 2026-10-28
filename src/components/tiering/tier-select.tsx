@@ -1,7 +1,8 @@
 "use client";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TierSelect — every tier decision, one component (micro-pack v10.0)
+// TierSelect — every tier decision, one component (micro-pack v10.0;
+// amendment v10.1; pack v11.0 §5)
 //
 // ═══ SUPERSEDES (pack v10.0, Supersession 1) ═══ Three per-role controls:
 // the raise flow's radio list (mentor), the confirm-tier step's 2×2 grid
@@ -9,9 +10,13 @@
 // lozenges (`TierUpdateModule`). The same decision is the same control now;
 // the MODE changes the register, not the skeleton:
 //
-//   raise    Tiers 1–3, plain-language lines (`RAISE_DESCRIPTION`), empty on
-//            load, the platform-concern escape below the group, a required
-//            note, Confirm escalation + Cancel.
+//   raise    Tiers 1–3, plain-language lines (`RAISE_DESCRIPTION` — mentors
+//            never read the clinical criteria, answered 2026-10-28), empty
+//            on load, every card choosable and untagged, a required note,
+//            and a footer sticky to the panel's bottom: Confirm escalation +
+//            Cancel. (v11.0 removed the "Current" tag and the platform-
+//            concern link from raise; that routing is an open product
+//            question, and `PlatformReport` is deleted, not orphaned.)
 //   review   Tiers 1–4, the clinical criteria (`TIER_CRITERIA`), the request
 //            arriving checked and tagged, a reason seeded from the mentor's
 //            note, and a CTA that spells out the consequence ("Confirm
@@ -24,13 +29,17 @@
 // tier is skipped, all by the platform. (v10.0's row led with a radio mark;
 // it is gone.)
 //
-//   unselected  the tier's identity wash · outline lozenge · hover deepens
-//               the wash one step · focus-visible ring on the card
-//   selected    wash kept · FILLED lozenge · the emphasis ring · a trailing
-//               check — fill + ring + check are the selection signals, so
-//               selection is never colour alone and never wash alone
-//   requested   selected + "Requested by {mentor} · {time}"
-//   current     a quiet "Current" tag
+//   unselected  the tier's identity wash · outline lozenge · a hairline
+//   hover       the hairline steps to border-strong (the wash is identity,
+//               and only selection deepens it)
+//   focus       the Bloom focus ring on the card
+//   selected    the emphasis ring · the DEEPENED wash · outline → FILLED
+//               lozenge. No check glyph and no radio glyph (pack v11.0
+//               §5.3): ring presence and the lozenge's outline-to-fill are
+//               shape and weight changes, readable without colour, and the
+//               radiogroup carries the state programmatically
+//   requested   selected + "Requested by {mentor} · {time}" (review)
+//   current     a quiet "Current" tag (review and update only)
 //
 // The emphasis ring is a 2px ink border, not a raised shadow: in review mode
 // this sits inside the current timeline node, which stays the only element
@@ -56,7 +65,6 @@
 // inline and moves focus to it.
 
 import { useId, useRef, useState } from "react";
-import { Check } from "lucide-react";
 import { RecordAvatar } from "@/components/record/record-avatar";
 import { TierLozenge } from "@/components/ui/tier-lozenge";
 import type { Placement } from "@/lib/tiering/events";
@@ -99,8 +107,6 @@ export interface RaiseProps extends Common {
   mode: "raise";
   onConfirm: (input: { tier: RaiseTier; note: string }) => void;
   onCancel: () => void;
-  /** Opens the platform-concern report — never a tier option. */
-  onPlatform: () => void;
 }
 
 export interface ReviewProps extends Common {
@@ -137,12 +143,13 @@ export function TierSelect(props: TierSelectProps) {
   const tierCta = (t: Tier | null) => ctaFor(ctx, t);
 
   const tiers: readonly Tier[] = mode === "raise" ? RAISE_TIERS : TIERS;
-  /** Per row: can it be checked, and if not, why. In raise mode the current
-   *  tier is information, not a choice (v1); in review the movement rules
-   *  decide, and the current tier stays checkable — it is where update
-   *  mode starts. */
+  /** Per row: can it be checked, and if not, why. In raise mode every card
+   *  is a choice — raising at the teen's current tier is a real event (a
+   *  Tier 2 teen with a new crisis; answered 2026-10-28). In review the
+   *  movement rules decide, and the current tier stays checkable — it is
+   *  where update mode starts. */
   const rule = (t: Tier): { ok: boolean; why?: string } => {
-    if (mode === "raise") return { ok: t !== current };
+    if (mode === "raise") return { ok: true };
     if (t === current) return { ok: true };
     const p = review?.placements?.find((x) => x.tier === t);
     return p && !p.allowed ? { ok: false, why: p.why } : { ok: true };
@@ -159,6 +166,11 @@ export function TierSelect(props: TierSelectProps) {
   const [tier, setTier] = useState<Tier | null>(initial);
   const [text, setText] = useState(review?.seed ?? "");
   const [tried, setTried] = useState(false);
+  /** ═══ NEVER ON A PRISTINE FIELD (pack v11.0 §5.4) ═══ Validation renders
+   *  on a submit attempt, or on blur AFTER input — typing then clearing the
+   *  note and leaving it says so; tabbing past an untouched one does not. */
+  const [dirty, setDirty] = useState(false);
+  const [blurred, setBlurred] = useState(false);
   /** The live region's line — written by the handler that relabels the CTA,
    *  never on mount, so the page does not announce its own first paint. */
   const [live, setLive] = useState("");
@@ -212,8 +224,8 @@ export function TierSelect(props: TierSelectProps) {
         : current
           ? `${name} is in Tier ${current} · ${TIER_NAME[current]}. Move to`
           : `Place ${name} in`;
-  const fieldLabel =
-    mode === "raise" ? "What’s happening? Your supervisor will read this." : (review!.reasonLabel?.(tier) ?? "Reason — posted to the record");
+  const fieldLabel = mode === "raise" ? "What’s happening?" : (review!.reasonLabel?.(tier) ?? "Reason — posted to the record");
+  const showFieldError = missingText && (tried || (dirty && blurred));
   const consequence = review?.consequence?.(tier) ?? null;
 
   return (
@@ -255,7 +267,7 @@ export function TierSelect(props: TierSelectProps) {
             const isCurrent = t === current;
             const tag = requested
               ? `Requested by ${review!.request!.by} · ${TIME.format(review!.request!.at)}`
-              : isCurrent
+              : isCurrent && mode === "review"
                 ? "Current"
                 : null;
             const description = mode === "raise" ? raiseDescription(t as RaiseTier, name) : TIER_CRITERIA[t];
@@ -268,18 +280,17 @@ export function TierSelect(props: TierSelectProps) {
                 data-tier-requested={requested || undefined}
                 className={cn(
                   "group/tier relative flex w-full items-start gap-3 rounded-[var(--radius-inset)] text-left transition-colors duration-150 motion-reduce:transition-none",
-                  "bg-[var(--wash)]",
                   checked
-                    ? "border-2 border-[color:var(--text-primary)] px-[11px] py-[9px]"
-                    : "border border-[color:var(--border-default)] px-3 py-2.5",
-                  !r.ok ? "cursor-not-allowed border-dashed" : cn("cursor-pointer", "hover:bg-[var(--wash-hover)]"),
+                    ? "border-2 border-[color:var(--text-primary)] bg-[var(--wash-deep)] px-[11px] py-[9px]"
+                    : "border border-[color:var(--border-default)] bg-[var(--wash)] px-3 py-2.5",
+                  !r.ok ? "cursor-not-allowed border-dashed" : cn("cursor-pointer", !checked && "hover:border-[color:var(--border-strong)]"),
                   /* Focus lands on the hidden input; the ring is drawn on its card. */
                   "has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-[color:var(--focus-ring)]",
                   /* ═══ THE REQUEST ARRIVES HELD (Magic 1) ═══ The ring draws
                      in on the requested card in one beat with its tag. */
                   requested && checked && "motion-safe:animate-[tier-hold_280ms_cubic-bezier(0.2,0.8,0.2,1)]"
                 )}
-                style={{ "--wash": `var(--tier-legend-${t}-wash)`, "--wash-hover": `var(--tier-legend-${t}-wash-hover)` } as React.CSSProperties}
+                style={{ "--wash": `var(--tier-legend-${t}-wash)`, "--wash-deep": `var(--tier-legend-${t}-wash-deep)` } as React.CSSProperties}
               >
                 <input
                   type="radio"
@@ -335,17 +346,6 @@ export function TierSelect(props: TierSelectProps) {
                     </span>
                   )}
                 </span>
-                {/* ═══ THE CHECK LANDS (Magic, v10.1) ═══ With the lozenge's
-                    fill, in one beat. A fixed 16px slot, so it moves nothing. */}
-                <span aria-hidden className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
-                  {checked && (
-                    <Check
-                      data-tier-check
-                      strokeWidth={2.5}
-                      className="size-4 text-[var(--text-primary)] motion-safe:animate-[tier-check_180ms_cubic-bezier(0.2,0.8,0.2,1)]"
-                    />
-                  )}
-                </span>
               </label>
             );
           })}
@@ -361,19 +361,6 @@ export function TierSelect(props: TierSelectProps) {
             {consequence}
           </p>
         )}
-        {/* ═══ SOMETHING ELSE ═══ Outside the radiogroup and its tab stop:
-            a platform concern is never a tier. Quiet on purpose. TODO-COPY. */}
-        {props.mode === "raise" && (
-          <button
-            type="button"
-            data-raise-platform
-            onClick={props.onPlatform}
-            className={cn("mt-2 inline-flex min-h-8 items-center rounded-sm text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]", RING)}
-            style={LABEL}
-          >
-            Something else? Report a platform concern.
-          </button>
-        )}
       </div>
 
       {/* ── THE NOTE / THE REASON ────────────────────────────────────── */}
@@ -381,6 +368,11 @@ export function TierSelect(props: TierSelectProps) {
         <label htmlFor={`${uid}-field`} className="mb-1.5 block text-[var(--text-muted)]" style={LABEL}>
           {/* TODO-COPY */}
           {fieldLabel}
+          {/* The required marker: an asterisk the eye reads, "required" the
+              ear does (the textarea is `aria-required` too). */}
+          <span aria-hidden className="ml-0.5 text-[var(--state-error)]">
+            *
+          </span>
         </label>
         <textarea
           id={`${uid}-field`}
@@ -389,12 +381,17 @@ export function TierSelect(props: TierSelectProps) {
           rows={3}
           maxLength={mode === "raise" ? CONTEXT_NOTE_MAX : undefined}
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          aria-invalid={tried && missingText ? true : undefined}
+          onChange={(e) => {
+            setText(e.target.value);
+            setDirty(true);
+          }}
+          onBlur={() => setBlurred(true)}
+          aria-required
+          aria-invalid={showFieldError ? true : undefined}
           aria-describedby={mode === "raise" ? `${uid}-count` : undefined}
           className={cn(
             "block w-full resize-none rounded-[var(--radius-control)] border bg-[var(--surface-card)] px-3 py-2 text-[var(--text-primary)] placeholder:text-[var(--text-muted)]",
-            tried && missingText ? "border-[color:var(--state-error)]" : "border-[color:var(--border-subtle)]",
+            showFieldError ? "border-[color:var(--state-error)]" : "border-[color:var(--border-subtle)]",
             RING
           )}
           style={BODY}
@@ -402,7 +399,7 @@ export function TierSelect(props: TierSelectProps) {
           placeholder={mode === "raise" ? `What did ${name} say or do?` : "What you saw and decided"}
         />
         <div className="mt-1 flex items-start justify-between gap-3">
-          {tried && missingText ? (
+          {showFieldError ? (
             <p role="alert" data-tier-error="field" className="text-[var(--state-error)]" style={LABEL}>
               {/* TODO-COPY */}
               {mode === "raise" ? "Add a line about what’s going on." : "A reason is required — it is the record."}
@@ -419,7 +416,20 @@ export function TierSelect(props: TierSelectProps) {
       </div>
 
       {/* ── THE CTA — one filled button ──────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Raise: the footer is sticky to the panel's bottom (pack v11.0
+          §5.4) on the panel's own surface with a hairline, so the decision
+          stays in reach however long the cards run. */}
+      <div
+        data-tier-footer
+        className={cn(
+          "flex flex-wrap items-center gap-2",
+          /* `-bottom-4` and the extra 16 of bottom padding: the panel's
+             scroller pads 16, and a footer stuck at its padding edge let
+             the cards show through the strip beneath it (measured) — the
+             tab bar's `-top-4`, mirrored. */
+          mode === "raise" && "sticky -bottom-4 z-[2] -mx-4 border-t border-[color:var(--border-subtle)] bg-[var(--surface-s1)] px-4 pt-3 pb-7"
+        )}
+      >
         <button
           type="button"
           data-tier-cta={review?.kind ?? "raise"}

@@ -178,7 +178,7 @@ console.log("\n── 4 · the Care tabs");
   const { ctx, page } = await open("/app/chat/t14");
   await careTab(page).click();
   await page.waitForTimeout(300);
-  const tabs = await page.evaluate(() => ({ labels: [...document.querySelectorAll("[data-care-tab]")].map((c) => c.textContent), first: (() => { const p = document.querySelector("[data-care-panel]"); /* RETARGETED (pack v8.0): the anchor header leads the panel; the tabs follow it. */ const kids = [...(p?.children ?? [])].filter((c) => !c.matches("[data-care-tabs-live]")); /* RETARGETED (pack v9.0): the header sits in its yield; a supervisor's strip may follow it. */ const next = kids[1]?.matches('[data-care-yield="strip"]') ? kids[2] : kids[1]; return !!kids[0]?.matches('[data-care-yield="cells"][data-open="true"]') && !!kids[0].querySelector("[data-care-header]") && !!next?.querySelector("[data-care-tabs]"); })(), sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
+  const tabs = await page.evaluate(() => ({ labels: [...document.querySelectorAll("[data-care-tab]")].map((c) => c.textContent), first: (() => { const p = document.querySelector("[data-care-panel]"); /* RETARGETED (pack v8.0): the anchor header leads the panel; the tabs follow it. */ const kids = [...(p?.children ?? [])].filter((c) => !c.matches("[data-care-tabs-live]")); /* RETARGETED (pack v9.0): the header sits in its yield; a supervisor's strip may follow it. */ const next = kids[1]?.matches('[data-care-yield="strip"]') ? kids[2] : kids[1]; /* RETARGETED (pack v11.0): no yield — the hero's own wrapper leads. */ return !!kids[0]?.querySelector("[data-care-header]") && !!next?.querySelector("[data-care-tabs]"); })(), sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
   /* RETARGETED (pack v8.0, Supersession 3): Overview is removed; steady is
      Emergency info · Safety plan · Resources · History, on Emergency info. */
   check(tabs.labels.join("|") === "Emergency info|Safety plan|Resources|History" && tabs.first && tabs.sel === "emergency", "Emergency info · Safety plan · Resources · History, right under the header, on Emergency info (pack v8.0)", JSON.stringify(tabs));
@@ -228,11 +228,29 @@ async function raiseVia(page, door, tier, note = "They said they are not okay to
   await page.waitForTimeout(400);
   const before = await page.evaluate(() => ({ flow: !!document.querySelector("[data-raise-flow]"), banner: !!document.querySelector('[data-slot="status-banner"]'), care: document.querySelector('[data-rail-tab="care"]')?.getAttribute("aria-selected") }));
   if (tier === "platform") {
-    /* A platform concern is not a tier (pack v3.0, Supersession 3): the quiet
-       link below the tiers opens its own report. */
-    await page.locator("[data-raise-platform]").click();
-    await page.locator("[data-platform-note]").fill(note);
-    await page.locator("[data-platform-send]").click();
+    /* RETARGETED (pack v11.0, Supersession 4): the raise flow no longer
+       offers a platform concern (`PlatformReport` is deleted; routing is an
+       open product question). Records that carry `requested: "platform"`
+       still exist and keep the supervisor's Mark reviewed path — so the
+       probe makes one: a Tier 3 raise, recategorised in the store, with the
+       tier event a platform concern never writes removed. */
+    await page.locator('[data-tier-row="3"]').click();
+    await page.locator("[data-tier-field=note]").fill(note);
+    await page.locator("[data-tier-cta=raise]").click();
+    await page.waitForTimeout(500);
+    await page.evaluate((k) => {
+      const v = JSON.parse(localStorage.getItem(k));
+      const e = Object.values(v.state.escalations).find((x) => x.resolvedAt === null && x.requested === 3);
+      e.requested = "platform";
+      v.state.tierEvents = v.state.tierEvents.filter((x) => x.escalationId !== e.id);
+      localStorage.setItem(k, JSON.stringify(v));
+    }, KEY);
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForTimeout(1000);
+    if (!(await page.locator("[data-exchange]").count())) {
+      await careTab(page).click();
+      await page.waitForTimeout(300);
+    }
   } else {
     await page.locator(`[data-tier-row="${tier}"]`).click();
     await page.locator("[data-tier-field=note]").fill(note);
@@ -287,14 +305,10 @@ for (const door of Object.keys(DOORS)) {
   check(!!picked, "arrow keys select in the tier picker", String(picked));
   const cur = await page.evaluate(() => [...document.querySelectorAll("[data-tier-row]")].map((o) => o.dataset.tierRow));
   check(cur.join() === "1,2,3", "the picker offers strictly Tiers 1–3 — never Tier 4, and no Platform option", cur.join(","));
-  /* ═══ SOMETHING ELSE ═══ The platform concern, as a quiet link below. */
-  const link = await page.evaluate(() => { const l = document.querySelector("[data-raise-platform]"); const g = document.querySelector('[data-raise-flow] [role="radiogroup"]'); return { text: l?.textContent, after: !!(l && g && g.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING), radio: l?.getAttribute("role") }; });
-  /* RETARGETED (pack v10.0): TierSelect — the pack's sentence, with its full stop. */
-  check(link.text === "Something else? Report a platform concern." && link.after && link.radio === null, "below the tiers: a quiet link, not a radio, opens the platform report", JSON.stringify(link));
-  await page.locator("[data-raise-platform]").click();
-  await page.waitForTimeout(150);
-  const rep = await page.evaluate(() => ({ form: !!document.querySelector("[data-platform-report]"), lozenge: document.querySelectorAll("[data-platform-report] [data-tier-lozenge]").length }));
-  check(rep.form && rep.lozenge === 0, "its own lighter flow, with no tier in it", JSON.stringify(rep));
+  /* RETARGETED (pack v11.0, Supersession 4): no platform-concern link —
+     the report flow is deleted, and the raise is tiers alone. */
+  const link = await page.evaluate(() => ({ link: !!document.querySelector("[data-raise-platform]"), report: !!document.querySelector("[data-platform-report]") }));
+  check(!link.link && !link.report, "no platform-concern link and no report flow in the raise (pack v11.0)", JSON.stringify(link));
   await ctx.close();
   /* Jordan, Tier 3: the current tier is information, not a choice. */
   const j = await open("/app/chat/t13");
@@ -302,7 +316,9 @@ for (const door of Object.keys(DOORS)) {
   await j.page.waitForTimeout(300);
   /* RETARGETED (amendment v10.1): a native radio, disabled. */
   const current = await j.page.evaluate(() => { const o = document.querySelector('[data-tier-row="3"]'); return { disabled: o?.querySelector("input")?.disabled ? "true" : null, tag: /Current/.test(o?.innerText ?? "") }; });
-  check(current.disabled === "true" && current.tag, "the teen's current tier is shown disabled, tagged Current", JSON.stringify(current));
+  /* RETARGETED (pack v11.0 §5.1): no Current tag in raise; every card is a
+     choice (answered 2026-10-28). */
+  check(current.disabled === null && !current.tag, "raise: the teen's current tier is untagged and choosable", JSON.stringify(current));
   await j.page.screenshot({ path: `${OUT}/02-raise-flow.png` });
   await j.ctx.close();
 }
@@ -451,8 +467,11 @@ let assessed;
   /* RETARGETED (pack v5.0, Supersessions 1–2): the holder's single home is
      the waiting node's title, and the hero's ghost button is the one Support
      door in every state. */
-  check(x1?.title === "Brandy has this. Stay with Jordan." && (await page.evaluate(() => !/has this/.test(document.querySelector("[data-care-hero]")?.textContent ?? ""))), "waiting says Brandy has this. Stay with Jordan. — and the hero does not", String(x1?.title));
-  check(await page.evaluate(() => /^Message Brandy in Support$/.test(document.querySelector('[data-timeline-support="mentor"]')?.textContent.trim() ?? "") && !document.querySelector("[data-waiting-open-support]")), "and the one Support door is the hero's ghost button");
+  /* RETARGETED (pack v11.0 §7, Supersession 6): the confirmation is the
+     node's title, and the post-submit card's filled button is the one
+     Support door — the hero's ghost steps aside. */
+  check(x1?.title === "Assessment sent.", "waiting says Assessment sent.", String(x1?.title));
+  check(await page.evaluate(() => /^Message Brandy in Support$/.test(document.querySelector('[data-exchange-primary="post-submit-support"]')?.textContent.trim() ?? "") && !document.querySelector('[data-timeline-support="mentor"]')), "and the one Support door is the post-submit card's button");
   await page.screenshot({ path: `${OUT}/03-m3-stay.png` });
   assessed = await store(page);
   await ctx.close();
@@ -530,58 +549,65 @@ let closed;
   check(s2.stage === "S2" && /^Confirmed by .+ · \d/.test(s2.line ?? "") && s2.lozenge, "S2: the header's chip has settled into the Tier 1 lozenge, signed and timed", JSON.stringify(s2));
   /* RETARGETED (pack v6.1, Supersession 2 — the named reversal): ONE Crisis
      note node, its accordion's first row open; Close is the only step ahead. */
-  const openRow = () => page.evaluate(() => [...document.querySelectorAll("[data-note-row][data-note-open]")].map((r) => r.dataset.noteRow).join());
-  check(x2?.current.join() === "note" && x2.upcoming.join() === "close" && (await openRow()) === "subtype" && x2.title === "Crisis note · 0 of 7", "one Crisis note node · 0 of 7, Clinical subtype open; Close is next", JSON.stringify({ cur: x2?.current, up: x2?.upcoming, title: x2?.title }));
+  /* RETARGETED (pack v11.0, Supersession 5): the deck's active card. */
+  const openRow = () => page.evaluate(() => [...document.querySelectorAll('[data-deck-state="active"]')].map((r) => r.dataset.deckRow).join());
+  const progress = () => page.evaluate(() => document.querySelector("[data-deck-progress]")?.textContent);
+  check(x2?.current.join() === "note" && x2.upcoming.join() === "close" && (await openRow()) === "subtype" && x2.title === "Crisis note" && (await progress()) === "0 of 7 sections recorded", "one Crisis note node · 0 of 7, Clinical subtype open; Close is next", JSON.stringify({ cur: x2?.current, up: x2?.upcoming, title: x2?.title }));
   /* ═══ NO GUIDANCE COMPOSER (Supersession 2) ═══ */
   const g = await page.evaluate(() => ({ composer: !!document.querySelector("[data-send-guidance], [data-guidance-composer]"), link: document.querySelector('[data-timeline-support="supervisor"]')?.textContent ?? null }));
   check(!g.composer && /^Message .+ in Support/.test(g.link ?? ""), "no guidance composer — a quiet Message {mentor} in Support link instead", JSON.stringify(g));
   /* The note, row by row (pack v6.1). Each save breathes before the next
      row opens, so the waits cover it. */
-  await page.locator('[data-exchange-primary="save-section:subtype"]').click();
+  await page.locator('[data-record-section="subtype"]').click();
   await page.waitForTimeout(100);
-  check(!!(await page.evaluate(() => document.querySelector('[data-note-row="subtype"] [role=alert]'))), "Save section on an empty section names the gap");
+  check(!!(await page.evaluate(() => document.querySelector('[data-deck-card="subtype"] [role=alert]'))), "Save section on an empty section names the gap");
   await page.locator('[data-choice="subtype:suicidal_ideation"]').click();
   await page.locator('[data-chip="housing"]').click();
-  await page.locator('[data-exchange-primary="save-section:subtype"]').click();
+  await page.locator('[data-record-section="subtype"]').click();
   await page.waitForTimeout(450);
   await page.locator('[data-choice="safety-plan:created"]').click();
   await page.locator('[data-exchange-field="safety-usage"]').fill("Text her aunt and use the grounding steps.");
-  await page.locator('[data-exchange-primary="save-section:safety-plan"]').click();
+  await page.locator('[data-record-section="safety-plan"]').click();
   await page.waitForTimeout(450);
   await page.locator('[data-yes-no="resources:no"]').click();
-  await page.locator('[data-exchange-primary="save-section:resources"]').click();
+  await page.locator('[data-record-section="resources"]').click();
   await page.waitForTimeout(450);
   await page.locator('[data-yes-no="referral:yes"]').click();
   await page.locator('[data-chip="therapist"]').click();
-  await page.locator('[data-exchange-primary="save-section:referral"]').click();
+  await page.locator('[data-record-section="referral"]').click();
   await page.waitForTimeout(450);
   const x5 = await xs(page);
-  const rows5 = await page.evaluate(() => [...document.querySelectorAll("[data-note-row]")].map((r) => `${r.dataset.noteRow}:${r.dataset.noteState}`));
-  check(x5?.current.join() === "note" && (await openRow()) === "emergency" && rows5.slice(0, 4).every((r) => r.endsWith(":complete")) && x5.title === "Crisis note · 4 of 7", "Tier 1 reaches section 5 (emergency) as the open row; rows 1–4 complete · 4 of 7", JSON.stringify({ open: await openRow(), rows5, title: x5?.title }));
+  const rows5 = await page.evaluate(() => [...document.querySelectorAll("[data-deck-row]")].map((r) => `${r.dataset.deckRow}:${r.dataset.deckState}`));
+  check(x5?.current.join() === "note" && (await openRow()) === "emergency" && rows5.slice(0, 4).every((r) => r.endsWith(":recorded")) && x5.title === "Crisis note" && (await progress()) === "4 of 7 sections recorded", "Tier 1 reaches section 5 (emergency) as the open row; rows 1–4 complete · 4 of 7", JSON.stringify({ open: await openRow(), rows5, title: x5?.title }));
   await page.locator('[data-yes-no="contact:yes"]').click();
   await page.locator('[data-exchange-field="contact-details"]').fill("Her aunt, by phone.");
   await page.locator('[data-yes-no="services:yes"]').click();
   await page.locator('[data-chip="mobile_crisis"]').click();
-  await page.locator('[data-exchange-primary="save-section:emergency"]').click();
+  await page.locator('[data-record-section="emergency"]').click();
   await page.waitForTimeout(400);
   const s3 = await page.evaluate(() => ({
-    current: document.querySelector("[data-note-row][data-note-open]")?.dataset.noteRow,
+    current: document.querySelector('[data-deck-state="active"]')?.dataset.deckRow,
     auto: document.querySelector('[data-choice][aria-checked="true"]')?.dataset.choice,
     tagged: !!document.querySelector("[data-auto-tagged]"),
   }));
   check(s3.current === "outcome" && s3.auto === "outcome:mobile_crisis" && s3.tagged, "the Outcome row: auto-tagged Mobile crisis from the note, and says so", JSON.stringify(s3));
-  await page.locator('[data-exchange-primary="save-section:outcome"]').click();
+  await page.locator('[data-record-section="outcome"]').click();
   await page.waitForTimeout(450);
-  const s3b = await page.evaluate(() => ({ current: document.querySelector("[data-note-row][data-note-open]")?.dataset.noteRow, draft: !!document.querySelector("[data-ai-draft]"), debrief: document.querySelector('[data-exchange-field="debrief"]')?.value ?? "" }));
+  const s3b = await page.evaluate(() => ({ current: document.querySelector('[data-deck-state="active"]')?.dataset.deckRow, draft: !!document.querySelector("[data-ai-draft]"), debrief: document.querySelector('[data-exchange-field="debrief"]')?.value ?? "" }));
   check(s3b.current === "debrief" && s3b.draft && s3b.debrief.length > 40 && !/Tier \d|Suicidal ideation/.test(s3b.debrief), "then the Debrief row: an AI draft, badged, that writes no tier or subtype", s3b.debrief.slice(0, 70));
   await page.locator('[data-exchange-field="debrief"]').fill(s3b.debrief + " Mobile crisis arrived at 7:40.");
   await page.waitForTimeout(100);
   check(!(await page.evaluate(() => !!document.querySelector("[data-ai-draft]"))), "editing the draft takes the AI badge off");
-  await page.locator('[data-exchange-primary="save-section:debrief"]').click();
+  await page.locator('[data-record-section="debrief"]').click();
   await page.waitForTimeout(150);
   check(!(await store(page)).escalations.t13.outcome?.savedAt, "Save with no plan saves nothing");
   await page.locator('[data-exchange-field="plan"]').fill("Daily check-ins this week; therapist intake Thursday.");
-  await page.locator('[data-exchange-primary="save-section:debrief"]').click();
+  await page.locator('[data-record-section="debrief"]').click();
+  await page.waitForTimeout(400);
+  /* RETARGETED (pack v11.0 §6.6): the whole note posts in one atomic
+     write — until Submit, every record above was the session draft's. */
+  check(!(await store(page)).escalations.t13.crisisNote?.subtype, "recorded but not submitted: nothing on the record yet (the draft holds it)");
+  await page.locator('[data-exchange-primary="submit-crisis-note"]').click();
   await page.waitForTimeout(600);
   st = await store(page);
   const o = st.escalations.t13.outcome;
@@ -655,19 +681,19 @@ console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 e
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-tier2" });
   const x = await xs(page);
   const chip = await page.evaluate(() => document.querySelector('[data-node="assessment"] [data-risk-chip]')?.textContent);
-  const t2open = await page.evaluate(() => ({ open: document.querySelector("[data-note-row][data-note-open]")?.dataset.noteRow, subtype: document.querySelector('[data-note-row="subtype"]')?.dataset.noteState }));
-  check(x?.stage === "S2" && x.current.join() === "note" && x.title === "Crisis note · 1 of 6" && t2open.open === "safety-plan" && t2open.subtype === "complete" && chip === "Moderate risk", "Tier 2 fixture: 1 of 6, Safety plan open; the received node keeps the Moderate chip", JSON.stringify({ x, t2open, chip }));
+  const t2open = await page.evaluate(() => ({ open: document.querySelector('[data-deck-state="active"]')?.dataset.deckRow, subtype: document.querySelector('[data-deck-row="subtype"]')?.dataset.deckState, progress: document.querySelector("[data-deck-progress]")?.textContent }));
+  check(x?.stage === "S2" && x.current.join() === "note" && x.title === "Crisis note" && t2open.progress === "1 of 6 sections recorded" && t2open.open === "safety-plan" && t2open.subtype === "recorded" && chip === "Moderate risk", "Tier 2 fixture: 1 of 6, Safety plan open; the received node keeps the Moderate chip", JSON.stringify({ x, t2open, chip }));
   await page.locator('[data-choice="safety-plan:maintained"]').click();
-  await page.locator('[data-exchange-primary="save-section:safety-plan"]').click();
+  await page.locator('[data-record-section="safety-plan"]').click();
   await page.waitForTimeout(450);
   await page.locator('[data-yes-no="resources:yes"]').click();
   await page.locator('[data-exchange-field="resources-list"]').fill("988 and the Trevor Project.");
-  await page.locator('[data-exchange-primary="save-section:resources"]').click();
+  await page.locator('[data-record-section="resources"]').click();
   await page.waitForTimeout(450);
   await page.locator('[data-yes-no="referral:no"]').click();
-  await page.locator('[data-exchange-primary="save-section:referral"]').click();
+  await page.locator('[data-record-section="referral"]').click();
   await page.waitForTimeout(350);
-  const t1 = await page.evaluate(() => ({ current: document.querySelector("[data-note-row][data-note-open]")?.dataset.noteRow, emergency: !!document.querySelector('[data-note-row="emergency"]'), auto: document.querySelector('[data-choice][aria-checked="true"]')?.dataset.choice ?? null }));
+  const t1 = await page.evaluate(() => ({ current: document.querySelector('[data-deck-state="active"]')?.dataset.deckRow, emergency: !!document.querySelector('[data-deck-row="emergency"]'), auto: document.querySelector('[data-choice][aria-checked="true"]')?.dataset.choice ?? null }));
   check(t1.current === "outcome" && !t1.emergency && t1.auto === null, "after section 4 a Tier 2 note goes to Outcome — no section 5, and nothing to auto-tag", JSON.stringify(t1));
   await ctx.close();
   const m = await open("/app/chat/t13", { chat: "escalation-tier2" });

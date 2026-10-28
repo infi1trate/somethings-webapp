@@ -22,10 +22,10 @@ describe("the tier canon (blocked constant)", () => {
     expect(RAISE_DESCRIPTION[3]).not.toMatch(/on file|intake/i);
   });
 
-  it("carries the supervisor's criteria from the pack, one per tier, each ending in a full stop", () => {
-    expect(TIER_CRITERIA[1]).toMatch(/^Specific plan with means\/timeframe, .*active command hallucinations\.$/);
-    expect(TIER_CRITERIA[2]).toMatch(/^Passive suicidal ideation, .*without imminence\.$/);
-    expect(TIER_CRITERIA[3]).toMatch(/^Low-level distress, .*no active high-risk indicators\.$/);
+  it("carries the supervisor's criteria verbatim from pack v11.0 §5.2, one per tier", () => {
+    expect(TIER_CRITERIA[1]).toBe("Specific suicide plan with means/timeframe, in-progress self-harm, rapid symptom escalation or active command hallucinations.");
+    expect(TIER_CRITERIA[2]).toBe("Passive suicidal ideation, current abuse/neglect disclosures, active eating disorder/substance use without imminence.");
+    expect(TIER_CRITERIA[3]).toBe("Low-level distress, historical mental-health issues with no active high-risk indicators.");
     expect(TIER_CRITERIA[4]).toBe("No issues that need supervisor intervention.");
   });
 });

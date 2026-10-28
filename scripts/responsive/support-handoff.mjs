@@ -107,30 +107,51 @@ for (const width of [1512, 390]) {
   console.log(`\n── the escalation banner, mentor at ${width}`);
   /* Below md the list is the screen, so go to the escalation's thread itself
      (`t13`, the scenario's focus). */
-  const { ctx, page } = await open("mentor", width, width < 600 ? "/app/chat/t13" : "/app/chat", { chatScenarioId: "escalation-active" }, width < 600 ? 3 : 2);
-  const link = page.locator('[data-slot="banner-supervisor"]');
+  /* RETARGETED (pack v9.1): `/app/chat`'s default is never the room, so
+     the escalated conversation is opened by route at every width. */
+  const { ctx, page } = await open("mentor", width, "/app/chat/t13", { chatScenarioId: "escalation-active" }, width < 600 ? 3 : 2);
+  /* ═══ RETARGETED (pack v11.0 §3.2) ═══ "Supervisor notified {time}" is
+     the door to its RECORD now — Care's History — not to Support (SUP-5).
+     The Support door is the hero's ghost button (and, while the mentor
+     waits on their supervisor, the post-submit card's filled one); the
+     handoff to the notified supervisor's thread is measured through it. */
+  const link = page.locator('[data-slot="banner-history"]');
   const meta = await link.evaluate((e) => ({ text: e.textContent.trim(), label: e.getAttribute("aria-label"), tag: e.tagName })).catch(() => null);
-  check(meta?.tag === "BUTTON" && /^Supervisor notified /.test(meta.text) && /Message them in Support/.test(meta.label), "the fact is a named control", JSON.stringify(meta));
+  check(meta?.tag === "BUTTON" && /^Supervisor notified /.test(meta.text) && /Open the record in History/.test(meta.label), "the fact is a named control — to its record in History", JSON.stringify(meta));
   await link.click();
   await page.waitForTimeout(600);
+  const hist = await page.evaluate(() => document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab);
+  check(hist === "history", "it opens Care on History", String(hist));
+  if (width >= 960) {
+    await page.locator('[data-care-tab="escalation"]').click();
+    await page.waitForTimeout(300);
+    await page.locator('[data-timeline-support="mentor"]').click();
+    await page.waitForTimeout(600);
+  }
   const o = await page.evaluate(() => ({
     open: document.querySelector("[data-support-slot]")?.dataset.open,
     thread: document.querySelector("[data-support-thread]")?.dataset.supportThread,
     focus: document.activeElement?.id,
   }));
-  check(o.open === "true" && o.thread === "s-brandy", "it opens the notified supervisor's thread in the panel", JSON.stringify(o));
-  check(o.focus === "support-thread-title", "focus on their name", o.focus);
+  if (width >= 960) {
+    check(o.open === "true" && o.thread === "s-brandy", "the hero's Support door opens the notified supervisor's thread in the panel", JSON.stringify(o));
+    check(o.focus === "support-thread-title", "focus on their name", o.focus);
+  }
   await page.screenshot({ path: `${OUT}/02-banner-to-thread-${width}.png` });
   await ctx.close();
 }
 {
   console.log("\n── the same banner, for a supervisor");
-  const { ctx, page } = await open("supervisor", 1512, "/app/chat", { chatScenarioId: "escalation-active" });
+  /* RETARGETED (pack v9.1): the room is entered by route. */
+  const { ctx, page } = await open("supervisor", 1512, "/app/chat/t13", { chatScenarioId: "escalation-active" });
+  /* RETARGETED (pack v11.0): the fact links to History in both lenses —
+     the record is every reader's; there is no Support thread in it. */
   const s = await page.evaluate(() => ({
-    link: !!document.querySelector('[data-slot="banner-supervisor"]'),
+    link: !!document.querySelector('[data-slot="banner-history"]'),
+    support: !!document.querySelector('[data-slot="banner-supervisor"]'),
     text: [...document.querySelectorAll('[data-slot="status-banner"] p')].map((p) => p.textContent).join(" | "),
   }));
-  check(!s.link && /Supervisor notified/.test(s.text), "plain text where the viewer cannot reach that contact", s.text);
+  check(s.link && !s.support && /Supervisor notified/.test(s.text), "the supervisor's banner: the fact links to History, never to a Support thread", s.text);
   await ctx.close();
 }
 

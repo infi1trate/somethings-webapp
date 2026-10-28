@@ -27,7 +27,8 @@ import { useEffect, useId, useState } from "react";
 import { Check, ChevronDown, Lock, MessageSquare } from "lucide-react";
 import { announceClose } from "@/components/chat/escalation/close-toast";
 import { Quote } from "@/components/chat/escalation/quote";
-import { WaitingModule, type SupervisorEcho } from "@/components/chat/escalation/waiting-module";
+import { PostSubmitCard } from "@/components/chat/escalation/post-submit-card";
+import { POST_SUBMIT } from "@/lib/tiering/post-submit-copy";
 import { TierLozenge } from "@/components/ui/tier-lozenge";
 import { TierSelect, mentorFirstName } from "@/components/tiering/tier-select";
 import type { EscalationState, MessageOrigin } from "@/lib/chat/types";
@@ -43,13 +44,13 @@ import {
   supervisorStage,
   workingTier,
 } from "@/lib/tiering/escalation";
-import { noteProgressOf, noteTierOf, orderNodes, timelineNodes, type Lens, type TimelineNode } from "@/lib/tiering/timeline";
+import { noteTierOf, orderNodes, timelineNodes, type Lens, type TimelineNode } from "@/lib/tiering/timeline";
 import type { Tiering } from "@/lib/tiering/use-tiering";
 import { PLATFORM, TIER_NAME, isAlertTier } from "@/lib/tiering/tiers";
 import { cn } from "@/lib/utils";
 import { GuidedAssessment } from "@/components/chat/escalation/guided-assessment";
 import { BODY, Field, LABEL, Primary, RING, RiskChip, TITLE, onRadioKeys } from "@/components/chat/escalation/controls";
-import { CrisisNoteAccordion } from "@/components/chat/escalation/crisis-note-accordion";
+import { CrisisNoteDeck } from "@/components/chat/escalation/crisis-note-deck";
 
 const TIME = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
 export { RiskChip };
@@ -538,7 +539,8 @@ export function EscalationExchange({
   mentorLines,
   onSettled,
   onDismiss,
-  echo,
+  onUseSuggestion,
+  onSupport,
   arrived = false,
 }: {
   e: EscalationState;
@@ -561,8 +563,10 @@ export function EscalationExchange({
   onDismiss?: () => void;
   /** Arrived from a notification: the current card traces its ring once. */
   arrived?: boolean;
-  /** The supervisor's latest Support message, for the mentor's waiting node. */
-  echo?: SupervisorEcho;
+  /** An Ava suggestion into the composer, marked as Ava's (pack v11.0 §7). */
+  onUseSuggestion: (text: string) => void;
+  /** The supervisor's Support thread — the post-submit card's one door. */
+  onSupport?: () => void;
 }) {
   const state = tiering.stateFor(teenId);
   const tier = workingTier(e, state);
@@ -570,7 +574,6 @@ export function EscalationExchange({
   const risk = riskLevel(a.answers);
   const stage = lens === "mentor" ? mentorStage(e, state) : supervisorStage(e);
   const nodes = orderNodes(timelineNodes(e, state, lens));
-  const open = e.resolvedAt === null;
   /* ═══ THE MENTOR'S CLOSE TOAST (Workstream F1) ═══ The same toast the
      supervisor saw, once, the first time this lens shows the closed summary.
      An effect because "shown" is the event; it writes no React state. */
@@ -580,7 +583,6 @@ export function EscalationExchange({
   }, [closedTier, e.id, name]);
   const target = escalationTarget(e);
   const noteTier = noteTierOf(e);
-  const progress = noteProgressOf(e);
 
   /* ── TITLES — TODO-COPY, every line ── */
   const titleOf = (n: TimelineNode): string => {
@@ -594,19 +596,26 @@ export function EscalationExchange({
       }
       case "assessment":
         if (n.state === "current") return lens === "mentor" ? `Go through the assessment with ${name}` : `${mentorName === "the mentor" ? "The mentor is" : `${mentorName} is`} going through the assessment`;
-        return lens === "mentor" ? "Assessment sent" : "Assessment received";
+        /* "Assessment sent." is the post-submit card's (single home), so
+           the mentor's completed row names the record. TODO-COPY. */
+        return lens === "mentor" ? "Your assessment" : "Assessment received";
       case "waiting":
         /* TODO-COPY. ═══ THE HOLDER'S SINGLE HOME (pack v5.0, Supersession 1) ═══
            The hero states state; who has it lives here. */
-        return n.state === "current" ? `${supervisorName} has this. Stay with ${name}.` : `${supervisorName} took it from here`;
+        /* ═══ PACK v11.0 §7.1 ═══ The confirmation is the node's title —
+           "Assessment sent." — no longer "{Supervisor} has this. Stay with
+           {teen}." (Supersession 6). */
+        return n.state === "current" ? POST_SUBMIT.sent : `${supervisorName} took it from here`;
       case "review":
         return "Review the report";
       case "confirm":
         return n.state === "current" ? `Confirm ${name}'s tier` : `Tier ${e.confirmedTier} confirmed`;
       case "note":
-        /* ═══ ONE NOTE NODE (pack v6.1) ═══ Its title carries the live
-           progress; complete, it says so and expands to the summaries. */
-        return n.state === "completed" ? "Crisis note complete" : progress ? `Crisis note · ${progress.done} of ${progress.total}` : "Crisis note";
+        /* ═══ ONE NOTE NODE (pack v6.1) ═══ Complete, it says so and
+           expands to the record. While it is written the DECK states its own
+           progress ("n of N sections recorded", pack v11.0) — the title does
+           not repeat it: the draft is the author's until it is submitted. */
+        return n.state === "completed" ? "Crisis note complete" : "Crisis note";
       case "close":
         /* Done, it says what happened — a Tier 3 exit scheduled nothing
            (pack v8.0: the supervisor's closed record is drawn now). */
@@ -636,14 +645,14 @@ export function EscalationExchange({
           <GuidedAssessment e={e} name={name} mode="observer" />
         );
       case "waiting":
-        /* ═══ THE WAITING MODULE (pack v4.0, Workstream D) ═══ */
+        /* ═══ THE POST-SUBMIT CARD (pack v11.0 §7) ═══ */
         return (
-          <WaitingModule
+          <PostSubmitCard
             name={name}
             supervisorName={supervisorName}
-            echo={echo}
             teenLines={teenLines}
-            onUseWording={onUseWording}
+            onUseSuggestion={onUseSuggestion}
+            onSupport={onSupport}
           />
         );
       case "review":
@@ -651,7 +660,7 @@ export function EscalationExchange({
       case "confirm":
         return <ConfirmCard e={e} name={name} tiering={tiering} teenId={teenId} onSettled={onSettled} />;
       case "note":
-        return noteTier ? <CrisisNoteAccordion e={e} tier={noteTier} name={name} tiering={tiering} teenId={teenId} teenLines={teenLines} mentorLines={mentorLines} /> : null;
+        return noteTier ? <CrisisNoteDeck e={e} tier={noteTier} name={name} tiering={tiering} teenId={teenId} teenLines={teenLines} mentorLines={mentorLines} /> : null;
       case "close":
         return <CloseCard e={e} name={name} tiering={tiering} teenId={teenId} onSettled={onSettled} />;
       case "closed": {
@@ -738,9 +747,9 @@ export function EscalationExchange({
         return ev?.reason ? <p className="text-[var(--text-secondary)]" style={LABEL}>{ev.reason}</p> : null;
       }
       case "note":
-        /* Complete but not yet closed, a saved row still amends; closed, the
-           note is read-only. */
-        return noteTier && lens === "supervisor" ? <CrisisNoteAccordion e={e} tier={noteTier} name={name} tiering={tiering} teenId={teenId} teenLines={teenLines} mentorLines={mentorLines} readOnly={!open} /> : null;
+        /* ═══ SUBMITTED IS THE RECORD (pack v11.0 §6.7) ═══ The note was
+           posted whole; it reads back read-only, supervisor lens only. */
+        return noteTier && lens === "supervisor" ? <CrisisNoteDeck e={e} tier={noteTier} name={name} tiering={tiering} teenId={teenId} teenLines={teenLines} mentorLines={mentorLines} readOnly /> : null;
       default:
         return null;
     }

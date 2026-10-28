@@ -1,5 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// STAY CLOSE — Ava's nudges while a mentor waits (pack v4.0, Workstream D)
+// STAY CLOSE — Ava's conversation paths while a mentor waits (pack v4.0,
+// Workstream D; the post-submit card's §7.2 since pack v11.0)
+//
+// ═══ GATED (Dr. Nissan) ═══ The generation and its non-clinical boundary
+// (`CLINICAL`) are a clinical gate. Using one marks the sent message under
+// the three-state provenance model (`FieldProvenance`): `ai_inserted` if it
+// goes unedited, `ai_assisted` once the mentor changes it.
 //
 // While the supervisor has the escalation, the mentor's job is to stay with
 // the teen. These are 2–3 short, warm lines a mentor MIGHT send, grounded in
@@ -12,7 +18,8 @@
 //   never auto-sent  a nudge goes into the message box, editable; the mentor
 //                    sends it or does not
 //   never persisted  derived at render from the thread's lines; nothing here
-//                    writes to a record, and "used" is component state only
+//                    writes to a record — a SENT message records its
+//                    provenance, the suggestion itself is never stored
 //
 // A FAKE AI, like the debrief draft: deterministic templates keyed on topics
 // the teen raised. TODO-COPY, every line.
@@ -54,11 +61,5 @@ export function stayCloseNudges(teenLines: readonly string[], name: string): Sta
   return out.filter((n) => !CLINICAL.test(n.text)).slice(0, 3);
 }
 
-/** ═══ THE STEADYING LINE ═══ One at a time, rotating, for the mentor —
- *  never sent, never stored. */
-export const STEADYING_LINES: readonly string[] = [
-  "You're doing the right thing by staying.",
-  "Short, warm messages are enough right now.",
-  "You don't have to fix this. Being here is the help.",
-];
-export const STEADYING_EVERY_MS = 12_000;
+/* The rotating "steadying line" is deleted with the waiting card (pack v11.0,
+   Supersession 6): filler in a crisis panel, specified nowhere. */

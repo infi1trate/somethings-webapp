@@ -23,12 +23,13 @@
 // is not shipped, so it would be a browser-synthesised fake (gap row 330). Nothing
 // in the thread design needs it.
 
-import { ClipboardList, ListPlus, Mic } from "lucide-react";
+import { ClipboardList, ListPlus, Mic, Sparkles } from "lucide-react";
 import { MediaFrame } from "@/components/chat/thread/media-frame";
 import { MessageActions } from "@/components/chat/thread/message-actions";
 import type { ChatMessage, MessageReaction } from "@/lib/chat/types";
 import { startsCluster } from "@/lib/chat/clustering";
 import { ASSESSMENT_QUESTIONS } from "@/lib/tiering/escalation";
+import { PROVENANCE_PHRASE } from "@/lib/record/field-provenance";
 import { cn } from "@/lib/utils";
 
 /** TODO-COPY. Clock time, which is what a reader wants INSIDE a conversation —
@@ -227,6 +228,21 @@ export function MessageBubble({
               )
         )}
       >
+        {message.provenance && message.provenance !== "authored" && (
+          /* ═══ AVA'S MARK (pack v11.0 §7.2) ═══ A sent suggestion carries its
+             provenance — the three-state model's own words, in the house
+             idiom (the Sparkles glyph). The left corner, so it never meets
+             the assessment's or the moment's on the right. Never an icon
+             alone: the phrase is its title and its spoken text. */
+          <span
+            data-ava-provenance={message.provenance}
+            title={PROVENANCE_PHRASE[message.provenance]}
+            className="absolute -top-2 left-2 flex size-5 items-center justify-center rounded-full border border-[color:var(--border-default)] bg-[var(--surface-card)] text-[var(--text-secondary)]"
+          >
+            <Sparkles aria-hidden className="size-3" />
+            <span className="sr-only">{PROVENANCE_PHRASE[message.provenance]}</span>
+          </span>
+        )}
         {asked && (
           /* ═══ ASKED FROM THE ASSESSMENT (pack v4.0, F2) ═══ The same quiet
              corner as an added moment, one step left when both apply; it

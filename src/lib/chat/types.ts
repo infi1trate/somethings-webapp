@@ -27,6 +27,8 @@
 //
 // ═══ EVERY RECORD IS APPEND-ONLY EXCEPT `completion` ═══
 //
+import type { FieldProvenance } from "@/lib/record/field-provenance";
+
 // Messages are never edited. Events are never retracted — a rescinded activity
 // gets a SECOND event, and the first one stays, because "this was sent and then
 // pulled back" is the true history and "this was never sent" is not. The one
@@ -93,6 +95,11 @@ export interface ChatMessage {
    *  Written once at send, append-only like the message. Ava's nudges carry
    *  NO origin — they are never recorded. */
   origin?: MessageOrigin;
+  /** ═══ AN AVA SUGGESTION, SENT (pack v11.0 §7.2) ═══ The three-state model
+   *  reused (`FieldProvenance`), not a second one: `ai_inserted` sent as Ava
+   *  wrote it, `ai_assisted` once the mentor changed it. Absent = authored.
+   *  Written once at send, append-only like the message. */
+  provenance?: FieldProvenance;
 }
 
 export interface MessageOrigin {

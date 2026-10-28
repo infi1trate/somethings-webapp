@@ -45,7 +45,8 @@ import { GroupedRail } from "@/components/app-shell/grouped-rail";
 import type { NavGroup } from "@/components/settings/nav-items";
 import { BottomNav } from "@/components/app-shell/bottom-nav";
 import { TopBar } from "@/components/app-shell/top-bar";
-import { useEffect, useRef } from "react";
+import { ShellBannerSlot } from "@/components/app-shell/shell-banner";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -172,6 +173,9 @@ export function AppShell({
      keyed on the pathname — a query-string change (a tab, a filter) keeps its
      place, as it always did. */
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  /** The banner slot (`shell-banner.tsx`) — state via a ref callback, so a
+   *  surface re-renders into it once it exists. */
+  const [bannerSlot, setBannerSlot] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (canvasRef.current) canvasRef.current.scrollTop = 0;
   }, [pathname]);
@@ -184,6 +188,9 @@ export function AppShell({
       data-detail-view={isDetailView ? "true" : undefined}
       /* Read by the staff rail's collapse (`in-data-[support-open=true]:`). */
       data-support-open={asideOpen ? "true" : "false"}
+      /* Support open ON CHAT: the staff rail yields up to 1680 there (pack
+         v11.0), so the escalation room keeps its floors beside Support. */
+      data-support-chat={asideOpen && (pathname ?? "").startsWith("/app/chat") ? "true" : undefined}
       className={cn(
         /* ═══ A DETAIL VIEW RESERVES NOTHING AT THE BOTTOM ═══
            `--nav-reserve` keeps the content panel clear of the floating bar. A
@@ -274,9 +281,15 @@ export function AppShell({
           /* A ROW when a panel can sit beside the canvas (SUP-2), and a query
              container so the panel can size itself against the room (its
              width on chat is `clamp(348px, 100cqi − 844px, 420px)`). */
-          aside !== undefined && "flex @container/main"
+          /* A COLUMN when a panel can sit beside the canvas: the banner slot
+             above, then the row (canvas · Support) — the row is the query
+             container the panel sizes itself against, as `<main>` was. */
+          aside !== undefined && "group/main flex flex-col"
         )}
       >
+        <ShellBannerSlot.Provider value={bannerSlot}>
+        {aside !== undefined && <div ref={setBannerSlot} data-shell-banner className="shrink-0 empty:hidden" />}
+        <div className={cn(aside !== undefined && "flex min-h-0 flex-1 @container/main")}>
         <div
           ref={canvasRef}
           data-canvas-scroller
@@ -348,11 +361,16 @@ export function AppShell({
                on chat (answered). */
             asideOpen && "md:rounded-[var(--radius-panel)_4px_4px_var(--radius-panel)] md:shadow-[var(--elevation-1)]",
             "motion-safe:transition-[border-radius] motion-safe:duration-[220ms]",
+            /* A BANNER IN THE SLOT IS THIS SURFACE'S TOP (pack v11.0): the
+               card's top corners close under it. */
+            "md:group-has-[>[data-shell-banner]:not(:empty)]/main:rounded-t-none",
           )}
         >
           {children}
         </div>
         {aside}
+        </div>
+        </ShellBannerSlot.Provider>
       </main>
       </div>
 

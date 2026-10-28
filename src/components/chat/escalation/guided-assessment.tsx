@@ -245,14 +245,23 @@ export function GuidedAssessment({
 }
 
 /** The answer chip: the state in WORDS, never colour alone. */
-function AnswerChip({ state, slot }: { state: SegmentState; slot: string }) {
+/** The answer chip. `short` (pack v11.0, Phase 4 — the collapsed rows' Y/N
+ *  pill at the trailing edge): a recorded answer is a FILLED ink pill with
+ *  its letter — fill against the empty outline is a shape change, never
+ *  colour alone — and the full word is what is spoken. */
+function AnswerChip({ state, slot, short = false }: { state: SegmentState; slot: string; short?: boolean }) {
+  const answered = state === "yes" || state === "no";
   return (
     <span
       data-ga-chip={slot}
       data-ga-chip-state={state}
+      data-ga-chip-short={short ? "" : undefined}
       className={cn(
-        "inline-flex h-6 shrink-0 items-center rounded-full border px-2.5 whitespace-nowrap",
-        state === "yes" || state === "no"
+        "inline-flex h-6 shrink-0 items-center rounded-full border whitespace-nowrap",
+        short && answered ? "min-w-8 justify-center px-2" : "px-2.5",
+        short && answered
+          ? "border-transparent bg-[var(--text-primary)] font-mono text-[var(--text-inverse)]"
+          : answered
           ? "border-[color:var(--border-default)] bg-[var(--surface-s2)] text-[var(--text-primary)]"
           : state === "skipped"
             ? "border-[color:var(--border-subtle)] text-[var(--text-muted)]"
@@ -266,6 +275,11 @@ function AnswerChip({ state, slot }: { state: SegmentState; slot: string }) {
         <>
           <span aria-hidden>—</span>
           <span className="sr-only">Not answered</span>
+        </>
+      ) : short ? (
+        <>
+          <span aria-hidden>{state === "yes" ? "Y" : "N"}</span>
+          <span className="sr-only">{word(state)}</span>
         </>
       ) : (
         word(state)
@@ -329,11 +343,10 @@ function QuestionGroup({
             </p>
             <AnswerChip state={s} slot={q.id} />
           </div>
-          <div data-zone="ask" className="space-y-1.5">
-            <p data-zone-label className={cn(OVERLINE, "text-[var(--text-muted)]")}>
-              {/* TODO-COPY */}
-              Ask {name}
-            </p>
+          {/* ═══ THE FIGMA'S CARD (pack v11.0, Phase 4) ═══ "Question n of N",
+              the verbatim question in quotes, Ask in chat →, then the record
+              row. The "Ask {name}" zone label is gone — the quote is the ask. */}
+          <div data-zone="ask" className="space-y-2">
             <p data-question-text={q.id} className="m-0 text-[var(--text-primary)]" style={TITLE}>
               &ldquo;{q.text}&rdquo;
             </p>
@@ -363,7 +376,8 @@ function QuestionGroup({
      · chip. Skipped: the muted ink, "Not needed" — still readable. */
   const body = (
     <>
-      <span aria-hidden className="w-4 shrink-0 pt-px text-right font-mono text-[12px] leading-[20px] tabular-nums text-[var(--text-muted)]">
+      {/* The number in a quiet disc (the Figma's collapsed row). */}
+      <span aria-hidden className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--surface-s2)] font-mono text-[10px] leading-none text-[var(--text-secondary)]">
         {n}
       </span>
       <span className="min-w-0 flex-1 space-y-1">
@@ -376,11 +390,11 @@ function QuestionGroup({
             <span data-question-text={q.followUp.id} className="min-w-0 break-words text-[var(--text-secondary)]" style={LABEL}>
               {q.followUp.text}
             </span>
-            <AnswerChip state={followAnswer.value} slot={q.followUp.id} />
+            <AnswerChip state={followAnswer.value} slot={q.followUp.id} short />
           </span>
         )}
       </span>
-      <AnswerChip state={s} slot={q.id} />
+      <AnswerChip state={s} slot={q.id} short />
     </>
   );
   const row = "flex w-full items-start gap-2.5 rounded-[var(--radius-inset)] px-2 py-2 text-left";
@@ -418,16 +432,10 @@ function AnswerZone({ id, name, value, onAnswer, first = false }: { id: string; 
   return (
     /* On a sunken well — subordinate to the asking (v4.0). */
     <section data-zone="answer" aria-labelledby={`${id}-answer`} className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2.5">
-      <div className="min-w-0">
-        <p id={`${id}-answer`} data-zone-label className={cn(OVERLINE, "text-[var(--text-muted)]")}>
-          {/* TODO-COPY */}
-          {name}&rsquo;s answer
-        </p>
-        <p data-zone-hint className="m-0 text-[var(--text-secondary)]" style={LABEL}>
-          {/* TODO-COPY — the pack's line. */}
-          Record what {name} tells you.
-        </p>
-      </div>
+      {/* ONE LINE (pack v11.0, the Figma's record row). TODO-COPY. */}
+      <p id={`${id}-answer`} data-zone-hint className="m-0 min-w-0 flex-1 text-[var(--text-secondary)]" style={LABEL}>
+        Record {name}&rsquo;s answer here
+      </p>
       {/* ═══ ANSWERS ARE ACTIONS, NOT A SELECTION ═══ Two buttons in a
           labelled group; `aria-pressed` shows what is recorded. */}
       <div role="group" aria-label={`${name}'s answer`} className="flex gap-1.5">

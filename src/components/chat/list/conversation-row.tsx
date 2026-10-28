@@ -118,7 +118,9 @@ export function ConversationRow({
       aria-current={selected ? "true" : undefined}
       aria-label={label}
       className={cn(
-        "flex w-full items-center gap-3 border-b border-[color:var(--border-subtle)] px-3 py-3 text-left transition-colors",
+        /* pack v11.0 §3.1: an inset card, 68 high — the list's rule moved to
+           the pill row, and rows are separated by a 2px gap. */
+        "flex h-[68px] w-full items-center gap-3 rounded-[var(--radius-inset)] px-3 text-left transition-colors",
         // SELECTED IS A FILL, focus is the ring. A reader arrowing a list sees
         // the ring move while the fill stays put — the same separation the Tasks
         // worklist makes.

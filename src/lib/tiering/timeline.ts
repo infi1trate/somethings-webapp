@@ -18,7 +18,7 @@
 // ═══ ONE CRISIS NOTE NODE (pack v6.1, Supersession 2) ═══ v3.0's "the note
 // assembles as timeline events" — a node per section, then Outcome, then
 // Debrief — is REVERSED: one Crisis note node holds the accordion
-// (`CrisisNoteAccordion`, rows from `note-rows.ts`) and completes when every
+// (`CrisisNoteDeck` since pack v11.0 — the accordion is deleted — rows from `note-rows.ts`) and completes when every
 // row is done. Traded for random access and a quieter timeline. Close &
 // follow-up stays its own node: the action, not documentation.
 //

@@ -50,9 +50,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { EscalationExchange, EscalationHero } from "@/components/chat/escalation/exchange";
-import type { SupervisorEcho } from "@/components/chat/escalation/waiting-module";
-import { CareHero, DiagnosisStrip, TierCell } from "@/components/chat/rail/care-hero";
-import { mentorshipVitals } from "@/lib/record/mentorship-vitals";
+import { mentorStage } from "@/lib/tiering/escalation";
+import { CareHero, TierCell } from "@/components/chat/rail/care-hero";
+import { mentorshipVitals, teenIdentity } from "@/lib/record/mentorship-vitals";
+import { heroMetrics } from "@/lib/record/hero-metrics";
 import { EmergencyInfoPanel } from "@/components/chat/escalation/crisis-view";
 import { RaiseFlow } from "@/components/tiering/raise-flow";
 import { TierHistory } from "@/components/tiering/tier-history";
@@ -96,28 +97,8 @@ const RESOURCES: { name: string; how: string }[] = [
   { name: "The Trevor Project", how: "Call 1-866-488-7386, or text START to 678-678" },
 ];
 
-/** ═══ A HEADER THAT YIELDS (pack v9.0) ═══ Collapses to nothing by its
- *  grid row (1fr → 0fr) rather than unmounting, so the yield is one eased
- *  motion in step with the columns — and instant under reduced motion. The
- *  gap below it lives INSIDE the collapsing box, so a yielded header leaves
- *  no 16px ghost. Collapsed, it is inert and out of the accessibility tree. */
-function Yield({ open, slot, children }: { open: boolean; slot: string; children: React.ReactNode }) {
-  return (
-    <div
-      data-care-yield={slot}
-      data-open={open ? "true" : "false"}
-      inert={!open}
-      aria-hidden={!open || undefined}
-      className="grid transition-[grid-template-rows,opacity] duration-[var(--focus-dur)] ease-[var(--focus-ease)] motion-reduce:transition-none"
-      style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
-    >
-      {/* The negative inset keeps the card's soft shadow out of the clip. */}
-      <div className="-mx-2 -mt-2 min-h-0 overflow-hidden px-2 pt-2">
-        <div className="pb-4">{children}</div>
-      </div>
-    </div>
-  );
-}
+/* `Yield` (pack v9.0) is deleted: the hero holds its ground in every state
+   (pack v11.0, Supersession 1). */
 
 function CareTabs({ tab, onTab, dot, review, leaving }: { tab: CareTab; onTab: (t: CareTab) => void; dot: "alert" | "neutral" | null; review: boolean; leaving: boolean }) {
   const refs = useRef<Partial<Record<CareTab, HTMLButtonElement | null>>>({});
@@ -306,12 +287,12 @@ export function CarePanel({
   mentorLines,
   onSettled,
   highlightTier = false,
-  echo,
+  onUseSuggestion,
   showDiagnosis = false,
   arrivedForCare = false,
-  onOpenSupportTo,
   review,
   onDismiss,
+  metricInputs,
 }: {
   teenId: string;
   name: string;
@@ -346,32 +327,48 @@ export function CarePanel({
   onSettled?: () => void;
   /** The tier cell's one-beat arrival after a close (pack v4.0, F1). */
   highlightTier?: boolean;
-  /** The supervisor's latest Support message (pack v4.0, D2). */
-  echo?: SupervisorEcho;
+  /** An Ava suggestion into the composer, marked as Ava's (pack v11.0 §7). */
+  onUseSuggestion: (text: string) => void;
   /** Supervisor or lead mentor (pack v5.0, Supersession 5). */
   showDiagnosis?: boolean;
   /** Arrived from a notification's deep link (make it magical 3). */
   arrivedForCare?: boolean;
-  /** The Mentorship cell's supervisor link: a bound opener when that Support
-   *  thread exists, else undefined (the name then renders as plain text). */
-  onOpenSupportTo?: (id: string) => (() => void) | undefined;
   /** The temporary Escalation review tab exists (pack v8.0). */
   review: boolean;
   /** Dismiss the closed summary: the page records it and removes the tab. */
   onDismiss?: () => void;
+  /** What the hero's metrics read off the conversation (pack v11.0 §4.4). */
+  metricInputs: { messages: readonly { sender: string; at: number }[] | null; notes: number };
 }) {
   const state = tiering.stateFor(teenId);
   const lens = observer ? "supervisor" : "mentor";
   const mentorName = tiering.liveMentorName || "the mentor";
-  /* Role-gated at the source: the supervisor's page never computes the
-     mentorship, the mentor's never receives a diagnosis to render. */
-  const vitals = showDiagnosis ? null : mentorshipVitals(teenId);
+  /* ═══ BOTH LENSES READ THE MENTORSHIP (pack v11.0 §4.2) ═══ v7 gated it
+     to the mentor; the hero now carries it for both — facts about the
+     pair, nothing clinical. The DIAGNOSIS stays gated at the source: the
+     mentor's page never receives one to render. */
+  const vitals = mentorshipVitals(teenId);
+  const identity = teenIdentity(teenId);
+  const metrics = heroMetrics(teenId, now, {
+    messages: metricInputs.messages,
+    escalationsOpenedAt: tiering.escalationsFor(teenId).map((x) => x.openedAt),
+    notes: metricInputs.notes,
+  });
   const panelState = raising && !observer && !escalation ? "raising" : escalation ? (escalation.resolvedAt !== null ? "closed" : "active") : "steady";
   /* While an escalation is raised or in progress, the tier cell's own
      actions step aside: the escalation is the way the tier moves now. */
   const busy = panelState === "raising" || panelState === "active";
-  /** The header yields while an escalation is OPEN (pack v9.0). */
-  const yielded = panelState === "active";
+  /* ═══ AN OPENING SCROLLS TO THE TOP, ONCE (pack v11.0 §4.6) ═══ So the
+     hero is seen in its full state; then the panel behaves normally. A DOM
+     write on the open escalation's id — never on a re-render. */
+  const panelRef = useRef<HTMLDivElement>(null);
+  const openId = panelState === "active" ? escalation?.id : undefined;
+  useEffect(() => {
+    if (!openId) return;
+    let el: HTMLElement | null = panelRef.current?.parentElement ?? null;
+    while (el && !/(auto|scroll)/.test(getComputedStyle(el).overflowY)) el = el.parentElement;
+    el?.scrollTo({ top: 0 });
+  }, [openId]);
   const historyEvents = useCareHistoryEvents(teenId, now);
   const history = () => (
     <TierHistory
@@ -425,7 +422,10 @@ export function CarePanel({
           supervisorName={supervisorName}
           mentorName={mentorName}
           presence={presence}
-          onSupport={onReplyInSupport}
+          /* ═══ ONE SUPPORT DOOR PER STATE ═══ While the mentor waits on
+             their supervisor (M3) the post-submit card's filled button is
+             the door (pack v11.0 §7.3); the hero's ghost steps aside. */
+          onSupport={!observer && escalation.resolvedAt === null && mentorStage(escalation, state) === "M3" ? undefined : onReplyInSupport}
         />
         <EscalationExchange
           e={escalation}
@@ -440,7 +440,8 @@ export function CarePanel({
           mentorLines={mentorLines}
           onSettled={onSettled}
           onDismiss={dismiss}
-          echo={echo}
+          onUseSuggestion={onUseSuggestion}
+          onSupport={onReplyInSupport}
           arrived={arrivedForCare}
         />
       </div>
@@ -454,46 +455,38 @@ export function CarePanel({
       data-care-panel
       data-care-state={panelState}
       data-care-target={escalation ? String(escalation.requested ?? 1) : undefined}
-      data-care-yielded={yielded ? "" : undefined}
+      ref={panelRef}
       className="flex flex-col"
     >
       <p ref={said} data-care-tabs-live role="status" aria-live="polite" className="sr-only" />
-      {/* ═══ THE PANEL HEADER (pack v8.0) ═══ The anchor cells, above the
-          tabs — in the steady, raising and closed states.
-          ═══ SUPERSEDED IN PART (pack v9.0, Supersession 3): THE HERO
-          YIELDS ═══ While an escalation is OPEN the cells step aside — the
-          Escalation review tab's status block, which already names the
-          requested or confirmed tier, is the working header. The mentor's
-          header hides entirely; the supervisor's compresses to the one-line
-          diagnosis strip. Both return on close. The yield rides the same
-          eased beat as the columns making way (Focus Mode), so the room
-          clears its desk in one breath. */}
-      <Yield open={!yielded} slot="cells">
-      <CareHero
-        name={name}
-        showDiagnosis={showDiagnosis}
-        brief={brief}
-        vitals={vitals}
-        onOpenSupport={vitals?.supervisor ? onOpenSupportTo?.(vitals.supervisor.id) : undefined}
-        tierCell={
-          <TierCell
-            state={state}
-            now={now}
-            name={name}
-            role={lens}
-            highlight={highlightTier}
-            onEscalate={busy ? undefined : onStartRaise}
-            onRequestStepDown={busy ? undefined : onRequestStepDown}
-            onUpdateTier={busy ? undefined : onUpdateTier}
-          />
-        }
-      />
-      </Yield>
-      {showDiagnosis && (
-        <Yield open={yielded} slot="strip">
-          <DiagnosisStrip brief={brief} />
-        </Yield>
-      )}
+      {/* ═══ THE CARE HERO, IN EVERY STATE (pack v11.0, Supersession 1) ═══
+          Identity · the mentorship · risk tier · the six metrics · and, for a
+          supervisor or lead, the diagnosis — above the tabs, both lenses,
+          steady, raising, open and closed. It scrolls away under the sticky
+          tab bar. v9's yield is reversed and deleted. */}
+      <div className="pb-4">
+        <CareHero
+          name={name}
+          identity={identity}
+          lens={lens}
+          showDiagnosis={showDiagnosis}
+          brief={brief}
+          vitals={vitals}
+          metrics={metrics}
+          tierCell={
+            <TierCell
+              state={state}
+              now={now}
+              name={name}
+              role={lens}
+              highlight={highlightTier}
+              onEscalate={busy ? undefined : onStartRaise}
+              onRequestStepDown={busy ? undefined : onRequestStepDown}
+              onUpdateTier={busy ? undefined : onUpdateTier}
+            />
+          }
+        />
+      </div>
       <CareTabs tab={tab} onTab={onTab} dot={dot} review={review} leaving={leaving} />
       <div id="care-tabpanel" role="tabpanel" aria-labelledby={`care-tab-${tab}`} data-care-tabpanel={tab} className="mt-4">
         {tab === "escalation" && reviewBody ? (

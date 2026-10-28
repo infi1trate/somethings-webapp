@@ -74,8 +74,12 @@ const hero = (page) =>
     return {
       /* RETARGETED (pack v9.0, Supersession 3): the cells sit inside their
          yield, first in the panel (open escalations collapse it). */
-      rootFirst: (() => { const k = [...(panel?.children ?? [])].filter((c) => !c.matches("[data-care-tabs-live]"))[0]; return !!k?.matches('[data-care-yield="cells"]') && !!root && k.contains(root); })(),
-      strip: !!document.querySelector("[data-care-identity]"),
+      /* RETARGETED (pack v11.0, Supersession 1): no yield — the hero's own
+         wrapper is first in the panel. */
+      rootFirst: (() => { const k = [...(panel?.children ?? [])].filter((c) => !c.matches("[data-care-tabs-live]"))[0]; return !!root && !!k?.contains(root); })(),
+      /* RETARGETED (pack v11.0, Supersession 2): identity returns INSIDE the
+         hero card — not v7's strip above it. A strip is identity outside it. */
+      strip: !!document.querySelector("[data-care-identity]") && !document.querySelector("[data-care-hero] [data-care-identity]"),
       cells: [...(card?.querySelectorAll("[data-overline]") ?? [])].map((o) => o.textContent.trim()),
       headline: root?.querySelector("[data-anchor] [data-anchor-headline]")?.textContent.trim(),
       meta: root?.querySelector("[data-care-mentorship] [data-anchor-meta]")?.textContent.replace(/\s+/g, " ").trim(),
@@ -116,10 +120,10 @@ console.log("\n── 1–3 · the mentor's hero");
   check(!prof.matched, "single home: the Profile tab's Matched row is gone");
   await page.locator('[data-rail-tab="care"]').first().click();
   await page.waitForTimeout(300);
-  await page.locator("[data-mentorship-support]").click();
-  await page.waitForTimeout(500);
-  const sup = await page.evaluate(() => document.querySelector("[data-support-thread]")?.getAttribute("data-support-thread"));
-  check(sup === "s-brandy", "Supervised by → the supervisor's Support thread", String(sup));
+  /* RETARGETED (pack v11.0 §4.2): "Supervised by" links to the
+     supervisor's RECORD, not their Support thread. */
+  const sup = await page.evaluate(() => document.querySelector("[data-mentorship-supervisor]")?.getAttribute("href"));
+  check(sup === "/admin/person/s-brandy", "Supervised by → the supervisor's record", String(sup));
   await ctx.close();
 }
 
@@ -142,9 +146,13 @@ for (const persona of ["supervisor", "lead-mentor"]) {
   const { ctx, page } = await open("/app/chat/t21?care=escalation", { persona });
   await careOpen(page);
   const h = await hero(page);
-  check(h.rootFirst && !h.strip && h.cells.join() === "Clinical diagnosis,Risk tier", `${persona}: Clinical diagnosis · Risk tier, first in the panel`, `${h.rootFirst} | ${h.cells.join()}`);
-  const m = await page.evaluate(() => ({ mentorship: !!document.querySelector("[data-care-mentorship]"), together: /\btogether\b/.test(document.querySelector("[data-care-header]").innerText) }));
-  check(!m.mentorship && !m.together, `${persona}: no Mentorship cell`, JSON.stringify(m));
+  /* RETARGETED (pack v11.0 §4): both lenses read the mentorship; the
+     diagnosis is the hero's LAST section, staff only. */
+  check(h.rootFirst && !h.strip && h.cells.join() === "The mentorship,Risk tier,Clinical diagnosis", `${persona}: The mentorship · Risk tier · Clinical diagnosis (last), first in the panel`, `${h.rootFirst} | ${h.cells.join()}`);
+  const m = await page.evaluate(() => ({ mentorship: !!document.querySelector("[data-care-mentorship]"), supervised: !!document.querySelector('[data-vital="supervisor"]') }));
+  /* A lead mentor reads the MENTOR lens (they mentor), so "Supervised by"
+     is theirs; only the supervisor lens drops it. */
+  check(m.mentorship && m.supervised === (persona !== "supervisor"), `${persona}: the Mentorship cell${persona === "supervisor" ? ", without \"Supervised by\" — a supervisor need not be told who supervises" : ", with \"Supervised by\" (the mentor lens)"}`, JSON.stringify(m));
   const icd = await page.evaluate(() => {
     const p = document.querySelector("[data-care-brief] [data-anchor-headline]");
     const c = p?.querySelector("[data-icd]");
@@ -175,7 +183,8 @@ for (const [persona, chat] of [["mentor", "escalation-active"], ["supervisor", "
      YIELD — the mentor's hide, the supervisor's compress to the one-line
      strip — and the escalation hero in the tab is the working header. */
   const y = await page.evaluate(() => ({ cells: document.querySelector('[data-care-yield="cells"]')?.dataset.open, strip: document.querySelector('[data-care-yield="strip"]')?.dataset.open ?? null }));
-  check(h.rootFirst && h.cells.length === 2 && inTab && y.cells === "false" && y.strip === (persona === "mentor" ? null : "true"), `${persona}: the cells yield (${persona === "mentor" ? "hidden" : "to the strip"}); the escalation hero is inside the Escalation review tab`, JSON.stringify({ first: h.rootFirst, cells: h.cells, inTab, ...y }));
+  /* RETARGETED (pack v11.0, Supersession 1): the hero HOLDS while open. */
+  check(h.rootFirst && h.cells.length === (persona === "mentor" ? 2 : 3) && inTab && y.cells === undefined && y.strip === null, `${persona}: the full hero holds while open; the escalation hero is inside the Escalation review tab`, JSON.stringify({ first: h.rootFirst, cells: h.cells, inTab, ...y }));
   await page.locator('[data-care-tab="history"]').first().click();
   await page.waitForTimeout(250);
   check((await hero(page)).rootFirst, `${persona}: the header holds on another Care tab`);
@@ -190,19 +199,21 @@ console.log("\n── 7 · keyboard order");
 for (const [persona, teen, want] of [
   /* RETARGETED (pack v8.0): the strip's profile link left; the header starts
      at the anchor's own link. */
-  ["mentor", "t14", ["support", "tier-info", "escalate"]],
-  ["supervisor", "t21", ["care-record", "tier-info", "update-tier"]],
+  /* RETARGETED (pack v11.0 §4): the supervisor link is the record's; the
+     diagnosis (and its care-record link) closes the supervisor's hero. */
+  ["mentor", "t14", ["supervisor-record", "tier-info", "escalate"]],
+  ["supervisor", "t21", ["tier-info", "update-tier", "care-record"]],
 ]) {
   const { ctx, page } = await open(`/app/chat/${teen}?care=escalation`, { persona });
   await careOpen(page);
-  await page.locator(persona === "mentor" ? "[data-mentorship-support]" : "[data-care-record]").focus();
+  await page.locator(persona === "mentor" ? "[data-mentorship-supervisor]" : "[data-tier-info]").focus();
   const order = [];
   for (let i = 0; i < 3; i++) {
     order.push(
       await page.evaluate(() => {
         const a = document.activeElement;
         if (a.matches("[data-identity-profile]")) return "profile";
-        if (a.matches("[data-mentorship-support]")) return "support";
+        if (a.matches("[data-mentorship-supervisor]")) return "supervisor-record";
         if (a.matches("[data-care-record]")) return "care-record";
         if (a.closest("[data-tier-info]") || a.matches("[data-tier-info]")) return "tier-info";
         return a.closest("[data-tier-action]")?.dataset.tierAction ?? a.dataset.tierAction ?? a.dataset.slot ?? a.tagName;
@@ -249,7 +260,7 @@ for (const theme of ["light", "dark"]) {
         "anchor headline": "[data-anchor] [data-anchor-headline]",
         "anchor meta": "[data-anchor] [data-anchor-meta]",
         "supervision line": "[data-vital='supervisor']",
-        "supervisor link": "[data-mentorship-support]",
+        "supervisor link": "[data-mentorship-supervisor]",
         "ICD chip": "[data-icd]",
         "care-record link": "[data-care-record]",
       };

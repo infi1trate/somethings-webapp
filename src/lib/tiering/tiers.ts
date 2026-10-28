@@ -39,15 +39,16 @@ export const TIER_DESCRIPTION: Record<Tier, string> = {
   4: "No current concerns. Regular mentorship.",
 };
 
-/** ═══ THE CLINICAL CRITERIA — a supervisor's reading of each tier (pack
- *  v10.0, `TierSelect` review mode) ═══ BLOCKED CONSTANT. The pack quotes
- *  the tier matrix; the matrix itself is not in this repo, so these are the
- *  pack's words, comma-joined, the first letter capitalised and nothing else
- *  changed. Replace with the matrix's own text when it is supplied (Meg /
- *  Dr. Nissan) — never paraphrase. A mentor's plain-language lines are
- *  `RAISE_DESCRIPTION`. */
+/** ═══ THE CLINICAL CRITERIA — a supervisor's reading of each tier ═══
+ *  BLOCKED CONSTANT. Pack v11.0 §5.2, verbatim (it replaced v10's
+ *  comma-joined reading of the matrix; the Figma's misspelt "imminence",
+ *  "substance abuse" and "mental health … high risk" are its errors, not
+ *  the copy).
+ *  SUPERVISORS ONLY (answered 2026-10-28: "that's only for supervisors") —
+ *  a mentor raises from `RAISE_DESCRIPTION`'s plain language, reversing the
+ *  pack's §1.3. Never paraphrase. */
 export const TIER_CRITERIA: Record<Tier, string> = {
-  1: "Specific plan with means/timeframe, in-progress self-harm, rapid symptom escalation, active command hallucinations.",
+  1: "Specific suicide plan with means/timeframe, in-progress self-harm, rapid symptom escalation or active command hallucinations.",
   2: "Passive suicidal ideation, current abuse/neglect disclosures, active eating disorder/substance use without imminence.",
   3: "Low-level distress, historical mental-health issues with no active high-risk indicators.",
   4: "No issues that need supervisor intervention.",
