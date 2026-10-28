@@ -30,12 +30,13 @@ import { LayoutGrid, List } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { monitoringMetrics, SUPERVISORS_ON_SHIFT } from "@/lib/monitoring/tier-roster";
 import { useTierRoster } from "@/lib/monitoring/use-tier-roster";
-import { syncTierAlert } from "@/lib/monitoring/alert-clock";
+import { useNowTick } from "@/lib/monitoring/t1-live";
+import { queueSummary, t1Response } from "@/lib/monitoring/t1-queue";
+import { Tier1Arrivals } from "@/components/monitoring/overview/tier1-arrivals";
 import { setMonitoringLayout, useMonitoringLayout, type MonitoringLayout } from "@/lib/monitoring/layout-pref";
 import { HeroMetrics } from "@/components/monitoring/overview/hero-metrics";
 import { MonitoringList } from "@/components/monitoring/overview/tier-list";
 import { MonitoringCards } from "@/components/monitoring/overview/tier-cards";
-import { Tier1AlertStrip } from "@/components/monitoring/overview/tier1-alert-strip";
 import { EventsTab } from "@/components/monitoring/events/events-tab";
 import { DEFAULT_FILTER, filterEvents, rangeSummary, type EventFilter } from "@/lib/monitoring/events";
 import { PageHeader } from "@/components/ia/page-header";
@@ -118,7 +119,7 @@ function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | un
   /* Fixed at mount, the house pattern: `Date.now()` in render is impure. */
   const [now] = useState(() => Date.now());
   const router = useRouter();
-  const { teens, live, events } = useTierRoster(now);
+  const { teens, events } = useTierRoster(now);
   const m = useMemo(() => monitoringMetrics(teens), [teens]);
   /* ═══ THE EVENTS FILTER, PAGE-LOCAL ═══ One filter for the stream, the
      summary line, the export and the hero's range cells. */
@@ -130,10 +131,24 @@ function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | un
   const supervisors = useMemo(() => [...new Set(events.map((e) => e.supervisorName).filter((x): x is string => !!x))].sort(), [events]);
   const onTab = (t: MonitoringTab) => router.replace(t === "watch" ? "/app/monitoring" : "/app/monitoring?tab=events", { scroll: false });
   const layout = useMonitoringLayout();
-  /* The alert clock is module state; telling it is an external write. */
-  useEffect(() => {
-    syncTierAlert(live, mock?.alert);
-  }, [live, mock]);
+  /* ═══ THE IN-CRISIS CELL READS THE QUEUE (Monitoring v4, §1) ═══ Ticking,
+     so "oldest 14m overdue" stays true. */
+  const tick = useNowTick(now);
+  const crisisDetail = queueSummary(teens.filter((t) => t.t1).map((t) => t1Response(t.t1!.escalation, tick, t.t1!.confirmedBy)));
+  /* The cell is a button: to the Tier 1 queue, focus on its first row. On
+     Events the queue is the Watch tab's, so the cell switches tab first. */
+  const goToTier1 = () => {
+    const land = () => {
+      const sec = document.querySelector<HTMLElement>('[data-tier-group="1"]');
+      sec?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      const first = sec?.querySelector<HTMLElement>("[data-t1-row]") ?? sec?.querySelector<HTMLElement>("[data-t1-empty]");
+      first?.focus({ preventScroll: true });
+    };
+    if (tab !== "watch") {
+      onTab("watch");
+      window.setTimeout(land, 200);
+    } else land();
+  };
   /* ═══ A SCENARIO'S ENVIRONMENT ═══ Reduced motion and the dark theme are
      set on <html> while it is active and restored after — environment, never
      UI. `data-motion="reduce"` is honoured by globals.css as the media query
@@ -151,11 +166,14 @@ function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | un
   return (
     /* Care Reviews' container, to the class (`tasks-page.tsx`). */
     <div data-monitoring className="mx-auto flex w-full max-w-[1800px] flex-col px-6 py-6 lg:px-8">
-      {live && (
-        <div className="mb-5">
-          <Tier1AlertStrip teens={teens} />
-        </div>
-      )}
+      {/* ═══ NO ALERT STRIPS (Monitoring v4, §1) ═══ Six stacked red bars
+          above a page that already says "6 In crisis", a red nav badge and
+          six Tier 1 rows was one message four times. Attention is the bell
+          (its "Needs you now" group, the sound), the hero's In-crisis
+          button, the Tier 1 queue, and Today's live lane. What the strip's
+          `role="alert"` did for a screen reader is the one polite line
+          below: a NEW Tier 1, announced once on arrival. */}
+      <Tier1Arrivals teens={teens} />
 
       {/* ── THE HEADER AND ITS TOOLBAR — never change between tabs ─────── */}
       <PageHeader
@@ -179,6 +197,8 @@ function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | un
       <HeroMetrics
         className="mt-6"
         m={m}
+        crisisDetail={crisisDetail}
+        onCrisis={goToTier1}
         range={
           tab === "events"
             ? { label: filter.range === "custom" ? "custom" : filter.range, flags: sum.flags, surge: sum.surge, escalations: sum.escalations, open: sum.open, closed: sum.closed }

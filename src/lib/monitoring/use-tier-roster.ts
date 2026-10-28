@@ -21,7 +21,7 @@ export function useTierRoster(now: number): { teens: MonitoringTeen[]; live: boo
   const mock = monitoringMock(useOnboardingStore((s) => s.monitoringScenarioId));
   const teens = useMemo(() => {
     if (!t.ready) return [];
-    const base = tierRoster({ stateFor: t.stateFor, escalationsFor: t.escalationsFor, liveMentorName: t.liveMentorName, now });
+    const base = tierRoster({ stateFor: t.stateFor, escalationsFor: t.escalationsFor, liveMentorName: t.liveMentorName, now, eventsFor: t.eventsFor, nameOf: t.nameOf, viewerId: t.viewer.id });
     return mock?.roster ? mock.roster(base) : base;
   }, [t, now, mock]);
   /* ═══ THE EVENTS TAB READS THE SAME STORE (Monitoring v2) ═══ Derived

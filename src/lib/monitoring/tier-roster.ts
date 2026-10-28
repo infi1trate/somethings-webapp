@@ -25,7 +25,7 @@ import { DEMO_PEOPLE, DEMO_TEENS } from "@/lib/record/people-demo";
 import { stageLine } from "@/lib/tiering/notifications";
 import { LIVE_ID } from "@/lib/record/subject";
 import { escalationTarget, isOpen } from "@/lib/tiering/escalation";
-import { dayInTier, type TierState } from "@/lib/tiering/events";
+import { dayInTier, type TierActor, type TierEvent, type TierState } from "@/lib/tiering/events";
 import { TIER_DWELL_DAYS, TIER_MINIMUM_DAYS, isAlertTier, type Tier } from "@/lib/tiering/tiers";
 
 export { tierAlertLive } from "@/lib/tiering/seed";
@@ -54,6 +54,11 @@ export interface MonitoringTeen {
    *  line — "Awaiting confirmation" · "Assessment in · 3 of 6" · "Note in
    *  progress" — from `stageLine`, the notices' own derivation. */
   stage?: string;
+  /** ═══ THE QUEUE'S RECORD (Monitoring v4) ═══ A Tier 1 teen's OPEN
+   *  escalation, and who confirmed it as the viewer reads it ("you", a
+   *  supervisor's name, or null) — the queue derives stage, response,
+   *  holder and action from these (`t1-queue.ts`). */
+  t1?: { escalation: EscalationState; confirmedBy: string | null };
 }
 
 /** The board's per-teen signals, on the record teen of matching tenure. */
@@ -146,10 +151,25 @@ export interface RosterInput {
   escalationsFor: (teenId: string) => EscalationState[];
   liveMentorName: string;
   now: number;
+  /** The tier log and the viewer, so the queue can say who confirmed —
+   *  "you" or a name (Monitoring v4). Optional: a roster without them names
+   *  no confirmer. */
+  eventsFor?: (teenId: string) => TierEvent[];
+  nameOf?: (a: TierActor) => string;
+  viewerId?: string;
+}
+
+/** Who confirmed an escalation, as the viewer reads it. */
+function confirmerOf(e: EscalationState, events: TierEvent[], nameOf: ((a: TierActor) => string) | undefined, viewerId: string | undefined): string | null {
+  if (e.confirmedTier === undefined) return null;
+  const ev = [...events].reverse().find((x) => x.escalationId === e.id && (x.kind === "confirmed" || x.kind === "placed"));
+  if (!ev) return null;
+  if (viewerId && ev.actor.id === viewerId) return "you";
+  return nameOf ? nameOf(ev.actor).split(" ")[0] : ev.actor.name?.split(" ")[0] ?? null;
 }
 
 /** ═══ THE ROSTER, FROM THE ONE LOG ═══ */
-export function tierRoster({ stateFor, escalationsFor, liveMentorName, now }: RosterInput): MonitoringTeen[] {
+export function tierRoster({ stateFor, escalationsFor, liveMentorName, now, eventsFor, nameOf, viewerId }: RosterInput): MonitoringTeen[] {
   /* Unnamed, the mentor is "the mentor" — never a broken possessive. */
   const liveShort = liveMentorName ? short(liveMentorName) : "The mentor";
   const records: MonitoringTeen[] = DEMO_TEENS.map((teen) => {
@@ -188,6 +208,7 @@ export function tierRoster({ stateFor, escalationsFor, liveMentorName, now }: Ro
       timeInTier: tier === current && day !== null && minimum && current !== 4 && current !== 1 ? { day, minimum } : undefined,
       reviewReason: state.pending ? `Confirm Tier ${state.pending.tier}` : sig?.reviewReason,
       stage: stageLine(open) ?? undefined,
+      t1: tier === 1 && open ? { escalation: open, confirmedBy: confirmerOf(open, eventsFor?.(teen.id) ?? [], nameOf, viewerId) } : undefined,
       presence:
         sig?.presence === "in-session"
           ? open

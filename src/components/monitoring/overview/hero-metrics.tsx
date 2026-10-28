@@ -3,12 +3,16 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // THE HERO METRICS BAR (proto/monitoring-merge)
 //
-// One raised surface (white, 20px, the soft elevation — Monitoring v2) cut into five cells by
-// hairlines — not cards, and not clickable in v1. Every number is derived
-// from the teen array (`monitoringMetrics`). The In-crisis cell is the only
-// one that can change colour: past zero it tints `t1-soft`, its numeral and
-// dot go `t1`, and the dot pulses (none under reduced motion — the dot is
-// still there, so the pulse is never the only signal).
+// One raised surface (white, 20px, the soft elevation — Monitoring v2) cut
+// into five cells by hairlines. Every number is derived from the teen array
+// (`monitoringMetrics`).
+//
+// ═══ SUPERSEDED (Monitoring v4, §1 · §3) ═══ "Not clickable in v1": a cell
+// with a target is a BUTTON now — In crisis goes to the Tier 1 queue and
+// focuses its first row. The In-crisis cell no longer tints `t1-soft` (the
+// only red fill on the page is the Tier 1 queue's container, and Join): its
+// numeral is `t1` past zero, the dot before it pulses, and at zero the dot
+// is gone. Its detail reads the queue: "6 awaiting · oldest 14m overdue".
 //
 // The hairlines are the grid's 1px gaps over `--border-subtle`, not a
 // border-left per cell, so the bar can wrap on a narrow canvas (five → three
@@ -27,33 +31,35 @@ function Cell({
   label,
   detail,
   crisis = false,
+  onActivate,
+  target,
 }: {
   value: number;
   label: string;
   detail: string;
   crisis?: boolean;
+  /** A cell with somewhere to go is a button. */
+  onActivate?: () => void;
+  /** Where it goes, for its accessible name. TODO-COPY. */
+  target?: string;
 }) {
   const hot = crisis && value > 0;
+  const Tag = onActivate ? "button" : "div";
   return (
-    <div
+    <Tag
+      {...(onActivate ? { type: "button" as const, onClick: onActivate, "aria-label": `${value} ${label}, ${detail}${target ? ` — ${target}` : ""}` } : {})}
       data-hero-cell={label}
       data-hot={hot ? "true" : undefined}
+      data-hero-button={onActivate ? "" : undefined}
       className={cn(
-        "flex h-[120px] min-w-0 flex-col justify-center gap-1 overflow-hidden px-5 py-4 transition-colors @max-[880px]/canvas:last:col-span-2",
-        hot ? "bg-[var(--t1-soft)]" : "bg-[var(--surface-raised)]"
+        "flex h-[120px] min-w-0 flex-col justify-center gap-1 overflow-hidden bg-[var(--surface-raised)] px-5 py-4 text-left transition-[transform,box-shadow] duration-150 @max-[880px]/canvas:last:col-span-2",
+        /* Hover lifts 1px with the soft shadow; focus is the token ring. */
+        onActivate && "relative cursor-pointer hover:z-[1] hover:-translate-y-px hover:shadow-[var(--el-soft)] focus-visible:z-[1] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--focus-ring)] motion-reduce:hover:translate-y-0"
       )}
     >
       <div className="flex items-center gap-2">
-        {crisis && (
-          <span
-            aria-hidden
-            data-crisis-dot
-            className={cn(
-              "size-2.5 shrink-0 rounded-full",
-              hot ? "motion-safe:animate-pulse bg-[var(--t1)]" : "bg-[var(--border-default)]"
-            )}
-          />
-        )}
+        {/* The dot BEFORE the numeral, only while there is a crisis. */}
+        {hot && <span aria-hidden data-crisis-dot className="size-2.5 shrink-0 rounded-full bg-[var(--t1)] motion-safe:animate-pulse" />}
         <span
           data-hero-value
           className={cn(
@@ -65,11 +71,10 @@ function Cell({
         </span>
       </div>
       <span data-hero-label className="truncate whitespace-nowrap text-[13px] leading-[16px] font-medium text-[var(--text-secondary)]">{label}</span>
-      {/* Tertiary fails on t1-soft (4.39:1), so the hot cell's detail is secondary. */}
       <span data-hero-detail className={cn("truncate whitespace-nowrap font-mono text-[11px] leading-[14px]", hot ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]")}>
         {detail}
       </span>
-    </div>
+    </Tag>
   );
 }
 
@@ -85,7 +90,7 @@ export interface HeroRange {
   closed: number;
 }
 
-export function HeroMetrics({ m, range, className }: { m: MonitoringMetrics; range?: HeroRange; className?: string }) {
+export function HeroMetrics({ m, range, className, crisisDetail, onCrisis }: { m: MonitoringMetrics; range?: HeroRange; className?: string; crisisDetail?: string | null; onCrisis?: () => void }) {
   return (
     <section
       aria-label="Monitoring summary"
@@ -93,7 +98,7 @@ export function HeroMetrics({ m, range, className }: { m: MonitoringMetrics; ran
       className={cn(className, "grid grid-cols-5 gap-px overflow-hidden rounded-[20px] bg-[var(--border-subtle)] shadow-[var(--el-soft)] @max-[880px]/canvas:grid-cols-3 @max-[520px]/canvas:grid-cols-2")}
     >
       {/* TODO-COPY, every label and detail line. */}
-      <Cell crisis value={m.inCrisis} label="In crisis" detail="Tier 1 · live" />
+      <Cell crisis value={m.inCrisis} label="In crisis" detail={crisisDetail ?? "Tier 1 · live"} onActivate={onCrisis} target="go to the Tier 1 queue" />
       <Cell value={m.highRisk} label="High risk" detail={`Tier 2 · ${m.reviewsDue} review${m.reviewsDue === 1 ? "" : "s"} due`} />
       {/* The SAME labels on both tabs; the range lives in the detail. */}
       {range ? (

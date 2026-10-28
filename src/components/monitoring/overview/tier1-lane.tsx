@@ -19,7 +19,7 @@ import { monitoringEntryHref } from "@/lib/monitoring/entry-href";
 import { RequestedChip } from "@/components/tiering/requested-chip";
 import type { Tier } from "@/lib/monitoring/tiers";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
-import { answerAlert, responseClock as clock, useAlertState, useResponseSecondsLeft } from "@/lib/monitoring/alert-clock";
+import { markJoined } from "@/lib/monitoring/t1-live";
 import { TierAvatar, TierGroupHeader, TierTag } from "@/components/monitoring/overview/tier-bits";
 import { cn } from "@/lib/utils";
 
@@ -41,9 +41,6 @@ export function PresenceChip({ text }: { text: string }) {
 }
 
 function LiveRow({ teen }: { teen: MonitoringTeen }) {
-  const left = useResponseSecondsLeft();
-  /* Joined (Monitoring v3, §6): the lane says who is in the session. */
-  const joined = useAlertState().answer === "joined";
   const router = useRouter();
   const link = monitoringEntryHref(teen);
   return (
@@ -70,25 +67,24 @@ function LiveRow({ teen }: { teen: MonitoringTeen }) {
         {teen.riskFlags.count} · {teen.riskFlags.window}
         <span className="sr-only"> risk flags</span>
       </span>
-      {joined ? <PresenceChip text="You in session" /> : teen.presence && <PresenceChip text={teen.presence} />}
+      {teen.presence && <PresenceChip text={teen.presence} />}
       <button
         type="button"
         data-t1-join
         onClick={() => {
-          /* Joining answers the alert: the strip becomes the slim bar. */
-          answerAlert("joined");
+          if (teen.t1) markJoined(teen.t1.escalation.id);
           /* pack v3.0: and goes into the conversation — the supervisor's
              only door into a chat now that Chats left their nav. */
           if (link) router.push(link.href);
         }}
         /* TODO-COPY */
-        aria-label={`Join session with ${teen.teen}, ${clock(left)} left to respond`}
+        aria-label={`Join session with ${teen.teen}`}
         className={cn(
           "ml-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[var(--t1-ink)] px-4 text-[13px] font-semibold text-[var(--text-inverse)] tabular-nums transition hover:brightness-110",
           RING
         )}
       >
-        Join · <span className="font-mono">{clock(left)}</span>
+        Join
       </button>
     </div>
   );
