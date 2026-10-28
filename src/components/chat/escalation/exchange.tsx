@@ -24,7 +24,7 @@
 // Emergency information button (Supersession 5).
 
 import { useEffect, useId, useState } from "react";
-import { Check, ChevronDown, Lock, MessageSquare } from "lucide-react";
+import { Check, ChevronDown, CircleCheck, Lock, MessageSquare } from "lucide-react";
 import { announceClose } from "@/components/chat/escalation/close-toast";
 import { Quote } from "@/components/chat/escalation/quote";
 import { PostSubmitCard } from "@/components/chat/escalation/post-submit-card";
@@ -282,8 +282,13 @@ function Node({
   expand,
   last,
   fresh,
+  eyebrow = false,
 }: {
   node: TimelineNode;
+  /** ═══ THE TITLE AS AN EYEBROW (the Assessment-sent card) ═══ Current only:
+   *  a check and the title, small and secondary, so the card's own headline
+   *  is the node's strongest line. */
+  eyebrow?: boolean;
   /** The one node completed most recently, in this session. */
   fresh?: boolean;
   title: string;
@@ -332,9 +337,16 @@ function Node({
               accent === "alert" ? "ring-[color:var(--alert-critical-border)]" : "ring-[color:var(--border-default)]"
             )}
           >
-            <p data-node-title className="pt-0.5 text-[var(--text-primary)]" style={TITLE}>
-              {title}
-            </p>
+            {eyebrow ? (
+              <p data-node-title data-node-eyebrow className="flex items-center gap-2 text-[var(--text-secondary)]" style={BODY}>
+                <CircleCheck aria-hidden className="size-5 shrink-0 text-[var(--ok-ink)]" strokeWidth={2} />
+                {title}
+              </p>
+            ) : (
+              <p data-node-title className="pt-0.5 text-[var(--text-primary)]" style={TITLE}>
+                {title}
+              </p>
+            )}
             {children}
           </div>
         ) : (
@@ -539,8 +551,8 @@ export function EscalationExchange({
   mentorLines,
   onSettled,
   onDismiss,
-  onUseSuggestion,
-  onSupport,
+  onCopySuggestion,
+  onEmergency,
   arrived = false,
 }: {
   e: EscalationState;
@@ -563,10 +575,10 @@ export function EscalationExchange({
   onDismiss?: () => void;
   /** Arrived from a notification: the current card traces its ring once. */
   arrived?: boolean;
-  /** An Ava suggestion into the composer, marked as Ava's (pack v11.0 §7). */
-  onUseSuggestion: (text: string) => void;
-  /** The supervisor's Support thread — the post-submit card's one door. */
-  onSupport?: () => void;
+  /** An Ava line was copied: the page remembers it for provenance. */
+  onCopySuggestion: (text: string) => void;
+  /** Opens Care's Emergency info tab — the post-submit card's filled button. */
+  onEmergency?: () => void;
 }) {
   const state = tiering.stateFor(teenId);
   const tier = workingTier(e, state);
@@ -647,13 +659,7 @@ export function EscalationExchange({
       case "waiting":
         /* ═══ THE POST-SUBMIT CARD (pack v11.0 §7) ═══ */
         return (
-          <PostSubmitCard
-            name={name}
-            supervisorName={supervisorName}
-            teenLines={teenLines}
-            onUseSuggestion={onUseSuggestion}
-            onSupport={onSupport}
-          />
+          <PostSubmitCard name={name} teenLines={teenLines} alert={isAlertTier(tier)} onCopySuggestion={onCopySuggestion} onEmergency={onEmergency} />
         );
       case "review":
         return <ReviewCard e={e} name={name} tiering={tiering} teenId={teenId} onSettled={onSettled} />;
@@ -807,6 +813,7 @@ export function EscalationExchange({
             node={n}
             fresh={n.id === freshId}
             title={titleOf(n)}
+            eyebrow={n.kind === "waiting" && n.state === "current" && lens === "mentor"}
             sub={subOf(n)}
             detail={detailOf(n)}
             expand={n.state === "completed" ? expandOf(n) : undefined}

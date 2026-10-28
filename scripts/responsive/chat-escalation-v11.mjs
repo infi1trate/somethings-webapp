@@ -309,46 +309,65 @@ let assessed;
   await page.locator('[data-exchange-field="mentor-summary"]').fill("Jordan has a plan involving pills and gave away her headphones yesterday.");
   await sa.click();
   await page.waitForTimeout(700);
+  /* ═══ RETARGETED (the Assessment-sent card, FCP-3 6106:12079) ═══ WAS
+     v11 §7's "Assessment sent." + "{Supervisor} has it and is reviewing.",
+     Use into the composer and "Message {supervisor} in Support". */
   const ps = await page.evaluate(() => {
     const c = document.querySelector("[data-post-submit]");
     const node = c?.closest("[data-node-state='current']");
-    const inkBg = (() => { const e = document.createElement("span"); e.style.backgroundColor = "var(--text-primary)"; document.body.appendChild(e); const x = getComputedStyle(e).backgroundColor; e.remove(); return x; })();
-    const filled = [...document.querySelectorAll("[data-tabpanel], #care-tabpanel")].flatMap((p) => [...p.querySelectorAll("button")]).filter((x) => getComputedStyle(x).backgroundColor === inkBg).map((x) => x.textContent.trim());
+    const filled = [...(node?.querySelectorAll("button") ?? [])].filter((x) => { const bg = getComputedStyle(x).backgroundColor; return bg !== "rgba(0, 0, 0, 0)" && !x.closest("[data-suggestion]"); }).map((x) => x.textContent.trim());
     return {
       title: node?.querySelector("[data-node-title]")?.textContent,
-      reviewing: c?.querySelector("[data-post-submit-reviewing]")?.textContent,
-      ava: !!c?.querySelector("[data-ava-mark] svg"),
+      check: !!node?.querySelector("[data-node-eyebrow] svg"),
+      headline: c?.querySelector("[data-post-submit-headline]")?.textContent,
+      headFont: c && getComputedStyle(c.querySelector("[data-post-submit-headline]")).fontSize,
+      body: c?.querySelector("[data-post-submit-body]")?.textContent,
+      lead: c?.querySelector("#post-submit-words")?.textContent,
+      copies: c?.querySelectorAll("[data-suggestion-copy]").length,
       uses: c?.querySelectorAll("[data-suggestion-use]").length,
+      danger: c?.querySelector("[data-post-submit-danger]")?.innerText.replace(/\s+/g, " ").trim(),
       filled,
       quote: !!document.querySelector('[data-quote="supervisor-echo"], [data-steadying], [data-waiting-module]'),
       heroDoor: !!document.querySelector('[data-timeline-support="mentor"]'),
     };
   });
-  check(ps.title === "Assessment sent." && /has it and is reviewing\.$/.test(ps.reviewing ?? ""), "post-submit: \"Assessment sent.\" and \"{Supervisor} has it and is reviewing.\"", JSON.stringify({ t: ps.title, r: ps.reviewing }));
-  check(ps.filled.length === 1 && /^Message .+ in Support$/.test(ps.filled[0]) && !ps.heroDoor, "one filled button — Message {supervisor} in Support — and the hero's door steps aside", JSON.stringify(ps.filled));
-  check(ps.ava && ps.uses >= 2 && !ps.quote, "the Ava mark, quiet Use affordances; no quoted supervisor message, no steadying line", JSON.stringify(ps));
+  check(ps.title === "Assessment sent" && ps.check && ps.headline === "Nice work. Now stay with Jordan" && ps.headFont === "24px", "post-submit: a checked “Assessment sent”, then “Nice work. Now stay with Jordan” at Title/Large", JSON.stringify({ t: ps.title, h: ps.headline, f: ps.headFont }));
+  check(ps.body === "Your supervisor has everything they need and will join shortly. For now, your only job is to stay present — keep things slow, warm, and steady." && ps.lead === "If you need words, try one of these", "the body and the lead line, the design's words", ps.lead);
+  check(ps.copies >= 2 && ps.uses === 0 && !ps.quote, "Ava's lines each offer Copy (no Use); no quoted supervisor message, no steadying line", JSON.stringify({ copies: ps.copies, uses: ps.uses }));
+  check(ps.danger?.startsWith("If Jordan is in immediate danger Contact emergency services") && ps.filled.length === 1 && ps.filled[0] === "Contact emergency services" && ps.heroDoor, "the danger block and ONE filled button — Contact emergency services; the hero keeps the Support door", JSON.stringify({ filled: ps.filled, hero: ps.heroDoor }));
   await page.locator("[data-post-submit]").screenshot({ path: `${OUT}/09-post-submit.png` });
   const sentIn = (st) => st.chatMessages?.t13 ?? [];
   const n0 = sentIn(await store(page)).length;
-  const first = page.locator("[data-suggestion-use]").first();
-  const text = await page.evaluate(() => document.querySelector("[data-suggestion] span")?.textContent);
-  await first.click();
+  await ctx.grantPermissions(["clipboard-read", "clipboard-write"], { origin: BASE });
+  const text = await page.evaluate(() => document.querySelector("[data-suggestion] [data-suggestion-text]")?.textContent);
+  await page.locator("[data-suggestion-copy]").first().click();
   await page.waitForTimeout(250);
-  const comp = await page.evaluate(() => { const t = document.querySelector('[data-slot="composer"] textarea'); return { v: t?.value, focus: document.activeElement === t, caret: t?.selectionStart === t?.value.length }; });
-  check(comp.v === text && comp.focus && comp.caret && sentIn(await store(page)).length === n0, "Use drops the line into the composer — focused, caret at the end — and sends nothing", JSON.stringify(comp));
+  const cp = await page.evaluate(async () => ({ clip: await navigator.clipboard.readText().catch(() => null), label: document.querySelector("[data-suggestion-copy]")?.textContent.trim(), live: document.querySelector("[data-suggestion-live]")?.textContent, composer: document.querySelector('[data-slot="composer"] textarea')?.value }));
+  check(cp.clip === text && cp.label === "Copied" && cp.live === "Copied to the clipboard" && !cp.composer && sentIn(await store(page)).length === n0, "Copy puts the line on the clipboard, says Copied (and announces it), fills nothing and sends nothing", JSON.stringify(cp));
+  /* Pasted as copied: Ava's, unedited. */
+  await page.locator('[data-slot="composer"] textarea').fill(text);
   await page.locator('[data-slot="composer"] button[type="submit"], [data-slot="composer"] button:has-text("Send")').first().click();
   await page.waitForTimeout(300);
   const sent = sentIn(await store(page)).at(-1);
-  check(sent?.text === text && sent?.provenance === "ai_inserted", "sent unedited: provenance ai_inserted (the model's own state)", JSON.stringify({ p: sent?.provenance }));
+  check(sent?.text === text && sent?.provenance === "ai_inserted", "a copied line sent as written: provenance ai_inserted (the model's own state)", JSON.stringify({ p: sent?.provenance }));
   const mark = await page.evaluate(() => { const m = [...document.querySelectorAll("[data-ava-provenance]")].at(-1); return m ? { p: m.dataset.avaProvenance, said: m.querySelector(".sr-only")?.textContent } : null; });
   check(mark?.p === "ai_inserted" && mark.said === "AI draft inserted, unedited", "the sent bubble carries Ava's mark, in the model's words", JSON.stringify(mark));
-  await page.locator("[data-suggestion-use]").nth(1).click();
+  const text2 = await page.evaluate(() => document.querySelectorAll("[data-suggestion] [data-suggestion-text]")[1]?.textContent);
+  await page.locator("[data-suggestion-copy]").nth(1).click();
   await page.waitForTimeout(200);
-  await page.locator('[data-slot="composer"] textarea').press("End");
-  await page.keyboard.type(" Whenever you're ready.");
+  await page.locator('[data-slot="composer"] textarea').fill(`${text2} Whenever you're ready.`);
   await page.locator('[data-slot="composer"] button[type="submit"], [data-slot="composer"] button:has-text("Send")').first().click();
   await page.waitForTimeout(300);
-  check(sentIn(await store(page)).at(-1)?.provenance === "ai_assisted", "sent after an edit: provenance ai_assisted", "");
+  check(sentIn(await store(page)).at(-1)?.provenance === "ai_assisted", "a copied line sent after an edit: provenance ai_assisted", "");
+  await page.locator('[data-slot="composer"] textarea').fill("Hey, I'm here.");
+  await page.locator('[data-slot="composer"] button[type="submit"], [data-slot="composer"] button:has-text("Send")').first().click();
+  await page.waitForTimeout(300);
+  check(sentIn(await store(page)).at(-1)?.provenance === undefined, "the mentor's own line carries no Ava provenance", "");
+  /* The red button is the one emergency door: Care's Emergency info, 911 first. */
+  await page.locator('[data-exchange-primary="post-submit-emergency"]').click();
+  await page.waitForTimeout(500);
+  const em = await page.evaluate(() => ({ tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, first: document.querySelector('[data-slot="crisis-view"] > *')?.getAttribute("data-slot"), href: document.querySelector('[data-slot="call-emergency"]')?.getAttribute("href") }));
+  check(em.tab === "emergency" && em.first === "call-emergency" && em.href === "tel:911", "Contact emergency services opens Care's Emergency info, Call 911 first", JSON.stringify(em));
   assessed = await store(page);
   await ctx.close();
 }

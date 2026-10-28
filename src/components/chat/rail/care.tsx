@@ -50,7 +50,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { EscalationExchange, EscalationHero } from "@/components/chat/escalation/exchange";
-import { mentorStage } from "@/lib/tiering/escalation";
 import { CareHero, TierCell } from "@/components/chat/rail/care-hero";
 import { mentorshipVitals, teenIdentity } from "@/lib/record/mentorship-vitals";
 import { heroMetrics } from "@/lib/record/hero-metrics";
@@ -287,7 +286,7 @@ export function CarePanel({
   mentorLines,
   onSettled,
   highlightTier = false,
-  onUseSuggestion,
+  onCopySuggestion,
   showDiagnosis = false,
   arrivedForCare = false,
   review,
@@ -327,8 +326,9 @@ export function CarePanel({
   onSettled?: () => void;
   /** The tier cell's one-beat arrival after a close (pack v4.0, F1). */
   highlightTier?: boolean;
-  /** An Ava suggestion into the composer, marked as Ava's (pack v11.0 §7). */
-  onUseSuggestion: (text: string) => void;
+  /** An Ava line was copied from the post-submit card: the page remembers it
+   *  so a message carrying it records its provenance. */
+  onCopySuggestion: (text: string) => void;
   /** Supervisor or lead mentor (pack v5.0, Supersession 5). */
   showDiagnosis?: boolean;
   /** Arrived from a notification's deep link (make it magical 3). */
@@ -422,10 +422,12 @@ export function CarePanel({
           supervisorName={supervisorName}
           mentorName={mentorName}
           presence={presence}
-          /* ═══ ONE SUPPORT DOOR PER STATE ═══ While the mentor waits on
-             their supervisor (M3) the post-submit card's filled button is
-             the door (pack v11.0 §7.3); the hero's ghost steps aside. */
-          onSupport={!observer && escalation.resolvedAt === null && mentorStage(escalation, state) === "M3" ? undefined : onReplyInSupport}
+          /* ═══ ONE SUPPORT DOOR PER STATE ═══ The hero's ghost door, in
+             every state. (pack v11.0 §7.3 had it step aside while the
+             post-submit card carried "Message {supervisor} in Support"; the
+             Assessment-sent card has no Support button, so the hero keeps
+             the one door.) */
+          onSupport={onReplyInSupport}
         />
         <EscalationExchange
           e={escalation}
@@ -440,8 +442,9 @@ export function CarePanel({
           mentorLines={mentorLines}
           onSettled={onSettled}
           onDismiss={dismiss}
-          onUseSuggestion={onUseSuggestion}
-          onSupport={onReplyInSupport}
+          onCopySuggestion={onCopySuggestion}
+          /* The card's red button is the one emergency door: this tab. */
+          onEmergency={observer ? undefined : () => onTab("emergency")}
           arrived={arrivedForCare}
         />
       </div>

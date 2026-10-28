@@ -603,7 +603,10 @@ export function ChatPage({
   };
   /** Text the assessment wants put in the composer. A one-shot value the composer
    *  consumes — see the Composer's `insert` prop. */
-  const [insert, setInsert] = useState<{ text: string; nonce: number; origin?: MessageOrigin; ava?: boolean } | null>(null);
+  const [insert, setInsert] = useState<{ text: string; nonce: number; origin?: MessageOrigin } | null>(null);
+  /* The Ava line last copied from the post-submit card — page state, never
+     stored; a sent message that still carries it is marked Ava's. */
+  const [avaCopied, setAvaCopied] = useState<string | null>(null);
 
   /** Which tier dialog is up: a supervisor's update, a mentor's request. */
   const [tierDialog, setTierDialog] = useState<"update" | "step-down" | null>(null);
@@ -1152,7 +1155,11 @@ export function ChatPage({
                            suggestion is Ava's — `ai_inserted` as written,
                            `ai_assisted` once edited (the model's own
                            distinction, answered 2026-10-28). */
-                        const provenance = insert?.ava && text.includes(insert.text.slice(0, 24)) ? (text.trim() === insert.text.trim() ? "ai_inserted" : "ai_assisted") : undefined;
+                        /* ═══ COPIED, NOT INSERTED (the Assessment-sent card) ═══
+                           The line reaches the composer by paste, so the page
+                           remembers what was copied and runs the same test. */
+                        const ava = avaCopied;
+                        const provenance = ava && text.includes(ava.slice(0, 24)) ? (text.trim() === ava.trim() ? "ai_inserted" : "ai_assisted") : undefined;
                         appendChatMessage({ id: `sent-${thread.id}-${at}`, threadId: thread.id, at, sender: "mentor", kind: "text", text, ...(origin ? { origin } : {}), ...(provenance ? { provenance } : {}) });
                       }
                 }
@@ -1348,7 +1355,7 @@ export function ChatPage({
                     otherParty && (observer ? pinMentor : canOpenInSupport(otherParty)) ? () => openInSupport(otherParty) : undefined
                   }
                   presence={presence}
-                  onUseSuggestion={(text) => setInsert((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1, ava: true }))}
+                  onCopySuggestion={(text) => setAvaCopied(text)}
                   /* ═══ CLINICAL DIAGNOSIS IS NOT THE MENTOR'S (pack v5.0, S5) ═══ */
                   showDiagnosis={persona === "lead-mentor" || isSupervisorTier(persona)}
                   emergency={emergencyInfo}

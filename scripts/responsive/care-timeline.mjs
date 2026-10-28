@@ -61,6 +61,9 @@ const redCensus = (page) =>
       /* (pack v5.0, C1) The chat list's shield: alert ink on Tiers 1–2 only. */
       : el.closest("[data-row-escalation]") ? "list shield"
       : el.closest('[data-slot="event-chip"]') ? "thread chip"
+      /* (the Assessment-sent card) The post-submit card's Contact emergency
+         services — the one emergency door, red on Tiers 1–2 only. */
+      : el.closest('[data-exchange-primary="post-submit-emergency"]') ? "emergency door"
       : el.closest("[data-slot=\"chat-rail\"]") ? "rail · other"
       : el.closest('[data-anno-ref="app-rail"]') ? "nav"
       : el.closest('[role="list"][aria-label^="Conversation with"]') ? "thread · other"
@@ -187,7 +190,7 @@ for (const [label, st] of STATES) {
     check(x.cur.length === 1 && (!label.endsWith("closed") || x.cur[0] === "closed"), `${lens} · ${label}: exactly one current node${label.endsWith("closed") ? " — the closed summary" : ""}`, x.cur.join(",") || "—");
     if (lens === "mentor" && !label.endsWith("closed")) {
       const red = await redCensus(page);
-      const allowed = new Set(["banner", "rail dot", "review dot", "T1–2 lozenge", "thread chip", "list shield"]);
+      const allowed = new Set(["banner", "rail dot", "review dot", "T1–2 lozenge", "thread chip", "list shield", "emergency door"]);
       const stray = Object.keys(red).filter((k) => !allowed.has(k));
       check(stray.length === 0, `mentor · ${label}: red only in the banner, the dots, T1–2 lozenges (and the live raise chip)`, JSON.stringify(red));
     }
@@ -216,7 +219,7 @@ for (const [label, st] of STATES) {
       check(cur.length === 1, `${persona} · ${label}: exactly one current node`, cur.join(","));
       if (persona === "mentor") {
         const red = await redCensus(page);
-        const allowed = new Set(["banner", "rail dot", "review dot", "T1–2 lozenge", "thread chip", "list shield"]);
+        const allowed = new Set(["banner", "rail dot", "review dot", "T1–2 lozenge", "thread chip", "list shield", "emergency door"]);
         const stray = Object.keys(red).filter((k) => !allowed.has(k));
         const tier3 = label.startsWith("Tier 3");
         check(stray.length === 0 && (!tier3 || Object.keys(red).length === 0), `mentor · ${label}: ${tier3 ? "no red at all" : "red only where the canon allows"}`, JSON.stringify(red));
