@@ -24,7 +24,7 @@
 // Emergency information button (Supersession 5).
 
 import { useEffect, useId, useState } from "react";
-import { Check, ChevronDown, CircleCheck, Lock, MessageSquare } from "lucide-react";
+import { Check, ChevronDown, CircleCheck, Lock } from "lucide-react";
 import { announceClose } from "@/components/chat/escalation/close-toast";
 import { Quote } from "@/components/chat/escalation/quote";
 import { PostSubmitCard } from "@/components/chat/escalation/post-submit-card";
@@ -46,7 +46,7 @@ import {
 } from "@/lib/tiering/escalation";
 import { noteTierOf, orderNodes, timelineNodes, type Lens, type TimelineNode } from "@/lib/tiering/timeline";
 import type { Tiering } from "@/lib/tiering/use-tiering";
-import { PLATFORM, TIER_NAME, isAlertTier } from "@/lib/tiering/tiers";
+import { PLATFORM, isAlertTier } from "@/lib/tiering/tiers";
 import { cn } from "@/lib/utils";
 import { GuidedAssessment } from "@/components/chat/escalation/guided-assessment";
 import { BODY, Field, LABEL, Primary, RING, RiskChip, TITLE, onRadioKeys } from "@/components/chat/escalation/controls";
@@ -56,118 +56,14 @@ const TIME = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digi
 export { RiskChip };
 
 
-// ── THE HERO — state only ───────────────────────────────────────────────────
-
-/** ═══ ESCALATION HERO v2 (pack v5.0, Workstream A1) ═══ Above the Care tabs,
- *  persistent across them, both lenses. It owns STATE and nothing else:
- *    overline   ESCALATION
- *    headline   the request ("Tier 1 requested") — or, once confirmed, the
- *               tier itself as its lozenge (red arrives with the confirmation)
- *    meta       ONE interpuncted line: opened · the state · who is here
- *    Support    a ghost button, always the hero's last line while it is open
- *  ═══ SUPERSEDES v4's holder line (Supersession 1) ═══ "— Brandy has this"
- *  left the hero: the waiting node is its single home. And the underlined
- *  Support link is a ghost button in a fixed position (Supersession 2) — the
- *  one Support door in every state, so the waiting module no longer has its
- *  own. It does NOT say when the supervisor was notified: the banner is that
- *  fact's single home. */
-export function EscalationHero({
-  e,
-  tiering,
-  teenId,
-  lens,
-  supervisorName,
-  mentorName,
-  presence,
-  onSupport,
-}: {
-  e: EscalationState;
-  tiering: Tiering;
-  teenId: string;
-  lens: Lens;
-  supervisorName: string;
-  mentorName: string;
-  /** The other party's first name, when they are in Support with you. */
-  presence?: string;
-  onSupport?: () => void;
-}) {
-  const target = escalationTarget(e);
-  const confirmed = e.confirmedTier !== undefined;
-  const closed = e.resolvedAt !== null;
-  const nowTier = tiering.stateFor(teenId).tier;
-  const who = (() => {
-    const ev = [...tiering.eventsFor(teenId)].reverse().find((x) => x.escalationId === e.id && (x.kind === "confirmed" || x.kind === "placed" || x.kind === "stepped-down"));
-    return ev ? tiering.nameOf(ev.actor) : null;
-  })();
-  /* TODO-COPY, every fragment. The headline already names the tier, so the
-     meta line never repeats it — except as the close's movement. */
-  const state = closed
-    ? /* The movement, not a stale confirmation (measured in v2). */
-      /* No arrow chain (pack v5.0, D1): the headline lozenge is where it
-         began; the line says where it went. */
-      `Closed ${TIME.format(e.resolvedAt!)}${confirmed && nowTier !== null && nowTier !== e.confirmedTier ? ` · moved to Tier ${nowTier} ${TIER_NAME[nowTier]}` : ""}`
-    : target === PLATFORM
-      ? "In review"
-      : confirmed
-        ? `Confirmed${who ? ` by ${who}` : ""}${e.confirmedAt ? ` · ${TIME.format(e.confirmedAt)}` : ""}`
-        : "Awaiting confirmation";
-  const other = lens === "supervisor" ? mentorName : supervisorName;
-  return (
-    <header data-care-hero="escalation" data-timeline-header className="space-y-1">
-      <p data-hero-overline className="text-[11px] leading-[16px] font-medium tracking-[0.06em] text-[var(--text-muted)] uppercase">
-        {/* TODO-COPY */}
-        Escalation
-      </p>
-      <p data-tier-line className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        {target === PLATFORM ? (
-          <span data-hero-headline className="text-[var(--text-primary)]" style={TITLE}>
-            Platform concern
-          </span>
-        ) : confirmed ? (
-          /* The request settles into the lozenge in place (v2's magic, kept). */
-          <span key={`c-${e.confirmedTier}`} data-hero-headline className="tier-settle inline-flex">
-            <TierLozenge tier={e.confirmedTier!} long />
-          </span>
-        ) : (
-          /* Neutral until confirmed (blocked constant): words, not colour. */
-          <span data-hero-headline className="text-[var(--text-primary)]" style={TITLE}>
-            Tier {target} requested
-          </span>
-        )}
-      </p>
-      <p data-timeline-meta className="flex flex-wrap items-center gap-x-1.5 tabular-nums text-[var(--text-secondary)]" style={LABEL}>
-        <span>Opened {TIME.format(e.openedAt)}</span>
-        <span aria-hidden>·</span>
-        {/* A Platform concern has no tier line: it is a category, not a tier. */}
-        <span data-tier-line-text={target === PLATFORM ? undefined : ""}>{state}</span>
-        {presence && (
-          /* ═══ PRESENCE ═══ A dot and a name — a fact about now, so it rides
-             the state line rather than earning a line of its own. */
-          <>
-            <span aria-hidden>·</span>
-            <span data-hero-presence className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="size-1.5 rounded-full bg-[var(--status-online)]" />
-              {presence} is here
-            </span>
-          </>
-        )}
-      </p>
-      {onSupport && !closed && (
-        <button
-          type="button"
-          data-timeline-support={lens}
-          onClick={onSupport}
-          className={cn("-ml-2.5 inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
-          style={BODY}
-        >
-          <MessageSquare aria-hidden className="size-4 text-[var(--icon-secondary)]" />
-          {/* TODO-COPY */}
-          Message {other} in Support
-        </button>
-      )}
-    </header>
-  );
-}
+// ── THE HERO — deleted (2026-10-28) ─────────────────────────────────────────
+// `EscalationHero` (ESCALATION · "Tier 1 requested" · "Opened · Awaiting
+// confirmation" · "Message {name} in Support") sat above the timeline, and
+// is deleted, not orphaned, on instruction: "remove all the content above
+// the timeline in the escalation review". Its facts have other homes — the
+// raised and confirm nodes state the tier and the time; the banner states
+// the notification; Support is the shell's top-bar door. Presence ("Brandy
+// is here") had its single home here and goes with it.
 
 // ── UP NEXT — the future as one collapsed path ─────────────────────────────
 
@@ -621,7 +517,8 @@ export function EscalationExchange({
       case "review":
         return "Review the report";
       case "confirm":
-        return n.state === "current" ? `Confirm ${name}'s tier` : `Tier ${e.confirmedTier} confirmed`;
+        /* TODO-COPY. FCP-3 6081:23553: "Review risk tier". */
+        return n.state === "current" ? "Review risk tier" : `Tier ${e.confirmedTier} confirmed`;
       case "note":
         /* ═══ ONE NOTE NODE (pack v6.1) ═══ Complete, it says so and
            expands to the record. While it is written the DECK states its own

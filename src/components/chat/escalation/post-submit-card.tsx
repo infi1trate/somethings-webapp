@@ -31,9 +31,9 @@
 // Tier 3 or Platform escalation the same button wears the panel's neutral
 // ink fill — still the card's one filled button, and still the same door.
 //
-// ═══ THE SUPPORT DOOR GOES BACK TO THE HERO ═══ This card no longer carries
-// "Message {supervisor} in Support", so the hero's ghost door no longer steps
-// aside while it shows (`rail/care.tsx`): one Support door in every state.
+// ═══ NO SUPPORT BUTTON HERE ═══ This card no longer carries "Message
+// {supervisor} in Support". The escalation header that held the other door
+// is deleted too (2026-10-28), so Support is the shell's top-bar button.
 
 import { useState } from "react";
 import { AlertTriangle, Check, Copy } from "lucide-react";

@@ -167,39 +167,20 @@ for (const w of [1512, 1280]) {
   await ctx.close();
 }
 
-// ── 3 · A1: HERO V2 ─────────────────────────────────────────────────────────
-console.log("\n── 3 · hero v2: state only");
-const hero = (page) =>
-  page.evaluate(() => {
-    const h = document.querySelector('[data-care-hero="escalation"]');
-    const btn = h?.querySelector("[data-timeline-support]");
-    return {
-      overline: h?.querySelector("[data-hero-overline]")?.textContent.trim(),
-      headline: h?.querySelector("[data-hero-headline]")?.textContent.trim(),
-      lozenge: !!h?.querySelector("[data-hero-headline] [data-tier-lozenge]"),
-      /* The line's fragments are separate spans laid out with a gap. */
-      meta: [...(h?.querySelector("[data-timeline-meta]")?.children ?? [])].map((c) => c.textContent.trim()).join(" "),
-      metaLines: h?.querySelectorAll("[data-timeline-meta]").length,
-      button: btn ? { text: btn.textContent.trim(), underline: getComputedStyle(btn).textDecorationLine, last: h.lastElementChild === btn, icon: !!btn.querySelector("svg") } : null,
-      holder: /has this|— with/.test(h?.textContent ?? ""),
-      children: h?.children.length,
-    };
+// ── 3 · A1: HERO V2 — RETIRED (2026-10-28) ─────────────────────────────────
+/* The escalation header above the timeline (ESCALATION · "Tier 1 requested"
+   · one meta line · the Support ghost button) is deleted on instruction:
+   "remove all the content above the timeline in the escalation review". What
+   is measured now is its absence, in both lenses. */
+console.log("\n── 3 · the escalation review opens on the timeline");
+for (const [persona, chat] of [["mentor", "escalation-active"], ["supervisor", "escalation-tier2"]]) {
+  const { ctx, page } = await open("/app/chat/t13", { persona, chat });
+  const r = await page.evaluate(() => {
+    const p = document.querySelector('[data-care-tabpanel="escalation"]');
+    return { header: !!document.querySelector('[data-care-hero="escalation"], [data-timeline-header], [data-timeline-support], [data-hero-presence]'), first: p?.firstElementChild?.firstElementChild?.matches("[data-exchange]") ?? false };
   });
-{
-  const { ctx, page } = await open("/app/chat/t13", { chat: "escalation-active" });
-  const h = await hero(page);
-  check(h.overline === "Escalation" && h.headline === "Tier 1 requested" && !h.lozenge, "requested: overline ESCALATION, headline “Tier 1 requested” in words, no lozenge yet", JSON.stringify(h));
-  check(h.metaLines === 1 && /^Opened \d{1,2}:\d{2} [AP]M · Awaiting confirmation$/.test(h.meta ?? ""), "one interpuncted meta line", String(h.meta));
-  check(h.button?.text === "Message Brandy in Support" && h.button.underline === "none" && h.button.last && h.button.icon, "the Support ghost button: icon + label, no underline, the hero's last line", JSON.stringify(h.button));
-  check(!h.holder && h.children === 4, "nothing else — no holder line", JSON.stringify({ holder: h.holder, n: h.children }));
-  await page.screenshot({ path: `${OUT}/02-hero-requested.png`, clip: await page.locator('[data-slot="chat-rail"]').boundingBox() });
-  await ctx.close();
-}
-{
-  const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-tier2" });
-  const h = await hero(page);
-  check(h.lozenge && /T2/.test(h.headline ?? "") && /^Opened .+ · Confirmed( by .+)? · \d/.test(h.meta ?? "") && !/Tier 2 confirmed/.test(h.meta ?? ""), "confirmed: the lozenge is the headline; the meta line does not repeat the tier", JSON.stringify({ hl: h.headline, meta: h.meta }));
-  check(h.button?.text === "Message the mentor in Support" || /^Message .+ in Support$/.test(h.button?.text ?? ""), "the supervisor's ghost button names the mentor", String(h.button?.text));
+  check(!r.header && r.first, `${persona}: no header above the timeline — the tab opens on it`, JSON.stringify(r));
+  if (persona === "mentor") await page.screenshot({ path: `${OUT}/02-hero-requested.png`, clip: await page.locator('[data-slot="chat-rail"]').boundingBox() });
   await ctx.close();
 }
 
@@ -212,8 +193,10 @@ const card = (page) =>
     const c = document.querySelector('[data-care-hero="steady"]');
     const cell = c?.querySelector("[data-tier-cell]");
     return {
-      cells: [...(c?.querySelectorAll("[data-overline]") ?? [])].map((o) => o.textContent.trim()),
+      /* RETARGETED (FCP-3): the hero's three sections, in order. */
+      cells: [...(c?.children ?? [])].map((x) => (x.matches("[data-care-identity]") ? "header" : x.matches("[data-care-metrics]") ? "facts" : x.matches("[data-tier-cell]") ? "tier" : x.tagName)),
       brief: !!c?.querySelector("[data-care-brief]"),
+      record: c?.querySelector("[data-care-record]")?.getAttribute("href"),
       lozenge: cell?.querySelector("[data-tier-lozenge]")?.textContent.trim(),
       info: !!cell?.querySelector("[data-tier-info]"),
       description: !!cell?.querySelector("[data-tier-description]"),
@@ -228,15 +211,18 @@ const card = (page) =>
 {
   const { ctx, page } = await open("/app/chat/t14", { extra: T3 });
   const m = await card(page);
-  /* RETARGETED (Care Hero v7.0): the Mentorship anchors the mentor's card. */
-  check(m.cells.join() === "The mentorship,Risk tier" && !m.brief, "mentor: the Mentorship, then Risk tier — the diagnosis is not in the DOM", JSON.stringify(m.cells));
+  /* RETARGETED (FCP-3): header · facts · tier; no diagnosis, and View
+     record opens the Profile, never the care record. */
+  check(m.cells.join() === "header,facts,tier" && !m.brief && /\?rail=profile$/.test(m.record ?? ""), "mentor: header · facts · tier — the diagnosis is not in the DOM", JSON.stringify({ c: m.cells, r: m.record }));
   check(/^T3/.test(m.lozenge ?? "") && m.info && !m.description && !m.sentence, "the lozenge is the headline; description and dwell rule are behind the ⓘ, not on the card", JSON.stringify(m));
-  check(m.track && /^Day \d+ of 14$/.test(m.dwell ?? ""), "the dwell is a slim progress line: “Day N of 14”", String(m.dwell));
+  /* RETARGETED (FCP-3): the tier row is one line — the dwell went behind
+     the ⓘ, with the rule. */
+  check(!m.track && m.dwell === undefined, "the card carries no dwell line — it is the ⓘ's", JSON.stringify({ track: m.track, dwell: m.dwell }));
   check(m.actions.join() === "escalate", "one outline action on the card: Escalate", m.actions.join());
   await page.locator("[data-tier-info]").click();
   await page.waitForTimeout(250);
-  const pop = await page.evaluate(() => ({ d: document.querySelector("[data-tier-description]")?.textContent, r: document.querySelector("[data-tier-rule]")?.textContent, down: !!document.querySelector('[data-slot="popover-content"] [data-tier-action="request-step-down"]') }));
-  check(!!pop.d && /unless renewed/.test(pop.r ?? "") && pop.down, "the ⓘ holds the description, the rule, and the mentor's step-down request", JSON.stringify(pop));
+  const pop = await page.evaluate(() => ({ d: document.querySelector("[data-tier-description]")?.textContent, r: document.querySelector("[data-tier-rule]")?.textContent, day: document.querySelector('[data-slot="popover-content"] [data-tier-time]')?.textContent.trim(), down: !!document.querySelector('[data-slot="popover-content"] [data-tier-action="request-step-down"]') }));
+  check(!!pop.d && /unless renewed/.test(pop.r ?? "") && /^Day \d+ of 14/.test(pop.day ?? "") && pop.down, "the ⓘ holds the description, “Day N of 14” and the rule, and the mentor's step-down request", JSON.stringify(pop));
   await page.keyboard.press("Escape");
   await page.screenshot({ path: `${OUT}/03-status-mentor.png`, clip: await page.locator('[data-slot="chat-rail"]').boundingBox() });
   await ctx.close();
@@ -246,7 +232,9 @@ const card = (page) =>
   const s = await card(page);
   /* RETARGETED (pack v11.0 §4): the mentorship for both lenses, the
      diagnosis the hero's LAST section. */
-  check(s.cells.join("|") === "The mentorship|Risk tier|Clinical diagnosis" && s.brief, "supervisor: The mentorship · Risk tier · Clinical diagnosis (last)", s.cells.join(" · "));
+  /* RETARGETED (FCP-3): the diagnosis left the hero; View record is the
+     care record for staff. */
+  check(s.cells.join() === "header,facts,tier" && !s.brief && /\?tab=care$/.test(s.record ?? ""), "supervisor: header · facts · tier; View record opens the care record", JSON.stringify({ c: s.cells, r: s.record }));
   check(s.actions.join() === "update-tier", "one outline action: Update tier", s.actions.join());
   await page.screenshot({ path: `${OUT}/04-status-supervisor.png`, clip: await page.locator('[data-slot="chat-rail"]').boundingBox() });
   await ctx.close();
@@ -254,7 +242,7 @@ const card = (page) =>
 {
   const { ctx, page } = await open("/app/chat/t14", { persona: "lead-mentor", extra: T3 });
   const l = await card(page);
-  check(l.cells.join("|") === "The mentorship|Risk tier|Clinical diagnosis", "lead mentor: the diagnosis too, last", l.cells.join(" · "));
+  check(l.cells.join() === "header,facts,tier" && /\?tab=care$/.test(l.record ?? ""), "lead mentor: the same three sections; View record opens the care record", JSON.stringify({ c: l.cells, r: l.record }));
   await ctx.close();
 }
 {

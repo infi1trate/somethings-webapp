@@ -25,6 +25,8 @@
 // above the tab bar on every tab. Steady Overview is now the two newest
 // History rows and "View history →" (F3). While an escalation is open the
 // hero is the escalation's (`EscalationHero`) and Overview is its timeline.
+// (2026-10-28: `EscalationHero` is deleted — the Escalation review tab opens
+// on the timeline, with nothing above it.)
 //
 // ═══ SUPERSEDED BY PACK v8.0 (Supersessions 3–4) ═══ Overview is REMOVED —
 // its Recent preview retires (History is the record), its raise flow and its
@@ -49,7 +51,7 @@
 // red.
 
 import { useEffect, useRef, useState } from "react";
-import { EscalationExchange, EscalationHero } from "@/components/chat/escalation/exchange";
+import { EscalationExchange } from "@/components/chat/escalation/exchange";
 import { CareHero, TierCell } from "@/components/chat/rail/care-hero";
 import { mentorshipVitals, teenIdentity } from "@/lib/record/mentorship-vitals";
 import { heroMetrics } from "@/lib/record/hero-metrics";
@@ -278,8 +280,6 @@ export function CarePanel({
   onUpdateTier,
   onRequestStepDown,
   supervisorName,
-  onReplyInSupport,
-  presence,
   emergency,
   brief,
   teenLines,
@@ -315,8 +315,6 @@ export function CarePanel({
   onUpdateTier: () => void;
   onRequestStepDown: () => void;
   supervisorName: string;
-  onReplyInSupport?: () => void;
-  presence?: string;
   emergency: EmergencyInfo;
   brief: CareBrief;
   /** The conversation's own lines, for the debrief draft (fake AI). */
@@ -413,22 +411,6 @@ export function CarePanel({
       <RaiseFlow name={name} current={state.tier} onCancel={onCancelRaise} onConfirm={onConfirmRaise} />
     ) : escalation ? (
       <div className="space-y-4">
-        {/* The hero's STATE block moved in here (pack v8.0, Supersession 4). */}
-        <EscalationHero
-          e={escalation}
-          tiering={tiering}
-          teenId={teenId}
-          lens={lens}
-          supervisorName={supervisorName}
-          mentorName={mentorName}
-          presence={presence}
-          /* ═══ ONE SUPPORT DOOR PER STATE ═══ The hero's ghost door, in
-             every state. (pack v11.0 §7.3 had it step aside while the
-             post-submit card carried "Message {supervisor} in Support"; the
-             Assessment-sent card has no Support button, so the hero keeps
-             the one door.) */
-          onSupport={onReplyInSupport}
-        />
         <EscalationExchange
           e={escalation}
           teenId={teenId}
@@ -471,11 +453,24 @@ export function CarePanel({
         <CareHero
           name={name}
           identity={identity}
-          lens={lens}
-          showDiagnosis={showDiagnosis}
-          brief={brief}
-          vitals={vitals}
+          /* A supervisor's view names the mentor; a mentor's names their
+             supervisor — they are the mentor. */
+          person={
+            lens === "supervisor"
+              ? { role: "Mentor", name: vitals?.mentor?.name ?? (tiering.liveMentorName || "The mentor") }
+              : vitals?.supervisor
+                ? { role: "Supervisor", name: vitals.supervisor.name }
+                : null
+          }
           metrics={metrics}
+          /* ═══ VIEW RECORD, ROLE-GATED AT THE SOURCE ═══ The care record for
+             a supervisor or lead; the Profile tab for a mentor, whose DOM
+             never holds a care-record link. */
+          record={
+            showDiagnosis
+              ? { href: brief.href, label: `View ${name}'s care record` }
+              : { href: `/app/chat/${teenId}?rail=profile`, label: `View ${name}'s profile` }
+          }
           tierCell={
             <TierCell
               state={state}

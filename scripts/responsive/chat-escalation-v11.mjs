@@ -159,25 +159,27 @@ const heroOf = (page) =>
       sections,
       yield: document.querySelectorAll("[data-care-yield], [data-diagnosis-strip]").length,
       supervisedBy: document.querySelector("[data-mentorship-supervisor]")?.getAttribute("href") ?? null,
+      record: document.querySelector("[data-care-hero] [data-care-record]")?.getAttribute("href") ?? null,
       icd: !!document.querySelector("[data-care-hero] [data-icd]"),
       tierAction: document.querySelector("[data-care-hero] [data-tier-action]")?.dataset.tierAction ?? null,
       identity: document.querySelector("[data-identity-meta]")?.textContent ?? null,
     };
   });
 for (const [label, persona, chat, path, expect] of [
-  ["mentor steady", "mentor", "active-mentorship", "/app/chat/t14", { sections: "identity,mentorship,tier,metrics", action: "escalate" }],
-  ["mentor, escalation open", "mentor", "escalation-active", "/app/chat/t13", { sections: "identity,mentorship,tier,metrics", action: null }],
-  /* t21: a teen with a diagnosis on file (t14 has none to show). */
-  ["supervisor steady", "supervisor", "active-mentorship", "/app/chat/t21", { sections: "identity,mentorship,tier,metrics,diagnosis", action: "update-tier" }],
-  ["supervisor, escalation open", "supervisor", "escalation-active", "/app/chat/t13", { sections: "identity,mentorship,tier,metrics,diagnosis", action: null }],
+  /* RETARGETED (FCP-3 hero card): header · facts · tier in every state;
+     the diagnosis left the hero for View record. */
+  ["mentor steady", "mentor", "active-mentorship", "/app/chat/t14", { sections: "identity,metrics,tier", action: "escalate" }],
+  ["mentor, escalation open", "mentor", "escalation-active", "/app/chat/t13", { sections: "identity,metrics,tier", action: null }],
+  ["supervisor steady", "supervisor", "active-mentorship", "/app/chat/t21", { sections: "identity,metrics,tier", action: "update-tier" }],
+  ["supervisor, escalation open", "supervisor", "escalation-active", "/app/chat/t13", { sections: "identity,metrics,tier", action: null }],
 ]) {
   const { ctx, page } = await open(path, { persona, chat });
   await careOpen(page);
   const h = await heroOf(page);
   check(h.sections.join() === expect.sections && h.yield === 0, `${label}: the hero holds — ${expect.sections}; no yield, no strip`, JSON.stringify(h.sections));
   check(h.tierAction === expect.action, `${label}: the tier action is ${expect.action ?? "suppressed (an escalation is open)"}`, String(h.tierAction));
-  check(persona === "mentor" ? /^\/admin\/person\//.test(h.supervisedBy ?? "") && !h.icd : h.supervisedBy === null && h.icd, `${label}: ${persona === "mentor" ? "Supervised by links to the supervisor's record; no diagnosis in the DOM" : "no Supervised by; the diagnosis and its ICD code close the hero"}`, JSON.stringify({ s: h.supervisedBy, icd: h.icd }));
-  check(/\d+ y\/o/.test(h.identity ?? ""), `${label}: identity — age and pronouns under the name`, String(h.identity));
+  check(!h.icd && h.supervisedBy === null && (persona === "mentor" ? /\?rail=profile$/.test(h.record ?? "") : /\?tab=care$/.test(h.record ?? "")), `${label}: ${persona === "mentor" ? "View record opens the Profile; no diagnosis in the DOM" : "View record opens the care record; no diagnosis in the hero" /* RETARGETED (FCP-3) */}`, String(h.record));
+  check(/^\d+ yo · .+ · .+$/.test(h.identity ?? ""), `${label}: identity — age, pronouns and state under the name`, String(h.identity));
   await page.locator('[data-care-hero="steady"]').screenshot({ path: `${OUT}/03-hero-${label.replace(/\W+/g, "-")}.png` });
   await ctx.close();
 }
@@ -189,24 +191,29 @@ console.log("\n── 4 · the metrics: real, never fabricated");
   await careOpen(page);
   const m = await page.evaluate(() => {
     const cells = [...document.querySelectorAll("[data-care-metrics] [data-metric]")];
-    const valueSize = Math.max(...cells.map((c) => parseFloat(getComputedStyle(c.querySelector("p:nth-child(2)")).fontSize)));
+    const val = (c) => c.querySelector("[data-metric-value]");
+    const valueSize = Math.max(...cells.filter((c) => c.dataset.metric !== "person").map((c) => parseFloat(getComputedStyle(val(c)).fontSize)));
+    const valueFace = getComputedStyle(val(cells[1])).fontFamily;
     const hero = document.querySelector('[data-care-hero="steady"]');
     const others = [...hero.querySelectorAll("p, span")].filter((e) => !e.closest("[data-care-metrics]")).map((e) => parseFloat(getComputedStyle(e).fontSize));
-    const tops = cells.slice(0, 3).map((c) => Math.round(c.querySelector("p:nth-child(2)").getBoundingClientRect().bottom));
+    /* Two columns: each row's values share a baseline. */
+    const tops = [0, 2, 4].map((i) => new Set(cells.slice(i, i + 2).map((c) => Math.round(val(c).getBoundingClientRect().bottom))).size);
     return {
       slots: cells.map((c) => c.dataset.metric).join(),
       labels: cells.map((c) => c.querySelector("p").textContent).join(" | "),
       engaged: { absent: !!document.querySelector('[data-metric="engaged"] [data-metric-absent]'), said: document.querySelector('[data-metric="engaged"] .sr-only')?.textContent },
-      zeros: cells.filter((c) => c.querySelector("p:nth-child(2)").textContent === "0").map((c) => c.dataset.metric),
+      zeros: cells.filter((c) => val(c).textContent === "0").map((c) => c.dataset.metric),
       valueSize,
+      valueFace,
       largestOther: Math.max(...others),
-      baseline: new Set(tops).size === 1,
+      baseline: tops.every((n) => n === 1),
     };
   });
-  check(m.slots === "days,engaged,messages,flags,escalations,notes", "six slots in the pack's order", m.slots);
+  /* RETARGETED (FCP-3): the design's six facts, two columns. */
+  check(m.slots === "person,days,platform,engaged,escalations,flags", "six facts in the design's order", m.slots);
   check(m.engaged.absent && m.engaged.said === "Not available yet", "Engaged days (BLOCKED, Meg): an absent marker, spoken \"Not available yet\" — never a number", JSON.stringify(m.engaged));
   check(m.zeros.length > 0, "zero renders as 0", m.zeros.join(","));
-  check(m.valueSize === 20 && m.largestOther <= 16 && m.baseline, "values at 20 — the hero's largest text, over the 16/24 headlines — sharing a baseline", JSON.stringify({ v: m.valueSize, other: m.largestOther }));
+  check(m.valueSize === 16 && /avantt/i.test(m.valueFace) && m.largestOther <= 16 && m.baseline, "values in Avantt 16/24, the name's step; each row's values share a baseline", JSON.stringify({ v: m.valueSize, face: m.valueFace.slice(0, 30), other: m.largestOther }));
   await ctx.close();
 }
 
@@ -328,13 +335,15 @@ let assessed;
       danger: c?.querySelector("[data-post-submit-danger]")?.innerText.replace(/\s+/g, " ").trim(),
       filled,
       quote: !!document.querySelector('[data-quote="supervisor-echo"], [data-steadying], [data-waiting-module]'),
-      heroDoor: !!document.querySelector('[data-timeline-support="mentor"]'),
+      /* (2026-10-28) The escalation header and its Support link are
+         deleted; the Support door is the shell's top-bar button. */
+      heroDoor: !document.querySelector("[data-timeline-support]") && [...document.querySelectorAll("[data-support-cta]")].some((e) => e.offsetParent !== null),
     };
   });
   check(ps.title === "Assessment sent" && ps.check && ps.headline === "Nice work. Now stay with Jordan" && ps.headFont === "24px", "post-submit: a checked “Assessment sent”, then “Nice work. Now stay with Jordan” at Title/Large", JSON.stringify({ t: ps.title, h: ps.headline, f: ps.headFont }));
   check(ps.body === "Your supervisor has everything they need and will join shortly. For now, your only job is to stay present — keep things slow, warm, and steady." && ps.lead === "If you need words, try one of these", "the body and the lead line, the design's words", ps.lead);
   check(ps.copies >= 2 && ps.uses === 0 && !ps.quote, "Ava's lines each offer Copy (no Use); no quoted supervisor message, no steadying line", JSON.stringify({ copies: ps.copies, uses: ps.uses }));
-  check(ps.danger?.startsWith("If Jordan is in immediate danger Contact emergency services") && ps.filled.length === 1 && ps.filled[0] === "Contact emergency services" && ps.heroDoor, "the danger block and ONE filled button — Contact emergency services; the hero keeps the Support door", JSON.stringify({ filled: ps.filled, hero: ps.heroDoor }));
+  check(ps.danger?.startsWith("If Jordan is in immediate danger Contact emergency services") && ps.filled.length === 1 && ps.filled[0] === "Contact emergency services" && ps.heroDoor, "the danger block and ONE filled button — Contact emergency services; Support is the top bar's door", JSON.stringify({ filled: ps.filled, hero: ps.heroDoor }));
   await page.locator("[data-post-submit]").screenshot({ path: `${OUT}/09-post-submit.png` });
   const sentIn = (st) => st.chatMessages?.t13 ?? [];
   const n0 = sentIn(await store(page)).length;

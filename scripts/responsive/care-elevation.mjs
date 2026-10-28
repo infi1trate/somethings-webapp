@@ -173,7 +173,9 @@ for (const [label, extra] of [["Tier 4", {}], ["Tier 2", T2]]) {
   /* RETARGETED (Care Hero v7.0, superseding v5.0 Supersession 5): the
      mentor's card anchors on the Mentorship, then the Risk tier — and the
      diagnosis is still not in the DOM at all. */
-  check(m.cells.join("|") === "The mentorship|Risk tier" && !(await page.evaluate(() => !!document.querySelector("[data-care-brief]"))), `${label}: the mentor sees the Mentorship, then Risk tier — no diagnosis in the DOM`, m.cells.join(" · "));
+  /* RETARGETED (FCP-3 hero card): the facts and the tier row; the only
+     labelled section is the tier's, and View record is the Profile. */
+  check(m.cells.join("|") === "Risk Tier" && (await page.evaluate(() => !document.querySelector("[data-care-brief]") && /\?rail=profile$/.test(document.querySelector("[data-care-record]")?.getAttribute("href") ?? ""))), `${label}: the mentor sees the facts, then Risk Tier — no diagnosis in the DOM; View record is the Profile`, m.cells.join(" · "));
   check(m.heroBg === m.raised && m.bodyBg === m.s1 && m.canvasBg === m.base && m.s1 !== m.raised, `${label}: the thread on the base, the Care body one step deeper (s1), the card raised`, `${m.canvasBg} · ${m.bodyBg} · ${m.heroBg}`);
   check(m.washed === 0, `${label}: no whole-card wash — the tint lives in the lozenge alone`, String(m.washed));
   check(m.ringed.length === 0, `${label}: steady has no current step, so nothing is raised AND ringed`, m.ringed.join());
@@ -216,7 +218,9 @@ for (const [label, persona, chat] of [
      the Escalation review status block is the working header. */
   /* RETARGETED (pack v11.0, Supersession 1): the header HOLDS in both
      lenses — no yield, no strip. */
-  check(m.heroKind === "escalation" && m.heroFirst && m.tabsAfterHero && !m.yielded && m.yieldStrip === null, `${label}: the full header holds (pack v11.0); the escalation hero inside Escalation review`, JSON.stringify({ k: m.heroKind, f: m.heroFirst, y: m.yielded, s: m.yieldStrip }));
+  /* RETARGETED (2026-10-28): the escalation header is deleted — the steady
+     hero is the panel's one header, and the review tab opens on the timeline. */
+  check(m.heroKind === "steady" && m.heroFirst && m.tabsAfterHero && !m.yielded && m.yieldStrip === null && !(await page.evaluate(() => !!document.querySelector('[data-care-hero="escalation"]'))), `${label}: the full header holds; no escalation header inside Escalation review`, JSON.stringify({ k: m.heroKind, f: m.heroFirst, y: m.yielded, s: m.yieldStrip }));
   check(m.ringed.length === 1 && m.ringed[0] === "node:alert" && m.ringColor?.includes(m.alertRing.replace(/\)$/, "")), `${label}: exactly one raised + ringed element — the current node, alert-ringed at Tier 1–2`, `${m.ringed.join()} · ${m.ringColor}`);
   check(m.filled.length <= 1, `${label}: at most one filled button in the panel`, m.filled.join(" · ") || "none");
   check(!m.notifiedInPanel && m.notifiedInBanner !== false, `${label}: "notified" is the banner's alone`, JSON.stringify({ panel: m.notifiedInPanel, banner: m.notifiedInBanner }));
@@ -361,7 +365,7 @@ const timeline = (page) =>
         door: !!m?.querySelector('[data-exchange-primary="post-submit-support"]'),
         emergency: m?.querySelector('[data-exchange-primary="post-submit-emergency"]')?.textContent.trim(),
         lead: m?.querySelector("#post-submit-words")?.textContent.trim(),
-        heroDoor: !!document.querySelector("[data-timeline-support]"),
+        heroDoor: !document.querySelector("[data-timeline-support]") && [...document.querySelectorAll("[data-support-cta]")].some((e) => e.offsetParent !== null),
         holderInHero: /has this/.test(document.querySelector("[data-care-hero]")?.textContent ?? ""),
         echo: m?.querySelector('[data-quote="supervisor-echo"] figcaption')?.textContent.trim(),
         label: m?.querySelector("[data-ava-mark]")?.textContent.trim(),
@@ -381,7 +385,9 @@ const timeline = (page) =>
      eyebrow, and the card carries no Support button — the hero keeps the
      one door. */
   check(m0.title === "Assessment sent" && !m0.holderInHero, "the waiting node's title is the confirmation: Assessment sent", JSON.stringify({ t: m0.title, hero: m0.holderInHero }));
-  check(!m0.door && m0.heroDoor, "one Support door: the hero's ghost button; the card has none", JSON.stringify({ door: m0.door, hero: m0.heroDoor }));
+  /* RETARGETED (2026-10-28): the escalation header is deleted — the one
+     Support door is the shell's top bar; the panel has none. */
+  check(!m0.door && m0.heroDoor, "one Support door: the top bar's; the card and the panel have none", JSON.stringify({ door: m0.door, top: m0.heroDoor }));
   check(!m0.echo, "no quoted supervisor message", String(m0.echo));
   check(m0.lead === "If you need words, try one of these" && m0.nudges.length >= 2 && m0.nudges.length <= 3, "2–3 nudges, under “If you need words, try one of these”", `${m0.lead} · ${m0.nudges.length}`);
   check(m0.nudges.every((n) => !CLINICAL.test(n.text ?? "")), "no nudge is clinical", m0.nudges.map((n) => n.text).join(" | "));
@@ -402,10 +408,12 @@ const timeline = (page) =>
      deleted — filler in a crisis panel. */
   check(!m0.steady, "no steadying line", String(m0.steady));
   await page.screenshot({ path: `${OUT}/04-waiting-module.png` });
-  await page.locator('[data-timeline-support="mentor"]').click();
-  await page.waitForTimeout(500);
+  /* RETIRED (2026-10-28): "Brandy is here" had its single home in the
+     deleted escalation header. Support opens from the top bar. */
+  await page.locator("[data-support-cta]").filter({ visible: true }).first().click();
+  await page.waitForTimeout(700);
   const m3 = await mod();
-  check(m3.presence === "Brandy is here", "Support open: the hero says Brandy is here", JSON.stringify({ p: m3.presence }));
+  check(m3.presence === null && (await page.evaluate(() => document.querySelector("[data-support-slot]")?.dataset.open)) === "true", "Support opens from the top bar; no presence line remains in the panel", JSON.stringify({ p: m3.presence }));
   await ctx.close();
 }
 {

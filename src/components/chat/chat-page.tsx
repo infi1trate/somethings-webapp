@@ -34,7 +34,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { chatThreadHref } from "@/lib/record/chat";
 import { ConversationList } from "@/components/chat/list/conversation-list";
 import { Rail, type RailMode, type RailTab } from "@/components/chat/rail/rail";
-import { setSupportOpen, setSupportPinned, useSupportOpen, useSupportThread } from "@/lib/support/panel";
+import { setSupportOpen, setSupportPinned, useSupportOpen } from "@/lib/support/panel";
 import { isSupervisorTier } from "@/lib/record/permission-map";
 import { useLiveMentorRow } from "@/lib/record/use-live-mentor";
 import { DEMO_PEOPLE } from "@/lib/record/people-demo";
@@ -246,13 +246,6 @@ export function ChatPage({
       (selectedId && !roomFor(selectedId) ? teenThreads.find((t) => t.id === selectedId) : undefined) ??
       teenThreads.find((t) => !roomFor(t.id)));
 
-  /* ═══ OPEN A SUPPORT THREAD IN THE PANEL (SUP-5) ═══ The one door into
-     Support from outside it: a deep link to a support thread (anything that
-     still links `/app/chat/s-…`) and the escalation banner's "Supervisor
-     notified". Opening reads it, as a row does. Null when this persona cannot
-     reach that contact, so the caller renders plain text rather than a link
-     that opens the wrong place. */
-  const canOpenInSupport = (id: string) => !!supportThread(id, persona, scenarioId, now);
   const supportLink = !!personId && threads.some((t) => t.id === personId && t.kind === "support");
   /* An effect because the route is the input: the handoff happens once the
      threads have loaded, then the URL goes back to the list, which is what
@@ -421,7 +414,6 @@ export function ChatPage({
   /** The teen whose tier cell is arriving after a close (one beat). */
   const [arrived, setArrived] = useState<string | null>(null);
   const supportOpen = useSupportOpen();
-  const supportThreadId = useSupportThread();
   const beside = supportOpen && !!thread;
   /** ═══ THE ESCALATION FOCUS VIEW (pack v9.1) ═══ This conversation's
    *  escalation record is in this lens's hands: OPEN, or closed with its
@@ -505,21 +497,6 @@ export function ChatPage({
   const observer = isSupervisorTier(persona)
     ? { mentorName: liveMentor?.name || "The mentor" }
     : undefined;
-  /* THE OTHER PARTY TO THIS ESCALATION, when Support is open on them: the
-     notified supervisor for a mentor, the mentor for a supervisor. */
-  const otherParty = escalation ? (observer ? LIVE_ID : escalation.supervisorId) : null;
-  const otherName = otherParty === LIVE_ID
-    ? (observer?.mentorName ?? "")
-    : (DEMO_PEOPLE.find((x) => x.id === otherParty)?.name ?? "");
-  /* A first name when there is a name; the whole fallback when there is not
-     (measured: an unnamed mentor read "The is in this chat"). */
-  const otherFirst = otherParty === LIVE_ID && !liveMentor?.name ? "The mentor" : otherName.split(" ")[0];
-  /* The supervisor's "echo" — their latest Support message quoted into the
-     waiting node — is deleted with it (pack v11.0, Supersession 6). */
-  const presence =
-    supportOpen && otherParty && supportThreadId === otherParty && otherName
-      ? /* The NAME only — the Care hero says "{name} is here" (pack v4.0). */ otherFirst
-      : undefined;
   /* ═══ PINNED FOR A SUPERVISOR ═══ While an escalation is open on what a
      supervisor is watching, the observed mentor is pinned at the top of their
      Support list. Published to the panel's store; cleared on the way out. */
@@ -1346,15 +1323,6 @@ export function ChatPage({
                   onUpdateTier={() => setTierDialog("update")}
                   onRequestStepDown={() => setTierDialog("step-down")}
                   supervisorName={supervisorFirst}
-                  /* ═══ COACHING IS IN SUPPORT (pack v3.0, Supersession 2) ═══ The
-                     timeline's one link out, both lenses: the mentor to their
-                     supervisor, the supervisor to the mentor they watch. */
-                  onReplyInSupport={
-                    /* A supervisor's mentor is the PINNED contact (not in their
-                       directory), which the panel resolves by id while pinned. */
-                    otherParty && (observer ? pinMentor : canOpenInSupport(otherParty)) ? () => openInSupport(otherParty) : undefined
-                  }
-                  presence={presence}
                   onCopySuggestion={(text) => setAvaCopied(text)}
                   /* ═══ CLINICAL DIAGNOSIS IS NOT THE MENTOR'S (pack v5.0, S5) ═══ */
                   showDiagnosis={persona === "lead-mentor" || isSupervisorTier(persona)}

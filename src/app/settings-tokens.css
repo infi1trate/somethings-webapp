@@ -160,15 +160,42 @@
   --tier-legend-1-wash: #ffeaee; /* blush/50 */
   --tier-legend-1-wash-deep: #ffd9df; /* blush/100 */
   --tier-legend-1-ink: #b70b1f; /* blush/950 — = --t1-ink */
+  /* ═══ THE SELECTED EDGE (FCP-3) ═══ One step deeper than the design's
+     hue, so the 2px edge clears 3:1 against its own deepened wash (WCAG
+     1.4.11, measured): blush/700 was 2.81. */
+  --tier-legend-1-edge: #f61832; /* blush/800 — 3.19:1 on blush/100 */
   --tier-legend-2-wash: #ffe8ca; /* apricot/100 */
   --tier-legend-2-wash-deep: #ffd49c; /* apricot/200 */
   --tier-legend-2-ink: #844b04; /* apricot/800 — = --t2-ink */
+  --tier-legend-2-edge: #b26503; /* apricot/700 — 3.19:1 on apricot/200 */
   --tier-legend-3-wash: #fff6ce; /* sunshine/100 */
   --tier-legend-3-wash-deep: #fff0a2; /* sunshine/200 */
   --tier-legend-3-ink: #625804; /* sunshine/900 */
-  --tier-legend-4-wash: #e8f5e3; /* forest/50 */
-  --tier-legend-4-wash-deep: #cce8c2; /* forest/100 */
-  --tier-legend-4-ink: #406333; /* forest/700 */
+  --tier-legend-3-edge: #908005; /* sunshine/800 — 3.46:1 on sunshine/200 */
+  /* ═══ T4 IS NEUTRAL (FCP-3 6081:23553, 2026-10-28) ═══ The design moves
+     General off forest to the warm neutral: ecru, Bloom's own. */
+  --tier-legend-4-wash: #f6f4ef; /* ecru/50 */
+  --tier-legend-4-wash-deep: #e5e0d2; /* ecru/100 */
+  --tier-legend-4-ink: #65593e; /* ecru/700 */
+  --tier-legend-4-edge: #82734f; /* ecru/600 — 3.53:1 on ecru/100 */
+  /* ═══ CONTEXTUAL BORDERS ═══ Every card's hairline is its own tier's hue,
+     derived from the ink so it holds in both themes. */
+  --tier-legend-1-border: color-mix(in srgb, var(--tier-legend-1-edge) 35%, var(--tier-legend-1-wash));
+  --tier-legend-2-border: color-mix(in srgb, var(--tier-legend-2-edge) 35%, var(--tier-legend-2-wash));
+  --tier-legend-3-border: color-mix(in srgb, var(--tier-legend-3-edge) 35%, var(--tier-legend-3-wash));
+  --tier-legend-4-border: color-mix(in srgb, var(--tier-legend-4-edge) 35%, var(--tier-legend-4-wash));
+  /* ═══ THE SELECTED LOZENGE'S FILL (FCP-3) ═══ ≥ 3:1 against its wash (a
+     state indicator) AND ≥ 4.5:1 under its 11px label, both measured. T1
+     and T3 take near-black on the edge step; T2 and T4 take white on their
+     deeper steps, where no near-black pairing clears 4.5. */
+  --tier-legend-1-fill: var(--tier-legend-1-edge); /* near-black 4.71:1 */
+  --tier-legend-1-fill-ink: #0e0d0c; /* warmGrey/950 */
+  --tier-legend-2-fill: #844b04; /* apricot/800 — white 7.03:1, 5.07:1 on its wash */
+  --tier-legend-2-fill-ink: #ffffff;
+  --tier-legend-3-fill: var(--tier-legend-3-edge); /* near-black 4.88:1 */
+  --tier-legend-3-fill-ink: #0e0d0c;
+  --tier-legend-4-fill: var(--tier-legend-4-edge); /* white 4.65:1 */
+  --tier-legend-4-fill-ink: #ffffff;
   --radius-surface: 16px;
   /* CONTROL RADIUS. Added because four files already referenced
      `--radius-control` and it was NEVER DEFINED — `rounded-[var(--radius-control)]`
@@ -848,15 +875,29 @@
   --tier-legend-1-wash: #3c221f;
   --tier-legend-1-wash-deep: #4c2a26;
   --tier-legend-1-ink: #ffa8b2; /* blush/400 */
+  --tier-legend-1-edge: #fe8391; /* blush/500 */
   --tier-legend-2-wash: #3a2a1a;
   --tier-legend-2-wash-deep: #4a3520;
   --tier-legend-2-ink: #ffc06e; /* apricot/300 */
+  --tier-legend-2-edge: #ffac40; /* apricot/400 */
   --tier-legend-3-wash: #36321a;
   --tier-legend-3-wash-deep: #443f20;
   --tier-legend-3-ink: #ffec77; /* sunshine/300 */
-  --tier-legend-4-wash: #1f2e1c;
-  --tier-legend-4-wash-deep: #283b24;
-  --tier-legend-4-ink: #94cc82; /* forest/300 */
+  --tier-legend-3-edge: #ffe94b; /* sunshine/400 */
+  /* T4 neutral, dark: hand-derived from ecru/900–800, the dark washes' precedent. */
+  --tier-legend-4-wash: #2c2a25;
+  --tier-legend-4-wash-deep: #38352e;
+  --tier-legend-4-ink: #c3b798; /* ecru/300 */
+  --tier-legend-4-edge: #b1a27c; /* ecru/400 */
+  /* Dark: every fill is its edge, under near-black (≥ 7.7:1 measured). */
+  --tier-legend-1-fill: var(--tier-legend-1-edge);
+  --tier-legend-2-fill: var(--tier-legend-2-edge);
+  --tier-legend-3-fill: var(--tier-legend-3-edge);
+  --tier-legend-4-fill: var(--tier-legend-4-edge);
+  --tier-legend-1-fill-ink: #0e0d0c;
+  --tier-legend-2-fill-ink: #0e0d0c;
+  --tier-legend-3-fill-ink: #0e0d0c;
+  --tier-legend-4-fill-ink: #0e0d0c;
   --border-contour: rgb(255 255 255 / 18%); /* contour flips light-on-dark; raised with the light value */
 
   /* The same three hues, inverted: fill dark, ink light. Lifted clear of the

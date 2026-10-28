@@ -29,11 +29,13 @@
 // tier is skipped, all by the platform. (v10.0's row led with a radio mark;
 // it is gone.)
 //
-//   unselected  the tier's identity wash · outline lozenge · a hairline
-//   hover       the hairline steps to border-strong (the wash is identity,
-//               and only selection deepens it)
+//   unselected  the tier's identity wash · outline lozenge · a hairline IN
+//               THE TIER'S OWN HUE (`--tier-legend-{n}-border`, FCP-3)
+//   hover       the hairline steps halfway to the tier's edge colour
 //   focus       the Bloom focus ring on the card
-//   selected    the emphasis ring · the DEEPENED wash · outline → FILLED
+//   selected    a 2px edge in the tier's strong step (`-edge`: blush/700,
+//               apricot/600, sunshine/700, ecru/600) on the soft elevation ·
+//               the DEEPENED wash · outline → FILLED
 //               lozenge. No check glyph and no radio glyph (pack v11.0
 //               §5.3): ring presence and the lozenge's outline-to-fill are
 //               shape and weight changes, readable without colour, and the
@@ -41,10 +43,13 @@
 //   requested   selected + "Requested by {mentor} · {time}" (review)
 //   current     a quiet "Current" tag (review and update only)
 //
-// The emphasis ring is a 2px ink border, not a raised shadow: in review mode
-// this sits inside the current timeline node, which stays the only element
-// raised AND ringed (v4.0). The padding gives back the extra pixel, so
-// selecting a card moves nothing.
+// ═══ SUPERSEDES (FCP-3 6081:23553, 2026-10-28) ═══ v10.1's 2px INK ring and
+// "a ring, not a shadow". The design carries the tier's colour into the edge
+// and lifts the chosen card. It is not raised AND ringed in v4.0's sense —
+// the soft elevation has no spread ring, and the current timeline node keeps
+// that single emphasis. The padding gives back the extra pixel, so selecting
+// a card moves nothing. Selection is never colour alone: the 2px weight, the
+// lift and the lozenge's outline-to-fill all carry it.
 //
 // ═══ THE SCOPED WASH EXCEPTION (v10.1 — overrides v10 Supersession 2 HERE
 // ONLY) ═══ Tier-identity washes are sanctioned inside TierSelect alone,
@@ -65,7 +70,6 @@
 // inline and moves focus to it.
 
 import { useId, useRef, useState } from "react";
-import { RecordAvatar } from "@/components/record/record-avatar";
 import { TierLozenge } from "@/components/ui/tier-lozenge";
 import type { Placement } from "@/lib/tiering/events";
 import { tierCta as ctaFor, type TierCtaContext } from "@/lib/tiering/tier-cta";
@@ -224,31 +228,28 @@ export function TierSelect(props: TierSelectProps) {
         : current
           ? `${name} is in Tier ${current} · ${TIER_NAME[current]}. Move to`
           : `Place ${name} in`;
-  const fieldLabel = mode === "raise" ? "What’s happening?" : (review!.reasonLabel?.(tier) ?? "Reason — posted to the record");
+  /* TODO-COPY. FCP-3: confirm asks for "Add details". */
+  const fieldLabel = mode === "raise" ? "What’s happening?" : (review!.reasonLabel?.(tier) ?? (review!.kind === "confirm" ? "Add details" : "Reason — posted to the record"));
   const showFieldError = missingText && (tried || (dirty && blurred));
   const consequence = review?.consequence?.(tier) ?? null;
 
   return (
     <div data-tier-select={mode} data-tier-kind={review?.kind} className="space-y-4">
-      {/* ── THE HEADER ROW (confirm-tier only) ───────────────────────── */}
-      {review?.kind === "confirm" && review.submittedBy && (
-        <div data-tier-submitted className="flex items-center gap-2">
-          <RecordAvatar name={review.submittedBy.name} size={24} />
-          <p className="min-w-0 flex-1 text-[var(--text-secondary)]" style={LABEL}>
-            {/* TODO-COPY */}
-            {/* Unnamed, the role IS the name — said once, not "The mentor · Mentor". */}
-            Submitted by <span className="text-[var(--text-primary)]">{review.submittedBy.known ? review.submittedBy.name : "the mentor"}</span>
-            {review.submittedBy.known && " · Mentor"}
-          </p>
-          <span className="shrink-0 tabular-nums text-[var(--text-muted)]" style={LABEL}>
-            {TIME.format(review.submittedBy.at)}
-          </span>
-        </div>
+      {/* ── THE HEADER LINE (confirm-tier only, FCP-3 6081:23553) ─────────
+          WAS v10's "Submitted by {mentor} · Mentor · {time}" row. The design
+          says what the step IS; who asked stays on the requested card's own
+          tag ("Requested by {mentor} · {time}"), so attribution is kept. */}
+      {review?.kind === "confirm" && (
+        <p data-tier-submitted className="-mt-2 text-[var(--text-secondary)]" style={LABEL}>
+          {/* TODO-COPY */}A tier has already been submitted. Review the choice, then confirm or change it.
+        </p>
       )}
 
       {/* ── THE RADIOGROUP ───────────────────────────────────────────── */}
       <div>
-        <p id={`${uid}-group`} className="mb-2 text-[var(--text-muted)]" style={LABEL}>
+        {/* The group's accessible name. Visible in raise and update; in
+            confirm the header line says it, so it is for assistive tech only. */}
+        <p id={`${uid}-group`} className={cn("mb-2 text-[var(--text-muted)]", review?.kind === "confirm" && "sr-only")} style={LABEL}>
           {/* TODO-COPY */}
           {groupLabel}
         </p>
@@ -281,16 +282,16 @@ export function TierSelect(props: TierSelectProps) {
                 className={cn(
                   "group/tier relative flex w-full items-start gap-3 rounded-[var(--radius-inset)] text-left transition-colors duration-150 motion-reduce:transition-none",
                   checked
-                    ? "border-2 border-[color:var(--text-primary)] bg-[var(--wash-deep)] px-[11px] py-[9px]"
-                    : "border border-[color:var(--border-default)] bg-[var(--wash)] px-3 py-2.5",
-                  !r.ok ? "cursor-not-allowed border-dashed" : cn("cursor-pointer", !checked && "hover:border-[color:var(--border-strong)]"),
+                    ? "border-2 border-[color:var(--edge)] bg-[var(--wash-deep)] px-[11px] py-[9px] shadow-[var(--el-soft)]"
+                    : "border border-[color:var(--edge-soft)] bg-[var(--wash)] px-3 py-2.5",
+                  !r.ok ? "cursor-not-allowed border-dashed" : cn("cursor-pointer", !checked && "hover:border-[color:color-mix(in_srgb,var(--edge)_55%,var(--wash))]"),
                   /* Focus lands on the hidden input; the ring is drawn on its card. */
                   "has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-[color:var(--focus-ring)]",
                   /* ═══ THE REQUEST ARRIVES HELD (Magic 1) ═══ The ring draws
                      in on the requested card in one beat with its tag. */
                   requested && checked && "motion-safe:animate-[tier-hold_280ms_cubic-bezier(0.2,0.8,0.2,1)]"
                 )}
-                style={{ "--wash": `var(--tier-legend-${t}-wash)`, "--wash-deep": `var(--tier-legend-${t}-wash-deep)` } as React.CSSProperties}
+                style={{ "--wash": `var(--tier-legend-${t}-wash)`, "--wash-deep": `var(--tier-legend-${t}-wash-deep)`, "--edge": `var(--tier-legend-${t}-edge)`, "--edge-soft": `var(--tier-legend-${t}-border)` } as React.CSSProperties}
               >
                 <input
                   type="radio"
@@ -451,8 +452,10 @@ export function TierSelect(props: TierSelectProps) {
             type="button"
             data-tier-cancel
             onClick={props.onCancel}
-            className={cn("inline-flex min-h-11 items-center rounded-full px-3 text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]", RING)}
-            style={BODY}
+            /* FCP-3: an outlined pill at the CTA's size — the secondary of
+               the pair, never a second filled button. */
+            className={cn("inline-flex min-h-11 items-center rounded-full border border-[color:var(--border-contour)] px-6 text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
+            style={{ font: "var(--type-button)" }}
           >
             Cancel
           </button>

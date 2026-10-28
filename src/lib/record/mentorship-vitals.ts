@@ -29,13 +29,23 @@ export interface TeenIdentity {
   name: string;
   age: number | null;
   pronouns: string | null;
+  /** The teen's program state ("North Carolina") — the record's `group`. */
+  location: string | null;
+  /** Days since the teen joined the platform (`joinedDaysAgo`). */
+  daysOnPlatform: number | null;
 }
 
 /** The Care hero's identity section: name, age, pronouns — facts on file. */
 export function teenIdentity(teenId: string): TeenIdentity | null {
   const t = DEMO_TEENS.find((x) => x.id === teenId);
   if (!t) return null;
-  return { name: teenDisplayName(t), age: AGE[teenId] ?? null, pronouns: t.pronouns ?? null };
+  return {
+    name: teenDisplayName(t),
+    age: AGE[teenId] ?? null,
+    pronouns: t.pronouns ?? null,
+    location: t.group || null,
+    daysOnPlatform: typeof t.joinedDaysAgo === "number" ? Math.max(0, t.joinedDaysAgo) : null,
+  };
 }
 
 const CHECK_INS_30D: Record<string, number> = {
@@ -58,6 +68,9 @@ export interface MentorshipVitals {
   lastSpoke: string | null;
   checkIns30d: number | null;
   supervisor: { id: string; name: string } | null;
+  /** The pair's mentor — null when it is the store-backed mentor, whose name
+   *  lives in the tiering store (`liveMentorName`). */
+  mentor: { id: string; name: string } | null;
 }
 
 /** The tenure at `d` days, in the MENTEE TABLE'S OWN PHRASING (`relLength`)
@@ -91,5 +104,6 @@ export function mentorshipVitals(teenId: string): MentorshipVitals | null {
     lastSpoke: sides.length ? ago(Math.min(...sides)) : null,
     checkIns30d: CHECK_INS_30D[teenId] ?? null,
     supervisor: lead ? { id: lead.id, name: lead.name } : null,
+    mentor: mentor ? { id: mentor.id, name: mentor.name } : null,
   };
 }

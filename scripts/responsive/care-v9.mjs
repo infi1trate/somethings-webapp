@@ -237,7 +237,9 @@ let assessed;
   await page.locator('[data-tier-row="3"]').click();
   await page.locator('[data-tier-cta=confirm]').click();
   await page.waitForTimeout(1100);
-  const cells = await page.evaluate(() => ({ hero: !!document.querySelector("[data-care-hero] [data-care-brief]"), yields: document.querySelectorAll("[data-care-yield], [data-diagnosis-strip]").length, state: document.querySelector("[data-care-panel]")?.dataset.careState }));
+  /* RETARGETED (FCP-3 hero card): the diagnosis left the hero — the hero
+     is its facts section. */
+  const cells = await page.evaluate(() => ({ hero: !!document.querySelector('[data-care-hero="steady"] [data-care-metrics]'), yields: document.querySelectorAll("[data-care-yield], [data-diagnosis-strip]").length, state: document.querySelector("[data-care-panel]")?.dataset.careState }));
   /* RETARGETED (pack v9.1, Part 4): closing leaves the closed summary IN
      the room; Dismiss is the exit — and the restore is one motion. */
   const held = await cols(page);
@@ -410,14 +412,17 @@ for (const theme of ["light", "dark"]) {
         icd: !!document.querySelector("[data-icd]"),
         text: brief ? window.__ratio(brief) : null,
         chip: brief ? window.__ratio(brief.querySelector("[data-icd]")) : null,
-        working: !!document.querySelector('[data-care-tabpanel="escalation"] [data-care-hero="escalation"]'),
+        /* RETARGETED (2026-10-28): no header above the timeline — the tab
+           opens on it. */
+        working: !document.querySelector('[data-care-hero="escalation"]') && !!document.querySelector('[data-care-tabpanel="escalation"] [data-exchange]'),
       };
     });
-    if (persona === "mentor") check(y.hero && y.yields === 0 && !y.icd && y.working, `${theme} · mentor: the full hero holds while open; no diagnosis anywhere; the status block below it`, JSON.stringify(y));
+    if (persona === "mentor") check(y.hero && y.yields === 0 && !y.icd && y.working, `${theme} · mentor: the full hero holds while open; no diagnosis anywhere; the tab opens on the timeline`, JSON.stringify(y));
     else {
       report.contrast[theme] = { text: y.text, chip: y.chip };
-      check(y.hero && y.yields === 0 && y.icd && y.working, `${theme} · supervisor: the full hero holds, the diagnosis its last section`, JSON.stringify(y));
-      check(y.text >= 4.5 && y.chip >= 4.5, `${theme} · supervisor diagnosis contrast: diagnosis ${y.text}:1, ICD chip ${y.chip}:1`);
+      /* RETARGETED (FCP-3 hero card): the diagnosis left the hero for View
+         record, so its in-hero contrast rows are retired with it. */
+      check(y.hero && y.yields === 0 && !y.icd && y.working, `${theme} · supervisor: the full hero holds; the diagnosis is View record's; the tab opens on the timeline`, JSON.stringify(y));
     }
     await ctx.close();
   }

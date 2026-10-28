@@ -922,7 +922,9 @@ place above.**
   suppressed while an escalation is open — Brandon to confirm) · six
   metrics (`record/metric.tsx`, the Care Record stat, extracted) · the
   diagnosis last, supervisor and lead only. It scrolls away under the
-  sticky tab bar; an opening scrolls the panel to the top once.
+  sticky tab bar; an opening scrolls the panel to the top once. **SUPERSEDED IN
+  PART by the FCP-3 hero card below:** three sections, not five; the
+  persistence and the scroll behaviour stand.
 - **Metrics never fabricate** (`lib/record/hero-metrics.ts`): days in
   mentorship, messages sent (the thread's mentor lines, 30d), flags
   (`careFlagsFor` risk flags, 30d), escalations (the tiering store, 30d),
@@ -983,8 +985,75 @@ are Bloom's nearest tokens, named below.
   `--alert-critical-accent`, because the design's blush/700 measures 3.16:1
   under white. **Red only on Tiers 1–2:** on Tier 3 and Platform it takes the
   neutral ink fill.
-- **The Support door is the hero's again, in every state.** The card has no
-  Support button, so the v11 rule that the hero's door steps aside is gone.
+- **The card has no Support button.** Support is the shell's top-bar door,
+  because the escalation header above the timeline is deleted (see below).
+
+### TierSelect, contextual edges (FCP-3 Figma 6081:23553, feat/care-hero-card)
+
+Asked 2026-10-28: "make sure the tier colors pervade, using contextual border
+colors". **Supersedes v10.1's 2px ink ring and "a ring, not a shadow", inside
+TierSelect only. The scoped wash exception is unchanged.**
+
+- **Every card's hairline is its own tier's hue** (`--tier-legend-{n}-border`,
+  derived from the edge so it holds in both themes). Hover steps it toward
+  the edge.
+- **Selected:** a 2px edge in the tier's strong step (`-edge`), the deepened
+  wash, the soft lift, and a filled lozenge in the tier's own colour
+  (`-fill` / `-fill-ink`). It is never colour alone: weight, lift and fill
+  all carry it.
+- **Measured, not eyeballed:** the design's edge hues (blush/700,
+  apricot/600, sunshine/700) were 2.0–2.8:1 against their own wash, below
+  WCAG 1.4.11's 3:1. Each light edge is one step deeper (blush/800,
+  apricot/700, sunshine/800; ecru/600 already passed). Each filled lozenge
+  clears 3:1 on its wash and 4.5:1 under its label, with white or near-black
+  ink per tier.
+- **T4 is neutral:** ecru, not forest, as in the design (this reverses the
+  2026-10-27 "keep the proposed tiers" hue for T4 only).
+- **Review copy** (TODO-COPY): the node title "Review risk tier", one line ("A
+  tier has already been submitted…") in place of the "Submitted by" row (the
+  requested card's tag keeps the name), and "Add details". Cancel is an
+  outlined pill at the CTA's size.
+- **Not taken from the design, pending an answer:** "Active risk" for Tier 1
+  (`TIER_NAME` is a blocked constant), and the clinical criteria in raise
+  (answered 2026-10-28: mentors read the plain language).
+
+### Nothing above the timeline (feat/care-hero-card)
+
+Asked 2026-10-28: "remove all the content above the timeline in the
+escalation review". **`EscalationHero` is deleted, not orphaned.** It held
+ESCALATION, "Tier 1 requested" or the lozenge, "Opened · Awaiting
+confirmation", "{name} is here" and "Message {name} in Support". The tab
+now opens on the timeline.
+
+- **Its facts have other homes.** The raised and confirm nodes carry the
+  tier and the time; the banner carries the notification.
+- **Support is the shell's top-bar door** (`data-support-cta`), in both
+  lenses. **Presence has no home now:** "{name} is here" lived only in that
+  header, and it goes with it.
+
+### The FCP-3 hero card (Figma 6058:9828, feat/care-hero-card)
+
+Asked 2026-10-28 with the design attached (the Figma file is not readable
+through the connector). **Supersedes v11's five-section hero, marked in
+place above.** Still in every state, both lenses.
+
+- **Three sections.** The header is avatar, name, "16 yo · he/him · Illinois"
+  (the record's `group`) and View record. The facts are two columns: Mentor
+  (a supervisor's view) or Supervisor (a mentor's, since they are the
+  mentor) · Days with mentor · Days on platform (`joinedDaysAgo`) · Engaged
+  days (last 14d) · Escalations (30d) · Risk Flags (30d). The tier row is the
+  tier's name, its lozenge, the ⓘ and the lens's one action.
+- **View record is role-gated at the source.** A supervisor or lead goes to
+  the care record; a mentor goes to the Profile tab (`?rail=profile`), and
+  their DOM still holds no care-record link.
+- **Not faked:** engaged days stays BLOCKED (Meg), shown as "—" with no 14-day
+  bars. There is no presence dot, because nothing records a teen online. The
+  T4 lozenge is the canonical outline, because tier washes are TierSelect's
+  scoped exception.
+- **Moved, not lost:** the dwell ("Day 7 of 14"), the tier's rule and the
+  mentor's step-down request sit behind the ⓘ. **The diagnosis left the
+  hero**, as in the design; View record is one tap to it. Messages sent and
+  Notes are no longer shown (`heroMetrics` still computes them).
 
 ### Monitoring asserts only what it can compute (arch-mon)
 
