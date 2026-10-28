@@ -470,8 +470,10 @@ let assessed;
   /* RETARGETED (pack v11.0 §7, Supersession 6): the confirmation is the
      node's title, and the post-submit card's filled button is the one
      Support door — the hero's ghost steps aside. */
-  check(x1?.title === "Assessment sent.", "waiting says Assessment sent.", String(x1?.title));
-  check(await page.evaluate(() => /^Message Brandy in Support$/.test(document.querySelector('[data-exchange-primary="post-submit-support"]')?.textContent.trim() ?? "") && !document.querySelector('[data-timeline-support="mentor"]')), "and the one Support door is the post-submit card's button");
+  /* RETARGETED (the Assessment-sent card): no period; the card has no
+     Support button, so the hero's door is the one door again. */
+  check(x1?.title === "Assessment sent", "waiting says Assessment sent", String(x1?.title));
+  check(await page.evaluate(() => !document.querySelector('[data-exchange-primary="post-submit-support"]') && !!document.querySelector('[data-timeline-support="mentor"]') && document.querySelector('[data-exchange-primary="post-submit-emergency"]')?.textContent.trim() === "Contact emergency services"), "the hero keeps the one Support door; the card's filled button is Contact emergency services");
   await page.screenshot({ path: `${OUT}/03-m3-stay.png` });
   assessed = await store(page);
   await ctx.close();

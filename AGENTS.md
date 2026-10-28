@@ -954,7 +954,37 @@ place above.**
   Use · "Message {sup} in Support", the card's one filled button (the hero's
   door steps aside). A sent suggestion records `ChatMessage.provenance` —
   the three-state model reused: `ai_inserted` unedited, `ai_assisted` edited
-  (answered: the model's distinction stands).
+  (answered: the model's distinction stands). **SUPERSEDED by the Assessment-sent
+  card below:** the card's words, Copy in place of Use, and the filled
+  button is Contact emergency services; the hero keeps the Support door.
+
+### The Assessment-sent card (FCP-3 Figma 6106:12079, feat/assessment-sent-card)
+
+Asked 2026-10-28 with the design attached. **Supersedes pack v11.0 §7's
+post-submit card, marked in place above.** Built from the attached design: the
+Figma file is not readable through the connector (no edit access), so values
+are Bloom's nearest tokens, named below.
+
+- **The node's title is an eyebrow:** a `CircleCheck` in `--ok-ink` and
+  "Assessment sent", body and secondary (`Node`'s `eyebrow`). The card's
+  headline, "Nice work. Now stay with {name}" at `--type-title-lg`, is the
+  node's strongest line. This reverses v11's "no success-green, no check, no
+  celebration": the design acknowledges the work before the next instruction.
+  Still no animation.
+- **Copy, not Use.** Ava's lines (`stay-close.ts`, unchanged: 2–3, grounded,
+  never clinical) sit in `--surface-sunken` wells, each with Copy. The line
+  goes to the clipboard, and the page remembers it (`avaCopied`), so a sent
+  message still carrying it records `ai_inserted` unedited or `ai_assisted`
+  edited. The model's distinction survives the change of verb. The "Suggested
+  by Ava" mark is gone, as in the design; the provenance is recorded at send.
+- **The filled button is the one emergency door, not a second one.**
+  "Contact emergency services" opens Care's Emergency info tab, 911 first, as
+  the banner does. It does not dial. It wears the 911 link's own
+  `--alert-critical-accent`, because the design's blush/700 measures 3.16:1
+  under white. **Red only on Tiers 1–2:** on Tier 3 and Platform it takes the
+  neutral ink fill.
+- **The Support door is the hero's again, in every state.** The card has no
+  Support button, so the v11 rule that the hero's door steps aside is gone.
 
 ### Monitoring asserts only what it can compute (arch-mon)
 

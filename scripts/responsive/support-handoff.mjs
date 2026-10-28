@@ -112,8 +112,8 @@ for (const width of [1512, 390]) {
   const { ctx, page } = await open("mentor", width, "/app/chat/t13", { chatScenarioId: "escalation-active" }, width < 600 ? 3 : 2);
   /* ═══ RETARGETED (pack v11.0 §3.2) ═══ "Supervisor notified {time}" is
      the door to its RECORD now — Care's History — not to Support (SUP-5).
-     The Support door is the hero's ghost button (and, while the mentor
-     waits on their supervisor, the post-submit card's filled one); the
+     The Support door is the hero's ghost button, in every state (the
+     Assessment-sent card carries no Support button); the
      handoff to the notified supervisor's thread is measured through it. */
   const link = page.locator('[data-slot="banner-history"]');
   const meta = await link.evaluate((e) => ({ text: e.textContent.trim(), label: e.getAttribute("aria-label"), tag: e.tagName })).catch(() => null);

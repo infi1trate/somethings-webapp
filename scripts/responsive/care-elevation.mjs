@@ -359,14 +359,16 @@ const timeline = (page) =>
       return {
         title: document.querySelector('[data-node-state="current"] [data-node-title]')?.textContent.trim(),
         door: !!m?.querySelector('[data-exchange-primary="post-submit-support"]'),
+        emergency: m?.querySelector('[data-exchange-primary="post-submit-emergency"]')?.textContent.trim(),
+        lead: m?.querySelector("#post-submit-words")?.textContent.trim(),
         heroDoor: !!document.querySelector("[data-timeline-support]"),
         holderInHero: /has this/.test(document.querySelector("[data-care-hero]")?.textContent ?? ""),
         echo: m?.querySelector('[data-quote="supervisor-echo"] figcaption')?.textContent.trim(),
         label: m?.querySelector("[data-ava-mark]")?.textContent.trim(),
-        nudges: [...(m?.querySelectorAll("[data-suggestion]") ?? [])].map((n) => ({ id: n.dataset.suggestion, text: n.querySelector("span")?.textContent.trim(), used: n.dataset.suggestionUsed === "true" })),
+        nudges: [...(m?.querySelectorAll("[data-suggestion]") ?? [])].map((n) => ({ id: n.dataset.suggestion, text: n.querySelector("[data-suggestion-text]")?.textContent.trim(), used: n.dataset.suggestionCopied === "true" })),
         steady: m?.querySelector("[data-steadying]")?.textContent.trim(),
         presence: document.querySelector("[data-hero-presence]")?.textContent.trim() ?? null,
-        filled: [...(document.querySelector("[data-care-panel]")?.querySelectorAll("button, a") ?? [])].filter((b) => getComputedStyle(b).backgroundColor === ink).length,
+        filled: [...(document.querySelector("[data-care-panel]")?.querySelectorAll("button, a") ?? [])].filter((b) => { const bg = getComputedStyle(b).backgroundColor; return bg === ink || b.dataset.exchangePrimary === "post-submit-emergency"; }).length,
       };
     });
   const m0 = await mod();
@@ -375,26 +377,32 @@ const timeline = (page) =>
      the card's filled button is the one Support door (the hero's steps
      aside); the quoted supervisor message is deleted — it fabricated a
      presence in a space that would usually hold none. */
-  check(m0.title === "Assessment sent." && !m0.holderInHero, "the waiting node's title is the confirmation: Assessment sent.", JSON.stringify({ t: m0.title, hero: m0.holderInHero }));
-  check(m0.door && !m0.heroDoor, "one Support door: the post-submit card's button; the hero's ghost steps aside", JSON.stringify({ door: m0.door, hero: m0.heroDoor }));
+  /* RETARGETED (the Assessment-sent card): the title is the checked
+     eyebrow, and the card carries no Support button — the hero keeps the
+     one door. */
+  check(m0.title === "Assessment sent" && !m0.holderInHero, "the waiting node's title is the confirmation: Assessment sent", JSON.stringify({ t: m0.title, hero: m0.holderInHero }));
+  check(!m0.door && m0.heroDoor, "one Support door: the hero's ghost button; the card has none", JSON.stringify({ door: m0.door, hero: m0.heroDoor }));
   check(!m0.echo, "no quoted supervisor message", String(m0.echo));
-  check(m0.label === "Suggested by Ava" && m0.nudges.length >= 2 && m0.nudges.length <= 3, "2–3 nudges, labelled Suggested by Ava", `${m0.label} · ${m0.nudges.length}`);
+  check(m0.lead === "If you need words, try one of these" && m0.nudges.length >= 2 && m0.nudges.length <= 3, "2–3 nudges, under “If you need words, try one of these”", `${m0.lead} · ${m0.nudges.length}`);
   check(m0.nudges.every((n) => !CLINICAL.test(n.text ?? "")), "no nudge is clinical", m0.nudges.map((n) => n.text).join(" | "));
   check(m0.nudges.some((n) => n.id === "home") && m0.nudges.some((n) => n.id === "tired"), "grounded in what Jordan said: home, and tired", m0.nudges.map((n) => n.id).join());
-  check(m0.filled === 1, "post-submit holds ONE filled button — Message Brandy in Support", String(m0.filled));
+  check(m0.filled === 1 && m0.emergency === "Contact emergency services", "post-submit holds ONE filled button — Contact emergency services", `${m0.filled} · ${m0.emergency}`);
   const before = await page.evaluate((k) => localStorage.getItem(k), KEY);
-  await page.locator('[data-suggestion-use="home"]').click();
+  const boxBefore = await page.evaluate(() => document.querySelector('[data-slot="composer"] textarea')?.value ?? null);
+  await page.locator('[data-suggestion-copy="home"]').click();
   await page.waitForTimeout(300);
   const after = await page.evaluate((k) => ({ box: document.querySelector('[data-slot="composer"] textarea')?.value ?? null, store: localStorage.getItem(k) }), KEY);
   const m1 = await mod();
   const home = m0.nudges.find((n) => n.id === "home")?.text;
-  check(after.box === home && m1.nudges.find((n) => n.id === "home")?.used, "a nudge fills the message box and marks itself used", JSON.stringify({ box: after.box?.slice(0, 30), used: m1.nudges.find((n) => n.id === "home")?.used }));
+  /* RETARGETED: Copy, not Use — the line goes to the clipboard, the box
+     stays as it was. */
+  check(after.box === boxBefore && m1.nudges.find((n) => n.id === "home")?.used && home, "Copy marks the nudge Copied and leaves the message box alone", JSON.stringify({ box: after.box?.slice(0, 30), copied: m1.nudges.find((n) => n.id === "home")?.used }));
   check(JSON.parse(after.store).state.chatMessages?.length === JSON.parse(before).state.chatMessages?.length && !after.store.includes(home ?? "§"), "nothing is sent, and the nudge is in no record", "");
   /* RETIRED (pack v11.0, Supersession 6): the rotating steadying line is
      deleted — filler in a crisis panel. */
   check(!m0.steady, "no steadying line", String(m0.steady));
   await page.screenshot({ path: `${OUT}/04-waiting-module.png` });
-  await page.locator('[data-exchange-primary="post-submit-support"]').click();
+  await page.locator('[data-timeline-support="mentor"]').click();
   await page.waitForTimeout(500);
   const m3 = await mod();
   check(m3.presence === "Brandy is here", "Support open: the hero says Brandy is here", JSON.stringify({ p: m3.presence }));
@@ -451,7 +459,9 @@ let assessed;
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
   await page.waitForTimeout(500);
   /* A nudge, sent: no origin, no glyph. */
-  await page.locator('[data-suggestion-use="here"]').click();
+  /* Copied, then pasted as written (Copy fills nothing itself). */
+  await page.locator('[data-suggestion-copy="here"]').click();
+  await page.locator('[data-slot="composer"] textarea').fill(await page.evaluate(() => document.querySelector('[data-suggestion="here"] [data-suggestion-text]')?.textContent ?? ""));
   await page.locator('[data-slot="composer"] textarea').focus();
   await page.keyboard.press("Enter");
   await page.waitForTimeout(400);

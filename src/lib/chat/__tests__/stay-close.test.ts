@@ -18,7 +18,7 @@ describe("stayCloseNudges", () => {
     for (const line of every) for (const n of stayCloseNudges([line], "Sam")) expect(n.text).not.toMatch(CLINICAL);
     /* The steadying lines are deleted (pack v11.0); the post-submit card's
        own copy holds to the same boundary. */
-    for (const l of [POST_SUBMIT.reviewing("Brandy"), POST_SUBMIT.orient("Sam")]) expect(l).not.toMatch(CLINICAL);
+    for (const l of [POST_SUBMIT.headline("Sam"), POST_SUBMIT.body, POST_SUBMIT.suggestions]) expect(l).not.toMatch(CLINICAL);
   });
 
   it("never quotes the teen back — a clinical line in the thread grounds nothing", () => {
