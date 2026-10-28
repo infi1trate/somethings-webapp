@@ -22,6 +22,7 @@
 // It stays off the chat and the record. Recorded in AGENTS.md.
 
 import type { EscalationState } from "@/lib/chat/types";
+import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
 import { assessmentOf, supervisorStage } from "@/lib/tiering/escalation";
 import { deckProgress } from "@/lib/tiering/deck";
 import { T1_RESPONSE_SECONDS } from "@/lib/tiering/tiers";
@@ -129,4 +130,46 @@ export function queueSummary(responses: readonly T1Response[]): string | null {
   const worst = overdue.length ? Math.max(...overdue.map((r) => r.seconds)) : null;
   const head = awaiting ? `${awaiting} awaiting` : `${responses.length} confirmed`;
   return worst !== null ? `${head} · oldest ${overdueText(worst).replace(/^Overdue /, "")} overdue` : head;
+}
+
+/** ═══ ONE ROW DERIVATION, TWO HOSTS ═══ The Monitoring queue and the bell's
+ *  "Needs you now" read the same rows, in the same order — a tray that sorted
+ *  differently from the queue it summarises would be a second opinion. */
+export interface T1Row {
+  teen: MonitoringTeen;
+  id: string;
+  openedAt: number;
+  stage: T1Stage;
+  response: T1Response;
+  holder: T1Holder;
+  action: T1Action;
+}
+export function t1Rows(teens: readonly MonitoringTeen[], now: number, joined: ReadonlySet<string>, heldBy?: Readonly<Record<string, string>>): T1Row[] {
+  return teens
+    .filter((t) => t.tier === 1 && t.t1)
+    .map((t) => {
+      const e = t.t1!.escalation;
+      const mine = joined.has(e.id);
+      const holder = t1Holder({ joinedByYou: mine, heldBy: heldBy?.[t.id] ?? null, confirmedBy: t.t1!.confirmedBy });
+      return { teen: t, id: e.id, openedAt: e.openedAt, stage: t1Stage(e), response: t1Response(e, now, t.t1!.confirmedBy), holder, action: t1Action(holder, mine) };
+    })
+    .sort(compareT1);
+}
+
+/** ═══ THE TRAY'S "NEEDS YOU NOW" (Monitoring v4, §4) ═══ The UNCONFIRMED
+ *  rows only — a confirmed Tier 1 is being worked, and the tray is for what
+ *  is waiting on a supervisor. Derived from the record, never from a seen
+ *  state, so marking the bell read cannot clear one: it leaves when it is
+ *  confirmed. */
+export const needsYouNow = (rows: readonly T1Row[]) => rows.filter((r) => r.response.kind !== "confirmed");
+
+/** "Flagged by Brandon F. · note + C-SSRS" — what the mentor has sent so
+ *  far, read off the record: the raise note, and the C-SSRS once submitted.
+ *  TODO-COPY. */
+export function flaggedLine(mentor: string, e: EscalationState): string {
+  /* The roster's unnamed fallback is "The mentor"; mid-sentence it is "the
+     mentor" (v10.1: an unnamed mentor is "the mentor"). */
+  const who = mentor.replace(/^The /, "the ");
+  const sent = [e.contextNote?.trim() ? "note" : null, assessmentOf(e).submittedAt !== null ? "C-SSRS" : null].filter(Boolean);
+  return sent.length ? `Flagged by ${who} · ${sent.join(" + ")}` : `Flagged by ${who}`;
 }

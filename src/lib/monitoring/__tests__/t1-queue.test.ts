@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EscalationState } from "@/lib/chat/types";
-import { compareT1, overdueText, queueSummary, responseText, t1Action, t1Holder, t1Response, t1Stage } from "@/lib/monitoring/t1-queue";
+import { compareT1, flaggedLine, needsYouNow, overdueText, queueSummary, responseText, t1Action, t1Holder, t1Response, t1Rows, t1Stage } from "@/lib/monitoring/t1-queue";
 
 const NOW = 1_800_000_000_000;
 const esc = (over: Partial<EscalationState> = {}): EscalationState =>
@@ -83,5 +83,29 @@ describe("the hero's In-crisis detail", () => {
     const rs = [t1Response(esc({ openedAt: NOW - 15 * 60_000 }), NOW, null), t1Response(esc({ openedAt: NOW - 20_000 }), NOW, null), t1Response(esc({ confirmedTier: 1, confirmedAt: NOW }), NOW, "you")];
     expect(queueSummary(rs)).toBe("2 awaiting · oldest 14m overdue");
     expect(queueSummary([])).toBeNull();
+  });
+});
+
+describe("the tray reads the queue's rows (§4)", () => {
+  const teen = (id: string, e: EscalationState, confirmedBy: string | null = null) =>
+    ({ id, teen: id, mentor: "Brandon F.", tier: 1, t1: { escalation: e, confirmedBy } }) as unknown as Parameters<typeof t1Rows>[0][number];
+  const teens = [
+    teen("a", esc({ id: "ea", openedAt: NOW - 20_000 })),
+    teen("b", esc({ id: "eb", openedAt: NOW - 15 * 60_000 })),
+    teen("c", esc({ id: "ec", confirmedTier: 1, confirmedAt: NOW }), "Sarah"),
+  ];
+  it("Needs you now is the unconfirmed rows, in the queue's order", () => {
+    const rows = t1Rows(teens, NOW, new Set());
+    expect(rows.map((r) => r.id)).toEqual(["eb", "ea", "ec"]);
+    expect(needsYouNow(rows).map((r) => r.id)).toEqual(["eb", "ea"]);
+  });
+  it("the action follows the holder in both hosts", () => {
+    const rows = t1Rows(teens, NOW, new Set(["ea"]), { b: "Sarah" });
+    expect(Object.fromEntries(rows.map((r) => [r.id, r.action]))).toEqual({ eb: "observe", ea: "resume", ec: "observe" });
+  });
+  it("the flagged line says what the mentor has sent", () => {
+    expect(flaggedLine("Brandon F.", esc({ contextNote: "Said goodbye" }))).toBe("Flagged by Brandon F. · note");
+    expect(flaggedLine("Brandon F.", esc({ contextNote: "x", safetyCheck: { answers: {}, submittedAt: NOW } }))).toBe("Flagged by Brandon F. · note + C-SSRS");
+    expect(flaggedLine("The mentor", esc())).toBe("Flagged by the mentor");
   });
 });

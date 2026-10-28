@@ -30,15 +30,12 @@ import { markJoined, useJoined, useNowTick } from "@/lib/monitoring/t1-live";
 import {
   T1_STEPS,
   T1_STEP_LABEL,
-  compareT1,
   responseText,
-  t1Action,
-  t1Holder,
-  t1Response,
-  t1Stage,
+  t1Rows,
   type T1Action,
   type T1Holder,
   type T1Response,
+  type T1Row,
   type T1Stage,
 } from "@/lib/monitoring/t1-queue";
 import { TierAvatar, TierGroupHeader, TierTag } from "@/components/monitoring/overview/tier-bits";
@@ -151,15 +148,7 @@ function Action({ action, teen, onGo }: { action: T1Action; teen: string; onGo: 
   );
 }
 
-interface QueueRow {
-  teen: MonitoringTeen;
-  id: string;
-  openedAt: number;
-  stage: T1Stage;
-  response: T1Response;
-  holder: T1Holder;
-  action: T1Action;
-}
+type QueueRow = T1Row;
 
 function Row({ row }: { row: QueueRow }) {
   const router = useRouter();
@@ -246,24 +235,7 @@ export function EmptyTierLane({ tier }: { tier: Tier }) {
 
 export function Tier1Lane({ teens, heldBy, now }: { teens: MonitoringTeen[]; heldBy?: Readonly<Record<string, string>>; now: number }) {
   const tick = useNowTick(now);
-  const joined = useJoined();
-  const rows: QueueRow[] = teens
-    .filter((t) => t.tier === 1 && t.t1)
-    .map((t) => {
-      const e = t.t1!.escalation;
-      const mine = joined.has(e.id);
-      const holder = t1Holder({ joinedByYou: mine, heldBy: heldBy?.[t.id] ?? null, confirmedBy: t.t1!.confirmedBy });
-      return {
-        teen: t,
-        id: e.id,
-        openedAt: e.openedAt,
-        stage: t1Stage(e),
-        response: t1Response(e, tick, t.t1!.confirmedBy),
-        holder,
-        action: t1Action(holder, mine),
-      };
-    })
-    .sort(compareT1);
+  const rows = t1Rows(teens, tick, useJoined(), heldBy);
   return (
     /* The section header sits ABOVE the soft container, not inside it. */
     <section aria-labelledby="tier-1-heading" data-tier-group={1}>

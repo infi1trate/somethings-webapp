@@ -36,10 +36,12 @@ function subscribeTick(l: () => void) {
   };
 }
 
+const idle = () => () => {};
 /** Now, ticking once a second; `fallback` on the server and before the
- *  first tick, so a render is never impure. */
-export function useNowTick(fallback: number): number {
-  const t = useSyncExternalStore(subscribeTick, () => tick, () => 0);
+ *  first tick, so a render is never impure. `active: false` does not
+ *  subscribe — the bell ticks only while a Tier 1 is waiting. */
+export function useNowTick(fallback: number, active = true): number {
+  const t = useSyncExternalStore(active ? subscribeTick : idle, () => (active ? tick : 0), () => 0);
   return t || fallback;
 }
 

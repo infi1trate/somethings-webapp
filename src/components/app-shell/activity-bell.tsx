@@ -22,15 +22,19 @@
 // mentor can see), same pill. Opening the bell marks a mentor's notices read,
 // exactly as visiting the page did.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogBody, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ActivityLedger } from "@/components/activity/activity-ledger";
 import { MentorActivityList } from "@/components/activity/mentor-activity-list";
 import { EscalationNotices } from "@/components/tiering/escalation-notices";
+import { NeedsYouNow, T1CueToggle } from "@/components/tiering/needs-you-now";
+import { playT1Cue, takeArrivals } from "@/lib/monitoring/t1-cue";
+import type { T1Row } from "@/lib/monitoring/t1-queue";
+import { useNeedsYouNow } from "@/lib/monitoring/use-needs-you-now";
 import { useEscalationNotices } from "@/lib/tiering/use-notices";
-import type { EscalationNotice } from "@/lib/tiering/notifications";
+import { unreadNotices, type EscalationNotice } from "@/lib/tiering/notifications";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { isSupervisorTier } from "@/lib/record/permission-map";
 import { useMounted } from "@/lib/use-mounted";
@@ -68,14 +72,38 @@ function useActivityContent() {
     setLookedAt(esc.seenAt);
     esc.markSeen();
   };
-  return { ledger, onOpened, notices: esc.notices, lookedAt, escUnread: esc.unread };
+  /* ═══ NEEDS YOU NOW (Monitoring v4, §4) ═══ The unconfirmed Tier 1s sit
+     above everything and count toward the badge whatever was seen — they
+     leave on confirmation, not on a look. The "raised Tier 1" notice for the
+     same escalation would say it twice, so the row replaces it, in the list
+     and in the unread count. */
+  const needs = useNeedsYouNow();
+  const inTray = new Set(needs.rows.map((r) => `${r.id}:opened`));
+  const notices = inTray.size ? esc.notices.filter((n) => !inTray.has(n.id)) : esc.notices;
+  /* The cue: an arrival after the baseline, unless this persona muted it. */
+  const muted = useOnboardingStore((s) => s.t1CueMuted?.[persona] ?? false);
+  const waitingKey = needs.rows.map((r) => r.id).join(",");
+  useEffect(() => {
+    if (!needs.supervisor) return;
+    const fresh = takeArrivals(waitingKey ? waitingKey.split(",") : []);
+    if (fresh.length && !muted) playT1Cue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids; a mute change is not an arrival
+  }, [waitingKey, needs.supervisor]);
+  return { ledger, onOpened, notices, lookedAt, escUnread: unreadNotices(notices, esc.seenAt), needs: needs.rows, cue: needs.supervisor };
 }
 
-function Content({ ledger, close, notices, lookedAt }: { ledger: boolean; close: () => void; notices: EscalationNotice[]; lookedAt: number }) {
+/** The badge's words: what is waiting first, then what is unread. TODO-COPY. */
+function bellLabel(needs: number, unread: number) {
+  const parts = [needs > 0 && `${needs} Tier 1 awaiting confirmation`, unread > 0 && `${unread} unread`].filter(Boolean);
+  return parts.length ? `Activity, ${parts.join(", ")}` : "Activity";
+}
+
+function Content({ ledger, close, notices, lookedAt, needs }: { ledger: boolean; close: () => void; notices: EscalationNotice[]; lookedAt: number; needs: T1Row[] }) {
   return (
     <>
+      <NeedsYouNow rows={needs} onNavigate={close} />
       <EscalationNotices notices={notices} seenAt={lookedAt} onNavigate={close} />
-      {ledger ? <ActivityLedger variant="popover" onRowNavigate={close} /> : <MentorActivityList onNavigate={close} quietWhenEmpty={notices.length > 0} />}
+      {ledger ? <ActivityLedger variant="popover" onRowNavigate={close} /> : <MentorActivityList onNavigate={close} quietWhenEmpty={notices.length > 0 || needs.length > 0} />}
     </>
   );
 }
@@ -83,8 +111,8 @@ function Content({ ledger, close, notices, lookedAt }: { ledger: boolean; close:
 /** The desktop bar's bell: 40×40, radius-lrg, the bar's outline. */
 export function ActivityBell({ unread }: { unread: number }) {
   const [open, setOpen] = useState(false);
-  const { ledger, onOpened, notices, lookedAt, escUnread } = useActivityContent();
-  const total = unread + escUnread;
+  const { ledger, onOpened, notices, lookedAt, escUnread, needs, cue } = useActivityContent();
+  const total = unread + escUnread + needs.length;
   return (
     <Popover
       open={open}
@@ -98,7 +126,7 @@ export function ActivityBell({ unread }: { unread: number }) {
           type="button"
           data-activity-bell
           /* TODO-COPY */
-          aria-label={total > 0 ? `Activity, ${total} unread` : "Activity"}
+          aria-label={bellLabel(needs.length, unread + escUnread)}
           className={cn(
             "relative flex size-10 items-center justify-center rounded-[var(--radius-lrg)] border border-[color:var(--border-default)] transition-colors",
             open ? "bg-[var(--surface-raised)]" : "bg-transparent hover:bg-[var(--tint-hover)]",
@@ -125,9 +153,10 @@ export function ActivityBell({ unread }: { unread: number }) {
             {/* TODO-COPY */}
             Activity
           </h2>
+          {cue && <T1CueToggle />}
         </div>
         <div className="max-h-[min(70vh,calc(var(--radix-popover-content-available-height)-56px))] min-h-0 overflow-y-auto px-3 pt-3 pb-2">
-          <Content ledger={ledger} close={() => setOpen(false)} notices={notices} lookedAt={lookedAt} />
+          <Content ledger={ledger} close={() => setOpen(false)} notices={notices} lookedAt={lookedAt} needs={needs} />
         </div>
       </PopoverContent>
     </Popover>
@@ -145,8 +174,8 @@ export function ActivityBellMobile({
   ringClass: string;
 }) {
   const [open, setOpen] = useState(false);
-  const { ledger, onOpened, notices, lookedAt, escUnread } = useActivityContent();
-  const total = unread + escUnread;
+  const { ledger, onOpened, notices, lookedAt, escUnread, needs, cue } = useActivityContent();
+  const total = unread + escUnread + needs.length;
   return (
     <Dialog
       open={open}
@@ -159,7 +188,7 @@ export function ActivityBellMobile({
         <button
           type="button"
           data-activity-bell
-          aria-label={total > 0 ? `Activity, ${total} unread` : "Activity"}
+          aria-label={bellLabel(needs.length, unread + escUnread)}
           className={cn(circleClass, "relative", ringClass)}
         >
           <Bell className="size-6 text-[var(--text-primary)]" aria-hidden />
@@ -167,12 +196,15 @@ export function ActivityBellMobile({
         </button>
       </DialogTrigger>
       <DialogContent variant="sheet" className="max-h-[85dvh]">
-        <DialogTitle className="px-4 pt-4 font-display text-[16px] font-bold leading-[24px]">
-          {/* TODO-COPY */}
-          Activity
-        </DialogTitle>
+        <div className="flex items-center px-4 pt-4">
+          <DialogTitle className="font-display text-[16px] font-bold leading-[24px]">
+            {/* TODO-COPY */}
+            Activity
+          </DialogTitle>
+          {cue && <T1CueToggle />}
+        </div>
         <DialogBody className="px-3 pb-2">
-          <Content ledger={ledger} close={() => setOpen(false)} notices={notices} lookedAt={lookedAt} />
+          <Content ledger={ledger} close={() => setOpen(false)} notices={notices} lookedAt={lookedAt} needs={needs} />
         </DialogBody>
       </DialogContent>
     </Dialog>
