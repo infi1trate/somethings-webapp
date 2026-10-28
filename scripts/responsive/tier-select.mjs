@@ -50,7 +50,8 @@ const MENTOR_LINE = {
   3: () => "You're worried and want a supervisor to know, but it isn't urgent.",
 };
 const CRITERIA = {
-  1: "Specific plan with means/timeframe, in-progress self-harm, rapid symptom escalation, active command hallucinations.",
+  /* RETARGETED (pack v11.0 §5.2): the T1 line verbatim. */
+  1: "Specific suicide plan with means/timeframe, in-progress self-harm, rapid symptom escalation or active command hallucinations.",
   2: "Passive suicidal ideation, current abuse/neglect disclosures, active eating disorder/substance use without imminence.",
   3: "Low-level distress, historical mental-health issues with no active high-risk indicators.",
   4: "No issues that need supervisor intervention.",
@@ -129,7 +130,8 @@ const rows = (page, scope = "[data-tier-select]") =>
       glyph: !!r.querySelector(".size-4.rounded-full, .size-2.rounded-full"),
       bg: s.backgroundColor,
       wash: resolve(`--tier-legend-${r.dataset.tierRow}-wash`),
-      washHover: resolve(`--tier-legend-${r.dataset.tierRow}-wash-hover`),
+      washDeep: resolve(`--tier-legend-${r.dataset.tierRow}-wash-deep`),
+      borderStrong: resolve("--border-strong"),
       bw: s.borderTopWidth,
       bc: s.borderTopColor,
       h: Math.round(r.getBoundingClientRect().height),
@@ -174,10 +176,11 @@ console.log("\n── 1 · raise mode: empty → select → confirm");
     const g = document.querySelector('[data-tier-select] [role="radiogroup"]');
     return { text: l?.textContent, bg: l ? getComputedStyle(l).backgroundColor : null, inside: !!g?.contains(l), after: !!(g && l && g.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING), role: l?.getAttribute("role"), tab: l?.tabIndex };
   });
-  check(plat.bg === "rgba(0, 0, 0, 0)", "the platform escape wears no wash — it is not a tier", plat.bg);
-  check(plat.text === "Something else? Report a platform concern." && !plat.inside && plat.after && plat.role === null && plat.tab === 0, "the platform escape: below the radiogroup, outside it, its own tab stop, never a tier option", JSON.stringify(plat));
+/* RETARGETED (pack v11.0 §5): the platform-concern link is removed from raise (Supersession 4). */
+  check(plat.text === undefined, "no platform-concern link in the raise flow (pack v11.0, Supersession 4)", JSON.stringify(plat));
   const field = await page.evaluate(() => { const t = document.querySelector("[data-tier-field=note]"); return { label: document.querySelector(`label[for="${t.id}"]`)?.textContent, max: t.maxLength }; });
-  check(field.label === "What’s happening? Your supervisor will read this." && field.max === 280, "the required note: its label, a 280 cap", JSON.stringify(field));
+/* RETARGETED (pack v11.0 §5): "What's happening?" with its required marker. */
+  check(field.label === "What’s happening?*" && field.max === 280, "the required note: \"What's happening?\" with its required marker, a 280 cap", JSON.stringify(field));
   const c0 = await cta(page);
   const cancel = await page.evaluate(() => document.querySelector("[data-tier-cancel]")?.textContent);
   check(c0.text === "Confirm escalation" && c0.bg === (await ink(page)) && cancel === "Cancel", "Confirm escalation (filled, ink) + Cancel (ghost)", JSON.stringify({ ...c0, cancel }));
@@ -198,16 +201,19 @@ console.log("\n── 1 · raise mode: empty → select → confirm");
   const h1 = await page.evaluate(() => Math.round(document.querySelector("[data-tier-select]").getBoundingClientRect().height));
   const two = r1.find((r) => r.tier === "2");
   check(two.checked === "true" && two.bw === "2px" && two.bc === (await ink(page)) && r1.filter((r) => r.tier !== "2").every((r) => r.bw === "1px"), "selected: the 2px ink ring on that card alone", JSON.stringify(r1.map((r) => [r.tier, r.bw])));
-  check(two.lozState === "filled" && two.check && r1.filter((r) => r.tier !== "2").every((r) => r.lozState === "outline" && !r.check), "selected: the lozenge fills and the check lands; every other card stays outline, no check", JSON.stringify(r1.map((r) => [r.tier, r.lozState, r.check])));
+/* RETARGETED (pack v11.0 §5): no check glyph — selection is the ring and the lozenge's fill. */
+  check(two.lozState === "filled" && r1.every((r) => !r.check) && r1.filter((r) => r.tier !== "2").every((r) => r.lozState === "outline"), "selected: the lozenge fills (no check glyph, pack v11.0); every other card stays outline", JSON.stringify(r1.map((r) => [r.tier, r.lozState, r.check])));
   check(r1.every((r) => r.inputs === 1 && r.hidden && !r.glyph), "no radio glyph: one visually hidden native radio per card, the card its label", JSON.stringify(r1.map((r) => [r.inputs, r.hidden, r.glyph])));
   check(r1.every((r, i) => r.h === r0[i].h) && Math.abs(h1 - h0) <= 22, "checking a row moves nothing — every row keeps its height", JSON.stringify({ rows: r1.map((r) => r.h), before: r0.map((r) => r.h) }));
   /* ═══ THE SCOPED WASH (v10.1) ═══ Each card wears its own tier's legend
      wash — checked or not, the wash is identity, never selection. */
-  check(r1.every((r) => r.bg === r.wash) && new Set(r1.map((r) => r.bg)).size === 3 && two.bg === r0.find((r) => r.tier === "2").bg, "each card wears its tier's legend wash, the same checked or not", r1.map((r) => `T${r.tier} ${r.bg}`).join(" · "));
+/* RETARGETED (pack v11.0 §5): the SELECTED card deepens its wash; the rest wear their own. */
+  check(r1.filter((r) => r.tier !== "2").every((r) => r.bg === r.wash) && two.bg === two.washDeep && new Set(r1.map((r) => r.bg)).size === 3, "each card wears its tier's legend wash; the selected one the deepened step", r1.map((r) => `T${r.tier} ${r.bg}`).join(" · "));
   await page.locator('[data-tier-row="1"]').hover();
   await page.waitForTimeout(220);
   const hov = (await rows(page)).find((r) => r.tier === "1");
-  check(hov.bg === hov.washHover, "hover deepens the wash one step", `${hov.bg} (${hov.washHover})`);
+/* RETARGETED (pack v11.0 §5): hover steps the hairline, never the wash — only selection deepens it. */
+  check(hov.bg === hov.wash && hov.bc === hov.borderStrong, "hover steps the hairline to border-strong; the wash stays identity", `${hov.bg} · ${hov.bc}`);
   await page.mouse.move(0, 0);
   const census = await alertCensus(page, "[data-tier-select]");
   check(census.length > 0 && census.every((c) => /^lozenge T[12]$|inside lozenge/.test(c)), "alert inks on the Tier 1–2 lozenges only — never Confirm (it was red on T1–2 before v10); the washes are the scoped legend", census.join(", "));
@@ -238,7 +244,8 @@ console.log("\n── 1 · raise mode: empty → select → confirm");
   await openRaise(j.page);
   const rj = await rows(j.page);
   const three = rj.find((r) => r.tier === "3");
-  check(three?.tag === "Current" && three.disabled === "true" && three.tab === -1, "the teen's current tier carries a quiet Current tag (raise: information, not a choice)", JSON.stringify(three && { tag: three.tag, d: three.disabled }));
+/* RETARGETED (pack v11.0 §5): no Current tag in raise, and every card is choosable (answered). */
+  check(three && !three.tag && three.disabled === null, "raise: the teen's current tier is untagged and choosable (pack v11.0)", JSON.stringify(three && { tag: three.tag, d: three.disabled }));
   await j.ctx.close();
 }
 
@@ -273,7 +280,7 @@ const transcript = [];
   check(r.find((x) => x.tier === "3")?.tag === "Current" && r.find((x) => x.tier === "3")?.disabled === null, "Jordan's current tier (3) is tagged Current — checkable in review", JSON.stringify(r.find((x) => x.tier === "3")?.tag));
   const reason = await page.evaluate(() => document.querySelector("[data-tier-field=reason]")?.value);
   const rLabel = await page.evaluate(() => { const t = document.querySelector("[data-tier-field=reason]"); return document.querySelector(`label[for="${t.id}"]`)?.textContent; });
-  check(/^Reviewed (the mentor|\S+)’s note: “Jordan said/.test(reason ?? "") && rLabel === "Reason — posted to the record", "the reason: seeded with neutral framing of the mentor's note, editable", String(reason).slice(0, 60));
+  check(/^Reviewed (the mentor|\S+)’s note: “Jordan said/.test(reason ?? "") && rLabel === "Reason — posted to the record*", "the reason: seeded with neutral framing of the mentor's note, editable", String(reason).slice(0, 60));
   const c1 = await cta(page);
   check(c1.text === "Confirm Tier 1 · Active crisis" && c1.kind === "confirm", "the CTA: Confirm Tier 1 · Active crisis", c1.text);
   check((await filled(page, "[data-s1]")).length === 1, "one filled button in the panel state", (await filled(page, "[data-s1]")).join(" | "));
@@ -390,7 +397,7 @@ console.log("\n── 3 · review mode, the Update tier flow");
   await page.locator('[data-tier-row="3"]').click();
   await page.waitForTimeout(150);
   const lab = await page.evaluate(() => { const t = document.querySelector("[data-tier-field=reason]"); return document.querySelector(`label[for="${t.id}"]`)?.textContent; });
-  check((await cta(page)).text === "Update to Tier 3" && lab === "Exit document — why Imani is ready to step down", "a step down: Update to Tier 3, and the reason becomes the exit document", JSON.stringify({ cta: (await cta(page)).text, lab }));
+  check((await cta(page)).text === "Update to Tier 3" && lab === "Exit document — why Imani is ready to step down*", "a step down: Update to Tier 3, and the reason becomes the exit document", JSON.stringify({ cta: (await cta(page)).text, lab }));
   await page.locator('[data-slot="tier-update-dialog"]').screenshot({ path: `${OUT}/03-update.png` });
   await page.locator("[data-tier-field=reason]").fill("Calmer week; her aunt is home every evening.");
   const n0 = (await store(page)).tierEvents?.length ?? 0;
@@ -455,6 +462,10 @@ const s1At = (n, o = {}) => {
 /** A card's shot with 6px of air, so a ring drawn outside it (the
  *  focus-visible outline) is in the picture. */
 const shotOf = async (page, loc) => {
+  /* RETARGETED (pack v11.0): the hero is taller, so the card can sit below
+     the fold — bring it into view before measuring the crop. */
+  await loc.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(80);
   const bb = await loc.boundingBox();
   return page.screenshot({ clip: { x: bb.x - 6, y: bb.y - 6, width: bb.width + 12, height: bb.height + 12 } });
 };
@@ -542,15 +553,16 @@ for (const theme of ["light", "dark"]) {
     const row = document.querySelector('[data-s1] [data-tier-row][data-tier-checked="true"]');
     out["emphasis ring vs its wash"] = r2(ratio(rgba(getComputedStyle(row).borderTopColor), bgOf(row)));
     out["emphasis ring vs panel"] = r2(ratio(rgba(getComputedStyle(row).borderTopColor), bgOf(row.parentElement)));
-    const ck = row.querySelector("[data-tier-check]");
-    out["check glyph vs its wash"] = r2(ratio(rgba(getComputedStyle(ck).color), bgOf(row)));
+    /* RETARGETED (pack v11.0): no check glyph — the filled lozenge. */
+    const lz = row.querySelector("[data-tier-lozenge]");
+    out["filled lozenge vs its wash"] = r2(ratio(rgba(getComputedStyle(lz).backgroundColor), bgOf(row)));
     const tag = document.querySelector('[data-s1] [data-tier-row-tag="requested"]');
     out["Requested by tag"] = r2(ratio(rgba(getComputedStyle(tag).color), bgOf(tag)));
     return out;
   }, ENGINE);
   contrast[theme] = m;
   check(m["Requested by tag"] >= 4.5, `${theme}: the Requested by tag clears 4.5:1`, String(m["Requested by tag"]));
-  check(m["emphasis ring vs its wash"] >= 3 && m["emphasis ring vs panel"] >= 3 && m["check glyph vs its wash"] >= 3, `${theme}: the ring and the check clear 3:1 (non-text) on the wash and the panel`, JSON.stringify(m));
+  check(m["emphasis ring vs its wash"] >= 3 && m["emphasis ring vs panel"] >= 3 && m["filled lozenge vs its wash"] >= 3, `${theme}: the ring and the filled lozenge clear 3:1 (non-text) on the wash and the panel`, JSON.stringify(m));
   await page.locator("[data-s1]").screenshot({ path: `${OUT}/04-review-${theme}.png` });
   await ctx.close();
 }
@@ -565,10 +577,10 @@ for (const reduce of [false, true]) {
   const m1 = await page.evaluate(() => {
     const c = document.querySelector('[data-s1] [data-tier-row="2"]');
     const l = getComputedStyle(c.querySelector("[data-tier-lozenge]"));
-    return { check: getComputedStyle(c.querySelector("[data-tier-check]")).animationName, fill: l.transitionDuration, prop: l.transitionProperty };
+    return { fill: l.transitionDuration, prop: l.transitionProperty };
   });
-  if (!reduce) check(m0.row === "tier-hold" && m0.tag === "tier-settle" && m1.check === "tier-check" && m1.fill === "0.15s", "the request settles in one beat (ring + tag); selecting fills the lozenge and lands the check in one beat", JSON.stringify({ ...m0, ...m1 }));
-  else check(m0.row === "none" && m0.tag === "none" && m1.check === "none" && (m1.fill === "0s" || m1.prop === "none"), "reduced motion: an instant state swap — nothing animates", JSON.stringify({ ...m0, ...m1 }));
+  if (!reduce) check(m0.row === "tier-hold" && m0.tag === "tier-settle" && m1.fill === "0.15s", "the request settles in one beat (ring + tag); selecting fills the lozenge (the check is gone, pack v11.0)", JSON.stringify({ ...m0, ...m1 }));
+  else check(m0.row === "none" && m0.tag === "none" && (m1.fill === "0s" || m1.prop === "none"), "reduced motion: an instant state swap — nothing animates", JSON.stringify({ ...m0, ...m1 }));
   await ctx.close();
 }
 

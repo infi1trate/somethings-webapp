@@ -485,7 +485,9 @@ upcoming ghosts and the bare waiting line, each in place below.**
   Support link. **SUPERSEDED by v5.0:** the holder left the hero for the
   waiting node; the link is a ghost button; the mentor's card has no
   Clinical diagnosis cell.
-- **Single homes.** "Notified" is the banner's alone; presence ("Brandy is
+- **Single homes.** (**v11.0:** "Notified" now links to History, and while
+  the mentor waits the post-submit card's filled button is the one Support
+  door.) "Notified" is the banner's alone; presence ("Brandy is
   here") is the hero's alone; the holder is the hero's alone. While the
   mentor waits, the one Support door is the waiting module's Open Support and
   the hero hides its own. **SUPERSEDED by v5.0:** the holder's home is the
@@ -506,7 +508,8 @@ upcoming ghosts and the bare waiting line, each in place below.**
   supervisor's latest Support message, quote-framed; 2–3 Ava nudges from
   `lib/chat/stay-close.ts` — grounded in the thread, dropped by a `CLINICAL`
   guard, never sent, never persisted ("used" is component state); a rotating
-  steadying line.
+  steadying line. **SUPERSEDED by v11.0 (Supersession 6):** the module, the
+  quote and the steadying line are deleted for the post-submit card.
 - **History, both hosts:** date groups, one gutter-time anatomy, a compressed
   escalation card (lozenge title row + ONE interpuncted stage line — the
   arrow chain is retired), two-line clamps with Show more. **SUPERSEDED IN
@@ -588,7 +591,9 @@ place above) and the Profile tab's Matched row.**
   review tab.
 - **The role gate is at the source:** `care.tsx` never computes the
   mentorship for a supervisor, and a mentor's DOM holds no diagnosis, ICD
-  code or care-record link (probe).
+  code or care-record link (probe). **SUPERSEDED IN PART by v11.0:** both
+  lenses read the mentorship now (facts about the pair); the diagnosis gate
+  stands.
 - **Facts only, never a characterisation** (a blocked constant). The
   Mentorship meta is "Last spoke {when} · {n} check-ins this window", then
   "Supervised by {name}" on its own line — the pack's one line overran the
@@ -629,7 +634,9 @@ count, each marked in place above.**
   follow-up. Modes: holder, observer (read-only, live, one soft tick per
   arrival), read-only after Submit. **SUPERSEDED by v8.0:** the accordion is
   deleted for the assessment deck — a zero-open state can no longer render.
-- **`CrisisNoteAccordion`** (`escalation/crisis-note-accordion.tsx`, rows
+- **`CrisisNoteAccordion`** (**SUPERSEDED by v11.0, Supersession 5:**
+  deleted for the deck — one card per section, an atomic submit with a
+  session draft) (`escalation/crisis-note-accordion.tsx`, rows
   from `lib/tiering/note-rows.ts`): the chart's sections (Emergency for
   Tier 1 only), then Outcome, then Debrief, in one timeline node titled
   "Crisis note · n of N". "Save section" records, collapses and opens the
@@ -716,6 +723,8 @@ every state" rule, each marked in place above.**
   never unmounted. The mentor's header hides; supervisor and lead get the
   one-line `DiagnosisStrip` (diagnosis + ICD chip; a long one wraps, never
   ellipsised). The Escalation review status block is the working header.
+  **SUPERSEDED by v11.0 (Supersession 1):** the hero holds its ground in
+  every state; `Yield` and `DiagnosisStrip` are deleted.
 - **`GuidedAssessment`** (`escalation/guided-assessment.tsx`): six question
   groups, each its number, the FULL verbatim text and an answer chip (— · Yes
   · No · Not needed). **Exactly one focused question in every capture
@@ -741,7 +750,8 @@ and the Support auto-collapse inside it, each marked in place above.**
   its escalation record (`roomFor`): open, or closed with the summary not
   yet dismissed. In it the list's track is 0 and the list inert; chat and
   Care are v9's equalized proportions — 50/50, chat ≥ 480 (mentor 1512 702 ·
-  702; 1280 586 · 586; the supervisor's unchanged). THE COST, STATED: at 702
+  702; 1280 586 · 586; the supervisor's unchanged). **SUPERSEDED by v11.0:**
+  Care clamps 480–680 with chat ≥ 520 — mentor 1512 724 · 680. THE COST, STATED: at 702
   the compact question rows run ~85 characters, past the 75 ceiling — the
   pack's "proportions carry forward" won over the measure (560 was offered).
 - **"← Chats · N"** is the supervisor's "← Monitoring" bar, at every width:
@@ -779,7 +789,9 @@ no-whole-card-tints rule and v3's neutral picker, each marked in place above.**
 - **One component, two modes** (`components/tiering/tier-select.tsx`). Raise
   (mentor): Tiers 1–3, the plain-language lines, empty on load, the platform
   escape below and outside the group, a required 280-character note,
-  Confirm escalation + Cancel. Review (supervisor): Tiers 1–4, the clinical
+  Confirm escalation + Cancel. **SUPERSEDED IN PART by v11.0:** no platform
+  escape and no "Current" tag in raise, every card choosable; the check
+  glyph is gone — selected is ring + deepened wash + filled lozenge. Review (supervisor): Tiers 1–4, the clinical
   criteria, the request arriving checked and tagged "Requested by {mentor} ·
   {time}", a reason seeded from the mentor's note, and a CTA that spells the
   consequence out ("Confirm Tier 2 · High risk"), relabelled live and
@@ -825,6 +837,67 @@ no-whole-card-tints rule and v3's neutral picker, each marked in place above.**
 - **Motion:** the request settles in one beat (ring + tag); selecting fills
   the lozenge and lands the check in one beat. Reduced motion: an instant
   swap. v10's CTA crossfade was replaced by v10.1's card beat.
+
+### Chat Escalation Experience (pack v11.0, feat/chat-escalation-v11)
+
+Answered 2026-10-28 (the Phase 0 conflicts, one by one). **Authoritative over
+every earlier pack where they disagree; eight supersessions, each marked in
+place above.**
+
+- **Layout (§3).** Steady: list 300, Care 420 (yielding to 360 below a
+  480 chat), chat the fluid column — NOT the Figma's 544, which assumes a
+  232 rail; mentors keep the 92 icon rail and staff the 248 (answered: leave
+  the nav). Room: Care `min(680, max(480, 50%), 100% − 520)` — mentor 1512
+  724 · 680, supervisor 624 · 624. Room + Support: chat 520 · Care 480 ·
+  Support the remainder (348–420), the card read as `--chat-card` off
+  `data-chat-room`. **Other elements give way before Support** (answered):
+  on chat the staff rail collapses to 72 up to 1680 (`data-support-chat`).
+- **The banner is the shell's** (`app-shell/shell-banner.tsx`): at `md`+ it
+  portals into a slot above the canvas-and-Support row, sidebar edge to
+  gutter, 64 high, over Support too; the surfaces beneath square their top
+  corners. "Supervisor notified" opens Care's History.
+- **The list header** is 64 ("Teens", no chevron — answered: nothing to
+  switch to) with a REAL name search (a search button that searched nothing
+  would be dead chrome); pills 54 under a rule; rows inset, 68, 2 apart.
+- **The Care hero persists** (`rail/care-hero.tsx`), both lenses, every
+  state: identity (v7's ages, restored) · the mentorship ("Supervised by"
+  → the supervisor's record, mentor lens only) · risk tier (action right,
+  suppressed while an escalation is open — Brandon to confirm) · six
+  metrics (`record/metric.tsx`, the Care Record stat, extracted) · the
+  diagnosis last, supervisor and lead only. It scrolls away under the
+  sticky tab bar; an opening scrolls the panel to the top once.
+- **Metrics never fabricate** (`lib/record/hero-metrics.ts`): days in
+  mentorship, messages sent (the thread's mentor lines, 30d), flags
+  (`careFlagsFor` risk flags, 30d), escalations (the tiering store, 30d),
+  notes (this thread's chat notes — answered default; definition Meg).
+  ENGAGED DAYS IS BLOCKED (Meg): the slot renders "not available yet",
+  never a number — absent is not zero, and zero renders `0`.
+- **TierSelect (§5):** mentors keep the plain language — **the clinical
+  criteria are for supervisors only** (answered, reversing the pack's §1.3);
+  `TIER_CRITERIA` is §5.2 verbatim. No check glyph; selected = ring +
+  `--tier-legend-{n}-wash-deep` + filled lozenge; hover = border-strong.
+  Raise: no "Current" tag, every card choosable (answered), no platform
+  link (`PlatformReport` deleted), "What's happening?" with a required
+  marker, a footer sticky to the panel's bottom; validation on submit or
+  blur-after-input only.
+- **The assessment** keeps v9's behaviour and gains the Figma's anatomy:
+  "Question n of 6", the quote, Ask in chat →, one-line record row,
+  numbered collapsed rows with a filled Y/N pill.
+- **The crisis note is a deck** (`escalation/crisis-note-deck.tsx`): one
+  section card at a time, explicit "Record section" (outline), any row
+  re-opens intact, "n of N sections recorded", "Draft saved {time}", and
+  ONE atomic "Submit crisis note" (`submitCrisisNote`, refused unless
+  complete). The draft is sessionStorage (`lib/tiering/crisis-draft.ts`, the
+  `review-draft` precedent: clinical prose never in localStorage), keyed by
+  escalation; it survives reload, navigation and tab switches. Required
+  sections: BLOCKED (Dr. Nissan) — all required until then.
+- **Post-submit** (`escalation/post-submit-card.tsx`, copy in
+  `lib/tiering/post-submit-copy.ts`, Nicole): "Assessment sent." · "{Sup}
+  has it and is reviewing." · one orienting line · Ava's paths with a quiet
+  Use · "Message {sup} in Support", the card's one filled button (the hero's
+  door steps aside). A sent suggestion records `ChatMessage.provenance` —
+  the three-state model reused: `ai_inserted` unedited, `ai_assisted` edited
+  (answered: the model's distinction stands).
 
 ### Monitoring asserts only what it can compute (arch-mon)
 

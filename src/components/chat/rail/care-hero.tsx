@@ -41,7 +41,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { dayInTier, type TierState } from "@/lib/tiering/events";
 import { TIER_DESCRIPTION, TIER_DWELL_DAYS, TIER_MINIMUM_DAYS, T1_MAX_DAYS, type Tier } from "@/lib/tiering/tiers";
 import type { CareBrief } from "@/components/chat/rail/care";
-import type { MentorshipVitals } from "@/lib/record/mentorship-vitals";
+import type { MentorshipVitals, TeenIdentity } from "@/lib/record/mentorship-vitals";
+import type { HeroMetrics } from "@/lib/record/hero-metrics";
+import { Metric } from "@/components/record/metric";
+import { RecordAvatar } from "@/components/record/record-avatar";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -74,38 +77,45 @@ function dwell(state: TierState, now: number): { day: number; of: number | null;
   return { day, of: null, rule: null };
 }
 
-/** ═══ THE TYPE LOCKUP ═══ (report checklist 3)
+/** ═══ THE TYPE LOCKUP ═══ (pack v11.0 §4)
  *    overline        11/16 medium, tracked, uppercase, text-muted
- *    anchor headline --type-card-title (Avantt), text-primary
- *    meta            --type-field-label (12/16), text-secondary
- *    identity strip  the name at --type-body (14/20) — ONE STEP BELOW the
- *                    anchor headline, never competing with it — age and
- *                    pronouns at the meta step
- *  Each cell keeps a strict rhythm: overline · headline · meta, 4px apart. */
+ *    headline        --type-card-title (Avantt 16/24), text-primary — the
+ *                    identity name and the tenure; WEIGHT IS NOT A CHANNEL
+ *                    (only Lausanne 400 ships), so emphasis is the face
+ *    meta / caption  --type-field-label (12/16), text-secondary
+ *    metric value    `Metric`: 20/26 tabular — the hero's largest text, a
+ *                    step above the 16/24 headlines, so the row reads as data
+ *  Sections are 12 top and bottom, 16 in from the edge, split by hairlines. */
 const HEADLINE = { font: "var(--type-card-title)" } as const;
 
+/* ═══ THE HERO HOLDS ITS GROUND (pack v11.0, Supersession 1) ═══ v9 yielded
+   it while an escalation was open — the mentor's hid, the supervisor's
+   compressed to a one-line diagnosis strip. Reversed: the full hero persists
+   in every state, in both lenses, and carries MORE than before. The
+   vertical cost is paid back by the focus view's wider panel and by the hero
+   scrolling away under the sticky tab bar. `DiagnosisStrip` and `Yield`
+   are deleted, not orphaned. */
 export function CareHero({
   name,
+  identity,
+  lens,
   showDiagnosis,
   brief,
   vitals,
-  onOpenSupport,
+  metrics,
   tierCell,
 }: {
-  /** The teen's display name — for the region's label and the settle key. */
+  /** The teen's first name — for the region's label. */
   name: string;
-  /** Supervisor or lead mentor: the diagnosis anchors. Else the mentorship. */
+  identity: TeenIdentity | null;
+  lens: "mentor" | "supervisor";
+  /** Supervisor or lead mentor: the diagnosis closes the hero. */
   showDiagnosis: boolean;
   brief: CareBrief;
   vitals: MentorshipVitals | null;
-  /** The supervisor's Support thread, bound — absent when there is none. */
-  onOpenSupport?: () => void;
+  metrics: HeroMetrics;
   tierCell: React.ReactNode;
 }) {
-  /* ═══ THE PANEL HEADER, IN EVERY STATE (pack v8.0) ═══ The anchor cells
-     persist above the tab bar — steady, raising, open, closed. The escalation
-     hero moved INTO the Escalation review tab, and nothing renders above
-     these cells (the v7 identity strip is removed). */
   return (
     <section
       data-care-hero="steady"
@@ -114,65 +124,108 @@ export function CareHero({
       aria-label={`${name}'s care`}
       className="divide-y divide-[color:var(--border-subtle)] rounded-[16px] bg-[var(--surface-raised)] shadow-[var(--el-soft)]"
     >
-      {showDiagnosis ? <DiagnosisCell brief={brief} /> : <MentorshipCell who={name} vitals={vitals} onOpenSupport={onOpenSupport} />}
+      <IdentitySection identity={identity} />
+      <MentorshipCell who={name} vitals={vitals} lens={lens} />
       {tierCell}
+      <MetricsSection metrics={metrics} />
+      {showDiagnosis && <DiagnosisCell brief={brief} />}
     </section>
   );
 }
 
-/** ═══ THE ONE-LINE DIAGNOSIS STRIP (pack v9.0, Supersession 3) ═══ While an
- *  escalation is open the supervisor's header yields: the cells give way to
- *  this one line — the diagnosis and its ICD chip, nothing else — because the
- *  Escalation review tab's status block is the working header now. The tier
- *  is that block's; the record link returns with the cells on close.
- *  Supervisor and lead only: the caller gates it, as it gates the cell. A
- *  long diagnosis WRAPS rather than truncates (no meaning lost to an
- *  ellipsis, and no `title` carrying what the reader needs). */
-export function DiagnosisStrip({ brief }: { brief: CareBrief }) {
+/** ═══ 4.1 · IDENTITY (pack v11.0, Supersession 2) ═══ Not v7's strip: it is
+ *  inside the hero card, below nothing — the focus view and the supervisor's
+ *  Monitoring entry both need the panel to stand on its own. No actions. */
+function IdentitySection({ identity }: { identity: TeenIdentity | null }) {
+  if (!identity) return null;
+  const meta = [identity.age !== null ? `${identity.age} y/o` : null, identity.pronouns].filter(Boolean).join(" · ");
   return (
-    <section
-      data-diagnosis-strip
-      aria-label="Clinical diagnosis"
-      className="flex min-h-10 items-center rounded-[12px] bg-[var(--surface-raised)] px-4 py-2 shadow-[var(--el-soft)]"
-    >
-      <p className="m-0 min-w-0 break-words text-[var(--text-primary)]" style={BODY}>
-        {brief.presentation ?? (
-          <span className="text-[var(--text-secondary)]">
+    <div data-care-identity className="flex items-center gap-3 px-4 py-3">
+      <RecordAvatar name={identity.name} size={32} />
+      <div className="min-w-0">
+        <p data-identity-name className="m-0 truncate text-[var(--text-primary)]" style={HEADLINE}>
+          {identity.name}
+        </p>
+        {meta && (
+          <p data-identity-meta className="m-0 text-[var(--text-secondary)]" style={LABEL}>
             {/* TODO-COPY */}
-            No presentation assigned yet.
-          </span>
+            {meta}
+          </p>
         )}
-        {brief.presentation && brief.code && (
-          <>
-            {" "}
-            <span data-icd className="ml-1 inline-flex h-5 items-center rounded-[5px] border border-[color:var(--border-default)] px-1.5 align-[1px] font-mono text-[11px] leading-none whitespace-nowrap text-[var(--text-secondary)]">
-              {brief.code}
-            </span>
-          </>
-        )}
-      </p>
-    </section>
+      </div>
+    </div>
   );
 }
 
-/** ═══ ZONE 2 · CLINICAL DIAGNOSIS (supervisor, lead) ═══ The panel's true
- *  headline, on a strict three-line rhythm: overline · the diagnosis with its
- *  ICD code as a quiet mono chip · "Updated {date}" and the record link. */
+/** ═══ 4.4 · METRICS ═══ The Care Record stat, reused (`Metric`): three
+ *  columns, two rows, label over value, values sharing a baseline. Zero is
+ *  `0`. Absent is not zero: "Engaged days" has no source yet (BLOCKED, Meg)
+ *  and says so — never a number. No trend line: a sparkline earns its place
+ *  in a scannable list row, not in a panel competing with live escalation
+ *  content (the trend's home would be History). */
+function MetricsSection({ metrics }: { metrics: HeroMetrics }) {
+  /* ═══ THE STAT THAT KNOWS WHAT JUST HAPPENED (make it magical 2) ═══ When
+     the escalation count rises in session, its value ticks once — a DOM
+     class on change, never on first paint; stilled under reduced motion. */
+  const prev = useRef(metrics.escalations);
+  const tick = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const was = prev.current;
+    prev.current = metrics.escalations;
+    if (was === null || metrics.escalations === null || metrics.escalations <= was) return;
+    const v = tick.current?.querySelector("[data-metric='escalations'] p:nth-child(2)");
+    if (!v) return;
+    v.classList.remove("tier-settle");
+    void (v as HTMLElement).offsetWidth;
+    v.classList.add("tier-settle");
+  }, [metrics.escalations]);
+  const value = (n: number | null) =>
+    n === null ? (
+      <span data-metric-absent className="text-[var(--text-muted)]">
+        <span aria-hidden>—</span>
+        <span className="sr-only">Not available yet</span>
+      </span>
+    ) : (
+      n
+    );
+  /* TODO-COPY, every label. Windows are a BLOCKED CONSTANT (Meg). */
+  return (
+    /* ═══ VALUES SHARE A BASELINE (§4.4) ═══ At 420 a label like "Engaged
+       days (30d)" wraps to two lines, which pushed its value below its
+       neighbours' (measured). Each cell is a column whose value sits at the
+       bottom, so a row's values align however its labels wrap. */
+    <div ref={tick} data-care-metrics className="grid grid-cols-3 gap-x-4 gap-y-4 px-4 py-3 [&>[data-metric]]:flex [&>[data-metric]]:flex-col [&>[data-metric]]:justify-between">
+      <Metric slot="days" label="Days in mentorship">{value(metrics.daysInMentorship)}</Metric>
+      {/* BLOCKED (Meg): "engaged days" is undefined and no per-day log
+          exists. The slot renders; a number never does. */}
+      <Metric slot="engaged" label="Engaged days (30d)">{value(metrics.engagedDays)}</Metric>
+      <Metric slot="messages" label="Messages sent (30d)">{value(metrics.messagesSent)}</Metric>
+      <Metric slot="flags" label="Flags (30d)">{value(metrics.flags)}</Metric>
+      <Metric slot="escalations" label="Escalations (30d)">{value(metrics.escalations)}</Metric>
+      <Metric slot="notes" label="Notes">{value(metrics.notes)}</Metric>
+    </div>
+  );
+}
+
+/** ═══ 4.5 · CLINICAL DIAGNOSIS (supervisor, lead) — the hero's LAST
+ *  section ═══ The diagnosis at Body/Large-Regular (16/24) with its ICD code
+ *  as a quiet mono lozenge, inline after the last word; the record link
+ *  under it. A mentor's hero has no such section — not hidden: absent. */
 function DiagnosisCell({ brief }: { brief: CareBrief }) {
   return (
-    <div data-care-brief data-anchor="diagnosis" className="space-y-1 px-4 py-3.5">
+    <div data-care-brief data-anchor="diagnosis" className="space-y-1 px-4 py-3">
       {/* TODO-COPY */}
       <Overline>Clinical diagnosis</Overline>
       {brief.presentation ? (
         /* The code rides INLINE after the last word (a flex row orphaned it
            onto a line of its own, measured on F33.0); nowrap keeps the chip
            whole and its 4px lead with it. */
-        <p data-anchor-headline className="m-0 text-[var(--text-primary)]" style={HEADLINE}>
+        <p data-anchor-headline className="m-0 text-[var(--text-primary)]" style={{ font: "var(--type-message)" }}>
           {brief.presentation}
           {brief.code && (
             <>
               {" "}
-              <span data-icd className="ml-1 inline-flex h-5 items-center rounded-[5px] border border-[color:var(--border-default)] px-1.5 align-[2px] font-mono text-[11px] leading-none font-normal whitespace-nowrap text-[var(--text-secondary)]">
+              <span data-icd className="ml-1 inline-flex h-5 items-center rounded-[5px] border border-[color:var(--border-default)] px-1.5 align-[2px] font-mono text-[11px] leading-none whitespace-nowrap text-[var(--text-secondary)]">
                 {brief.code}
               </span>
             </>
@@ -206,22 +259,19 @@ function DiagnosisCell({ brief }: { brief: CareBrief }) {
   );
 }
 
-/** ═══ ZONE 2 · THE MENTORSHIP (mentor) ═══ Tenure as the headline; one meta
- *  line of FACTS — when they last spoke, the check-ins in the window, who
- *  supervises (a link into Support). No clinical datum, no characterisation.
- *  The headline settles once on the day its count ticks over (make it
- *  magical 2). */
-function MentorshipCell({ who, vitals, onOpenSupport }: { who: string; vitals: MentorshipVitals | null; onOpenSupport?: () => void }) {
+/** ═══ 4.2 · THE MENTORSHIP — both lenses (pack v11.0) ═══ Tenure as the
+ *  headline ("6 weeks together"); one caption of FACTS — when they last
+ *  spoke, the check-ins in the window. "Supervised by" links to the
+ *  supervisor's record, mentor lens only: a supervisor need not be told who
+ *  supervises. No clinical datum, no characterisation (a blocked constant). */
+function MentorshipCell({ who, vitals, lens }: { who: string; vitals: MentorshipVitals | null; lens: "mentor" | "supervisor" }) {
   return (
-    <div data-care-mentorship data-anchor="mentorship" className="space-y-1 px-4 py-3.5">
+    <div data-care-mentorship data-anchor="mentorship" className="space-y-1 px-4 py-3">
       {/* TODO-COPY */}
       <Overline>The mentorship</Overline>
       {vitals ? (
         <>
           <TenureHeadline who={who} tenure={vitals.tenure} ticked={vitals.tickedToday} />
-          {/* Two meta lines, on purpose: the VITALS (cadence, a fact pair) and
-              the SUPERVISION (a relationship, and a link). One line overran
-              the 327px cell and wrapped with its "·" dangling (measured). */}
           <p data-anchor-meta className="m-0 text-[var(--text-secondary)]" style={LABEL}>
             {/* TODO-COPY, every fragment. Each "·" travels with the fragment
                 after it, so a wrap never strands one at a line end. */}
@@ -233,21 +283,16 @@ function MentorshipCell({ who, vitals, onOpenSupport }: { who: string; vitals: M
               </span>
             )}
           </p>
-          {vitals.supervisor && (
+          {lens === "mentor" && vitals.supervisor && (
             <p data-vital="supervisor" className="m-0 text-[var(--text-secondary)]" style={LABEL}>
               Supervised by{" "}
-              {onOpenSupport ? (
-                <button
-                  type="button"
-                  data-mentorship-support={vitals.supervisor.id}
-                  onClick={onOpenSupport}
-                  className={cn("rounded-sm text-[var(--text-primary)] underline underline-offset-2 hover:no-underline", RING)}
-                >
-                  {vitals.supervisor.name}
-                </button>
-              ) : (
-                vitals.supervisor.name
-              )}
+              <Link
+                href={`/admin/person/${vitals.supervisor.id}`}
+                data-mentorship-supervisor={vitals.supervisor.id}
+                className={cn("rounded-sm text-[var(--text-primary)] underline underline-offset-2 hover:no-underline", RING)}
+              >
+                {vitals.supervisor.name}
+              </Link>
             </p>
           )}
         </>
@@ -311,14 +356,50 @@ export function TierCell({
   const pending = state.pending;
   const d = dwell(state, now);
   const canAskDown = role === "mentor" && (t === 2 || t === 3) && !pending && !!onRequestStepDown;
+  /* ═══ THE HERO THAT HOLDS ITS GROUND (make it magical 1) ═══ The lozenge
+     is the one thing that moves: when the tier changes in session it
+     crossfades to its new value and the "Day 1 of N" caption resets beneath
+     it, in the same beat (`tier-settle`, stilled under reduced motion). A
+     DOM class on CHANGE, never on first paint. */
+  const prevTier = useRef(t);
+  const beat = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (prevTier.current === t) return;
+    prevTier.current = t;
+    for (const el of beat.current?.querySelectorAll("[data-tier-beat]") ?? []) {
+      el.classList.remove("tier-settle");
+      void (el as HTMLElement).offsetWidth;
+      el.classList.add("tier-settle");
+    }
+  }, [t]);
+  const action =
+    role === "mentor" && onEscalate ? (
+      <TierActionButton slot="escalate" onClick={onEscalate}>
+        {/* TODO-COPY */}
+        Escalate
+      </TierActionButton>
+    ) : role === "supervisor" && onUpdateTier ? (
+      <TierActionButton slot="update-tier" onClick={onUpdateTier}>
+        {/* TODO-COPY */}
+        Update tier
+      </TierActionButton>
+    ) : null;
   return (
     /* the tier's colour is confined to the lozenge */
-      <div data-tier-card data-tier={t ?? "none"} data-tier-cell className={cn("space-y-2 px-4 py-3.5", highlight && "tier-cell-arrive")}>
+      <div ref={beat} data-tier-card data-tier={t ?? "none"} data-tier-cell className={cn("space-y-1 px-4 py-3", highlight && "tier-cell-arrive")}>
         {/* TODO-COPY */}
         <Overline>Risk tier</Overline>
-        <div className="flex items-center gap-1.5">
+        {/* ═══ 4.3 · VALUE LEFT, ACTION RIGHT ═══ Mentor → Escalate,
+            supervisor → Update tier, both opening TierSelect. While an
+            escalation is open the action is suppressed in both lenses: the
+            live decision is the Escalation review tab's, and two doors to
+            one decision in one panel is the duplication the tab exists to
+            prevent (a design decision for Brandon to confirm). */}
+        <div className="flex min-h-10 items-center gap-1.5">
           {t ? (
-            <TierLozenge tier={t} long />
+            <span data-tier-beat className="inline-flex">
+              <TierLozenge tier={t} long />
+            </span>
           ) : (
             <span className="text-[var(--text-secondary)]" style={BODY}>
               {/* TODO-COPY */}
@@ -326,6 +407,7 @@ export function TierCell({
             </span>
           )}
           {t && <TierInfo tier={t} rule={d?.rule ?? null} onRequestStepDown={canAskDown ? onRequestStepDown : undefined} />}
+          {action && <div className="ml-auto shrink-0">{action}</div>}
         </div>
         {pending ? (
           /* ═══ ONE STATUS LINE (Supersession 6) ═══ It replaces the chip AND
@@ -335,22 +417,12 @@ export function TierCell({
             Requested: Tier {pending.tier} · awaiting confirmation
           </p>
         ) : (
-          d && <DwellLine day={d.day} of={d.of} since={t === 1 ? state.since : null} />
+          d && (
+            <div data-tier-beat>
+              <DwellLine day={d.day} of={d.of} since={t === 1 ? state.since : null} />
+            </div>
+          )
         )}
-        <div className="pt-0.5">
-          {role === "mentor" && onEscalate && (
-            <TierActionButton slot="escalate" onClick={onEscalate}>
-              {/* TODO-COPY */}
-              Escalate
-            </TierActionButton>
-          )}
-          {role === "supervisor" && onUpdateTier && (
-            <TierActionButton slot="update-tier" onClick={onUpdateTier}>
-              {/* TODO-COPY */}
-              Update tier
-            </TierActionButton>
-          )}
-        </div>
       </div>
   );
 }

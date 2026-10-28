@@ -156,7 +156,9 @@ for (const w of [1512, 1280]) {
     let sc = bar.parentElement;
     while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
     const top0 = sc.getBoundingClientRect().top;
-    sc.scrollTop = 400;
+    /* RETARGETED (pack v11.0 §4): the hero carries identity and metrics
+       now, so the bar sticks further down — scroll past it. */
+    sc.scrollTop = 900;
     await new Promise((r) => setTimeout(r, 200));
     const br = bar.getBoundingClientRect(), hr = document.querySelector("[data-care-hero]").getBoundingClientRect();
     return { scrolled: sc.scrollTop, barTop: Math.round(br.top - top0), heroBottomAboveBar: hr.bottom <= br.bottom + 0.5, bg: getComputedStyle(bar).backgroundColor };
@@ -242,7 +244,9 @@ const card = (page) =>
 {
   const { ctx, page } = await open("/app/chat/t14", { persona: "supervisor", extra: T3 });
   const s = await card(page);
-  check(s.cells.join("|") === "Clinical diagnosis|Risk tier" && s.brief, "supervisor: Clinical diagnosis · Risk tier", s.cells.join(" · "));
+  /* RETARGETED (pack v11.0 §4): the mentorship for both lenses, the
+     diagnosis the hero's LAST section. */
+  check(s.cells.join("|") === "The mentorship|Risk tier|Clinical diagnosis" && s.brief, "supervisor: The mentorship · Risk tier · Clinical diagnosis (last)", s.cells.join(" · "));
   check(s.actions.join() === "update-tier", "one outline action: Update tier", s.actions.join());
   await page.screenshot({ path: `${OUT}/04-status-supervisor.png`, clip: await page.locator('[data-slot="chat-rail"]').boundingBox() });
   await ctx.close();
@@ -250,7 +254,7 @@ const card = (page) =>
 {
   const { ctx, page } = await open("/app/chat/t14", { persona: "lead-mentor", extra: T3 });
   const l = await card(page);
-  check(l.cells.join("|") === "Clinical diagnosis|Risk tier", "lead mentor: the diagnosis too", l.cells.join(" · "));
+  check(l.cells.join("|") === "The mentorship|Risk tier|Clinical diagnosis", "lead mentor: the diagnosis too, last", l.cells.join(" · "));
   await ctx.close();
 }
 {

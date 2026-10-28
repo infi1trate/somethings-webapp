@@ -41,6 +41,9 @@ import { DEMO_PEOPLE } from "@/lib/record/people-demo";
 import { openInSupport } from "@/lib/support/open";
 import { supportThread } from "@/lib/support/threads";
 import { EscalationBanner, Thread } from "@/components/chat/thread/thread";
+import { createPortal } from "react-dom";
+import { useShellBannerSlot } from "@/components/app-shell/shell-banner";
+import { useMedia } from "@/lib/ui/use-media";
 import { DetailSheet } from "@/components/chat/thread/detail-sheet";
 import { chatScenario } from "@/lib/chat/seed";
 import { activityById } from "@/lib/chat/activities";
@@ -427,6 +430,22 @@ export function ChatPage({
    *  SUPERSEDES v9.0's `!!escalation`, under which closing restored the room
    *  while the summary was still on screen. */
   const focus = !!thread && !!careEscalation;
+  /* ═══ SUPPORT SIZES ITSELF AGAINST THE ROOM (pack v11.0 §3.2) ═══ In the
+     room the card it sits beside is chat 520 + Care 480, not v9's 840, so
+     the shell's Support column reads `--chat-card` off the root
+     (`globals.css`). A DOM write in an effect — nothing re-renders for it. */
+  useEffect(() => {
+    const html = document.documentElement;
+    if (focus) html.setAttribute("data-chat-room", "");
+    else html.removeAttribute("data-chat-room");
+    return () => html.removeAttribute("data-chat-room");
+  }, [focus]);
+  /* ═══ THE BANNER SPANS TO THE GUTTER (pack v11.0, Supersession 8) ═══ At
+     `md` and up it renders in the shell's slot, over the conversation, Care
+     and an open Support column alike; below `md` it stays in this grid,
+     where the fixed bars are accounted for. */
+  const bannerSlot = useShellBannerSlot();
+  const wide = useMedia("(min-width: 60rem)");
   /** "← Chats · N": the OTHER conversations with unreads (v9.1 Part 2). */
   const unreadElsewhere = threads.filter((t) => t.id !== thread?.id && t.kind === "teen" && t.unreadCount > 0).length;
   /* ═══ MOTION FOLLOWS AN ACTION (pack v9.1, Phase 0 §5) ═══ The grid may
@@ -440,12 +459,20 @@ export function ChatPage({
      write, not state — nothing re-renders for it. */
   const layoutRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const arm = () => layoutRef.current?.setAttribute("data-chat-motion", "");
+    /* The banner lives in the SHELL's slot (pack v11.0), outside this
+       grid, so it is armed alongside — and disarmed on leaving, because the
+       slot outlives the page. */
+    const slot = () => document.querySelector("[data-shell-banner]");
+    const arm = () => {
+      layoutRef.current?.setAttribute("data-chat-motion", "");
+      slot()?.setAttribute("data-chat-motion", "");
+    };
     window.addEventListener("pointerdown", arm, { capture: true, once: true });
     window.addEventListener("keydown", arm, { capture: true, once: true });
     return () => {
       window.removeEventListener("pointerdown", arm, { capture: true });
       window.removeEventListener("keydown", arm, { capture: true });
+      slot()?.removeAttribute("data-chat-motion");
     };
   }, []);
   /* ═══ ENTERING THE VIEW IS ANNOUNCED ═══ Once per entry (a deep link, a
@@ -487,10 +514,8 @@ export function ChatPage({
   /* A first name when there is a name; the whole fallback when there is not
      (measured: an unnamed mentor read "The is in this chat"). */
   const otherFirst = otherParty === LIVE_ID && !liveMentor?.name ? "The mentor" : otherName.split(" ")[0];
-  /* ═══ THE SUPERVISOR'S ECHO (pack v4.0, D2) ═══ Their latest Support
-     message to this mentor, for the waiting node. Read, never copied. */
-  const echoMessage = !observer && escalation ? supportThread(escalation.supervisorId, persona, scenarioId, now)?.messages.filter((m) => !m.mine).at(-1) : undefined;
-  const supervisorEcho = echoMessage ? { text: echoMessage.text, at: echoMessage.at } : undefined;
+  /* The supervisor's "echo" — their latest Support message quoted into the
+     waiting node — is deleted with it (pack v11.0, Supersession 6). */
   const presence =
     supportOpen && otherParty && supportThreadId === otherParty && otherName
       ? /* The NAME only — the Care hero says "{name} is here" (pack v4.0). */ otherFirst
@@ -578,7 +603,7 @@ export function ChatPage({
   };
   /** Text the assessment wants put in the composer. A one-shot value the composer
    *  consumes — see the Composer's `insert` prop. */
-  const [insert, setInsert] = useState<{ text: string; nonce: number; origin?: MessageOrigin } | null>(null);
+  const [insert, setInsert] = useState<{ text: string; nonce: number; origin?: MessageOrigin; ava?: boolean } | null>(null);
 
   /** Which tier dialog is up: a supervisor's update, a mentor's request. */
   const [tierDialog, setTierDialog] = useState<"update" | "step-down" | null>(null);
@@ -866,7 +891,14 @@ export function ChatPage({
              time every property's change (`transition-property` defaults to
              `all`) — measured: the deep link animated through them. */
           "motion-safe:data-[chat-motion]:transition-[grid-template-columns] motion-safe:data-[chat-motion]:duration-[var(--focus-dur)] motion-safe:data-[chat-motion]:ease-[var(--focus-ease)]",
-          "[--focus-care:min(50%,calc(100%_-_480px))]",
+          /* ═══ THE ROOM'S PROPORTIONS (pack v11.0 §3.2) ═══ An even split,
+             Care clamped 480–680 and the chat never under 520: mentor 1512
+             724 · 680 (Care at its cap), supervisor 624 · 624. Steady, Care
+             is the Figma's 420 wherever the chat keeps 480 beside the list,
+             and gives way to 360 below that. Both are LENGTHS, so the
+             columns still interpolate in one motion (v9). */
+          "[--focus-care:min(680px,max(480px,50%),calc(100%_-_520px))]",
+          listless ? "[--steady-care:clamp(360px,calc(100%_-_480px),420px)]" : "[--steady-care:clamp(360px,calc(100%_-_780px),420px)]",
           beside
             ? focus
               ? /* SUPPORT BESIDE AN ESCALATION: the list is already gone
@@ -874,7 +906,18 @@ export function ChatPage({
                    chat max(480, half), Care the rest. Below an 800 canvas
                    (480 + a 320 Care) the hub is the drawer, as it is below
                    the two-pane floor. */
-                "min-[1120px]:@min-[800px]/canvas:grid-cols-[max(480px,50%)_minmax(0,1fr)] min-[1120px]:@min-[800px]/canvas:[grid-template-areas:'banner_banner'_'thread_rail']"
+                /* pack v11.0: from a 1000 canvas chat holds 520, Care clamps
+                   to 480, Support takes what is left (its own column,
+                   `support-panel.tsx`). Between 800 and 1000 — the shell
+                   could not make room, e.g. a 1280 viewport — v9's split
+                   holds (chat max(480, half), Care the rest), so the room
+                   degrades a step rather than collapsing (measured: with
+                   no rule below 1000 the chat fell to 13px). Below 800 the
+                   hub is the drawer. */
+                [
+                  "min-[1120px]:@min-[800px]/canvas:grid-cols-[max(480px,50%)_minmax(0,1fr)] min-[1120px]:@min-[800px]/canvas:[grid-template-areas:'banner_banner'_'thread_rail']",
+                  "min-[1120px]:@min-[1000px]/canvas:grid-cols-[minmax(520px,1fr)_480px]",
+                ]
               : /* Two panes from a 1120 VIEWPORT, the pack's rule (it was a
                    680 canvas floor, which turned the hub into a drawer at
                    1280 for staff: their nav is 248, not the Figma's 232).
@@ -884,7 +927,7 @@ export function ChatPage({
               ? [
                   focus
                     ? "xl:@min-[1000px]/canvas:grid-cols-[minmax(0,1fr)_var(--focus-care)]"
-                    : "xl:@min-[1000px]/canvas:grid-cols-[minmax(0,1fr)_360px]",
+                    : "xl:@min-[1000px]/canvas:grid-cols-[minmax(0,1fr)_var(--steady-care)]",
                   "xl:@min-[1000px]/canvas:[grid-template-areas:'banner_banner'_'thread_rail']",
                 ]
               : [
@@ -897,30 +940,41 @@ export function ChatPage({
                   "md:@min-[640px]/canvas:[grid-template-areas:'list_banner'_'list_thread']",
                   focus
                     ? "xl:@min-[1000px]/canvas:grid-cols-[0px_minmax(0,1fr)_var(--focus-care)]"
-                    : "xl:@min-[1000px]/canvas:grid-cols-[300px_minmax(0,1fr)_360px]",
+                    : "xl:@min-[1000px]/canvas:grid-cols-[300px_minmax(0,1fr)_var(--steady-care)]",
                   "xl:@min-[1000px]/canvas:[grid-template-areas:'list_banner_banner'_'list_thread_rail']",
                 ]
         )}
       >
-        {/* ── THE ACTION BAR SLOT: the banner spans thread + hub ─────────── */}
-        {thread && escalation && (
-          <div data-chat-banner className={cn("[grid-area:banner]", view === "list" && "hidden md:block")}>
+        {/* ── THE ACTION BAR: the shell's slot at `md`+, else this grid ─── */}
+        {thread && escalation && (() => {
+          const bar = (
+          <div
+            data-chat-banner
+            className={cn(
+              bannerSlot && wide
+                ? /* In the slot: the top of the canvas-and-Support surface.
+                     A room ENTERED mid-chat composes it in the same beat as
+                     the columns; a load lands it (the slot's motion gate). */
+                  "overflow-hidden md:rounded-t-[var(--radius-panel)] md:shadow-[var(--elevation-1)] motion-safe:in-data-[chat-motion]:animate-[banner-in_var(--focus-dur)_var(--focus-ease)]"
+                : cn("[grid-area:banner]", view === "list" && "hidden md:block")
+            )}
+          >
             <EscalationBanner
               escalation={escalation}
-              onOpenSupervisor={
-                !observer && canOpenInSupport(escalation.supervisorId)
-                  ? () => openInSupport(escalation.supervisorId)
-                  : undefined
-              }
               /* The WORKING tier — a supervisor's adjustment recolours it. */
               tone={isAlertTier(workingTier(escalation, tiering.stateFor(thread.id))) ? "critical" : "neutral"}
               /* ═══ THE ONE EMERGENCY ENTRY (pack v3.0, Supersessions 5–6) ═══
                  "Open Care" is gone and the in-panel red button with it; the
                  chip opens Care on its Emergency info tab, both lenses. */
               onOpenCrisis={() => openCare("emergency")}
+              /* pack v11.0: "Supervisor notified {time}" is the door to the
+                 record of it — Care's History. */
+              onOpenHistory={() => openCare("history")}
             />
           </div>
-        )}
+          );
+          return bannerSlot && wide ? createPortal(bar, bannerSlot) : bar;
+        })()}
 
         {/* ── LIST ── (none for the supervisor tier — see `listless`) ───── */}
         {!listless && <ConversationList
@@ -1093,7 +1147,13 @@ export function ChatPage({
                            while it still carries the question's words. Edited
                            into something else, it is the mentor's own line. */
                         const origin = insert?.origin && text.includes(insert.text.slice(0, 24)) ? insert.origin : undefined;
-                        appendChatMessage({ id: `sent-${thread.id}-${at}`, threadId: thread.id, at, sender: "mentor", kind: "text", text, ...(origin ? { origin } : {}) });
+                        /* ═══ AVA'S PROVENANCE (pack v11.0 §7.2) ═══ The same
+                           retention test: a line still carrying the
+                           suggestion is Ava's — `ai_inserted` as written,
+                           `ai_assisted` once edited (the model's own
+                           distinction, answered 2026-10-28). */
+                        const provenance = insert?.ava && text.includes(insert.text.slice(0, 24)) ? (text.trim() === insert.text.trim() ? "ai_inserted" : "ai_assisted") : undefined;
+                        appendChatMessage({ id: `sent-${thread.id}-${at}`, threadId: thread.id, at, sender: "mentor", kind: "text", text, ...(origin ? { origin } : {}), ...(provenance ? { provenance } : {}) });
                       }
                 }
                 phone={teen?.phone ?? null}
@@ -1288,7 +1348,7 @@ export function ChatPage({
                     otherParty && (observer ? pinMentor : canOpenInSupport(otherParty)) ? () => openInSupport(otherParty) : undefined
                   }
                   presence={presence}
-                  echo={supervisorEcho}
+                  onUseSuggestion={(text) => setInsert((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1, ava: true }))}
                   /* ═══ CLINICAL DIAGNOSIS IS NOT THE MENTOR'S (pack v5.0, S5) ═══ */
                   showDiagnosis={persona === "lead-mentor" || isSupervisorTier(persona)}
                   emergency={emergencyInfo}
@@ -1308,7 +1368,7 @@ export function ChatPage({
                   }}
                   highlightTier={arrived === thread.id}
                   arrivedForCare={arrivedForCare}
-                  onOpenSupportTo={(id) => (canOpenInSupport(id) ? () => openInSupport(id) : undefined)}
+                  metricInputs={{ messages, notes: notes.length }}
                 />
               }
               assist={assist}

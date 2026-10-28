@@ -46,6 +46,7 @@
 // cannot be learned.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Search, X } from "lucide-react";
 import { ConversationRow, type RowEscalation } from "@/components/chat/list/conversation-row";
 import type { ChatThread, ThreadId } from "@/lib/chat/types";
 import { touchTarget } from "@/lib/touch-target";
@@ -181,7 +182,14 @@ export function ConversationList({
      showing nothing — and the filter row reflects it, because `filter` is read
      through this. */
   const effectiveFilter = visible.length === 0 && filter !== "all" ? "all" : filter;
-  const rows = applyFilter(inWorkspace, effectiveFilter);
+  /* ═══ SEARCH BY NAME (pack v11.0 §3.1) ═══ The Figma's header carries a
+     search button; a button that searched nothing would be a dead control,
+     so it does what it shows: it opens a name filter in the header, applied
+     after the segment. Session state, never persisted. */
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const rows = applyFilter(inWorkspace, effectiveFilter).filter((t) => !q || t.displayName.toLowerCase().includes(q));
   /* The partition (pack v9.1): open escalations first, order kept. */
   const pinned = rows.filter((t) => !!escalations?.[t.id]);
   const rest = rows.filter((t) => !escalations?.[t.id]);
@@ -247,13 +255,64 @@ export function ConversationList({
         className
       )}
     >
+      {/* ── HEADER (pack v11.0 §3.1): 64 high, 16 inset — "Teens", and a
+          40×40 search on the right. No chevron: nothing in the Figma says
+          what it would switch to (answered). ─────────────────────────── */}
+      <div data-list-header className="flex h-16 shrink-0 items-center gap-2 pr-3 pl-4">
+        {searching ? (
+          <input
+            autoFocus
+            data-list-search
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setQuery("");
+                setSearching(false);
+              }
+            }}
+            /* TODO-COPY */
+            aria-label="Search conversations by name"
+            placeholder="Search by name"
+            className={cn(
+              "h-10 min-w-0 flex-1 rounded-full border border-[color:var(--border-default)] bg-[var(--surface-card)] px-4 text-[var(--text-primary)] placeholder:text-[var(--text-muted)]",
+              RING
+            )}
+            style={{ font: "var(--type-body)" }}
+          />
+        ) : (
+          <h2 className="min-w-0 flex-1 truncate text-[var(--text-primary)]" style={{ font: "var(--type-title-lg)" }}>
+            {/* TODO-COPY */}
+            Teens
+          </h2>
+        )}
+        <button
+          type="button"
+          data-list-search-toggle
+          onClick={() => {
+            if (searching) setQuery("");
+            setSearching((v) => !v);
+          }}
+          /* TODO-COPY */
+          aria-label={searching ? "Close search" : "Search conversations"}
+          className={cn(
+            "flex size-10 shrink-0 items-center justify-center rounded-full text-[var(--icon-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+            RING
+          )}
+        >
+          {searching ? <X aria-hidden className="size-5" /> : <Search aria-hidden className="size-5" />}
+        </button>
+      </div>
+
       {/* ── FILTERS ───────────────────────────────────────────────────── */}
       <div
         role="group"
         /* TODO-COPY */
         aria-label="Filter conversations"
-        /* `pt-3`: the switch above it, which carried the top padding, is gone. */
-        className="flex shrink-0 items-center gap-1.5 px-3 pt-3 pb-2.5"
+        /* 54 high with its rule beneath (pack v11.0 §3.1): pills at a 12px
+           top inset, 8 apart. */
+        className="flex h-[54px] shrink-0 items-start gap-2 border-b border-[color:var(--border-subtle)] px-4 pt-3"
       >
         {(["all", "unread", "check-in"] as ListFilter[]).map((f) => {
           const n = countFor(inWorkspace, f);
@@ -343,7 +402,7 @@ export function ConversationList({
             {/* TODO-COPY. Only reachable with an empty roster, which is not a
                 state the fixtures produce — kept because an empty branch that
                 renders nothing is a blank panel. */}
-            No conversations here yet.
+            {q ? `No conversations match “${query.trim()}”.` : "No conversations here yet."}
           </p>
         ) : (
           /* ═══ THE ACTIVE ESCALATION GROUP (pack v9.1) ═══ A PARTITION of the
@@ -369,7 +428,7 @@ export function ConversationList({
                   {/* TODO-COPY */}
                   Active escalation
                 </h3>
-                <ul role="list">
+                <ul role="list" className="space-y-0.5 px-2 pb-1.5">
                   {pinned.map((t) => (
                     <li key={t.id}>
                       <ConversationRow
@@ -385,10 +444,12 @@ export function ConversationList({
                     </li>
                   ))}
                 </ul>
-                <div aria-hidden className="mx-4 border-t border-[color:var(--border-subtle)]" />
+                <div aria-hidden className="mx-4 mb-1.5 border-t border-[color:var(--border-subtle)]" />
               </section>
             )}
-            <ul role="list" data-list-group="conversations">
+            {/* Rows inset 8 left and right, 6 from the top, 68 high and 2 apart
+                (pack v11.0 §3.1). */}
+            <ul role="list" data-list-group="conversations" className={cn("space-y-0.5 px-2", pinned.length === 0 && "pt-1.5")}>
               {rest.map((t) => (
                 <li key={t.id}>
                   <ConversationRow

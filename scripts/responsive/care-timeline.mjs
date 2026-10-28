@@ -128,12 +128,14 @@ async function noteThrough(page, ids) {
     emergency: async () => { await page.locator('[data-yes-no="contact:no"]').click(); await page.locator('[data-yes-no="services:no"]').click(); },
   };
   for (const id of ids) {
-    /* RETARGETED (pack v6.1): "Continue" is "Save section" on the row; the
-       next untouched row opens after the breath. */
-    if (!(await page.locator(`[data-note-row="${id}"][data-note-open]`).count())) await page.locator(`[data-note-row="${id}"] > button`).click();
+    /* RETARGETED (pack v11.0, Supersession 5): the deck — open the row's
+       card if it is not the active one, fill it, Record section. The
+       record goes to the SESSION DRAFT; the store holds the note only once
+       it is submitted (atomic, §6.6). */
+    if (!(await page.locator(`[data-deck-card="${id}"]`).count())) await page.locator(`[data-deck-open="${id}"]`).click();
     await steps[id]();
-    await page.locator(`[data-exchange-primary="save-section:${id}"]`).click();
-    await page.waitForTimeout(450);
+    await page.locator(`[data-record-section="${id}"]`).click();
+    await page.waitForTimeout(300);
   }
 }
 
@@ -158,11 +160,16 @@ const STATES = [];
   /* RETARGETED (pack v6.1): Outcome and Debrief are the note's last rows;
      saving Emergency opened Outcome. */
   await s.page.locator('[data-choice="outcome:stabilized"]').click();
-  await s.page.locator('[data-exchange-primary="save-section:outcome"]').click();
-  await s.page.waitForTimeout(450);
+  await s.page.locator('[data-record-section="outcome"]').click();
+  await s.page.waitForTimeout(300);
   STATES.push(["Tier 1 · outcome chosen", await store(s.page)]);
   await s.page.locator('[data-exchange-field="plan"]').fill("Check in daily this week.");
-  await s.page.locator('[data-exchange-primary="save-section:debrief"]').click();
+  await s.page.locator('[data-record-section="debrief"]').click();
+  await s.page.waitForTimeout(300);
+  /* RETARGETED (pack v11.0 §6.6): the one atomic write. Before it, the
+     "in progress" / "outcome chosen" states above read the same stored
+     record as "confirmed" — the draft is the author's until Submit. */
+  await s.page.locator('[data-exchange-primary="submit-crisis-note"]').click();
   await s.page.waitForTimeout(600);
   STATES.push(["Tier 1 · debrief saved", await store(s.page)]);
   await s.page.locator('[data-exchange-primary="close-escalation"]').click();
@@ -277,13 +284,18 @@ console.log("\n── 4 · keyboard: Care tabs, timeline traversal, the live ann
   const live = await page.evaluate(() => ({ role: document.querySelector("[data-timeline-live]")?.getAttribute("role"), live: document.querySelector("[data-timeline-live]")?.getAttribute("aria-live"), text: document.querySelector("[data-timeline-live]")?.textContent }));
   /* RETARGETED (pack v6.1): the current node is the one Crisis note, its
      title carrying the progress. */
-  check(live.role === "status" && live.live === "polite" && live.text === "Now: Crisis note · 1 of 6", "the current node is announced politely: “Now: Crisis note · 1 of 6”", JSON.stringify(live));
+  /* RETARGETED (pack v11.0 §6): the node's title is "Crisis note" — the
+     deck states its own progress, from the draft. */
+  check(live.role === "status" && live.live === "polite" && live.text === "Now: Crisis note", "the current node is announced politely: “Now: Crisis note”", JSON.stringify(live));
   /* Saving a section moves the count, and the accordion announces the save. */
+  /* RETARGETED (pack v11.0 §6): recording a section moves the deck's
+     count and the deck announces it; the node holds still. */
+  if (!(await page.locator('[data-deck-card="safety-plan"]').count())) await page.locator('[data-deck-open="safety-plan"]').click();
   await page.locator('[data-choice="safety-plan:maintained"]').click();
-  await page.locator('[data-exchange-primary="save-section:safety-plan"]').click();
-  await page.waitForTimeout(450);
-  const live2 = await page.evaluate(() => ({ now: document.querySelector("[data-timeline-live]")?.textContent, saved: document.querySelector("[data-note-live]")?.textContent }));
-  check(live2.now === "Now: Crisis note · 2 of 6" && live2.saved === "Safety plan saved · 2 of 6 sections", "and it moves with the save: the count, and “Safety plan saved · 2 of 6 sections”", JSON.stringify(live2));
+  await page.locator('[data-record-section="safety-plan"]').click();
+  await page.waitForTimeout(300);
+  const live2 = await page.evaluate(() => ({ now: document.querySelector("[data-timeline-live]")?.textContent, saved: document.querySelector("[data-deck-live]")?.textContent, progress: document.querySelector("[data-deck-progress]")?.textContent }));
+  check(live2.now === "Now: Crisis note" && live2.saved === "Safety plan recorded · 2 of 6 sections recorded" && live2.progress === "2 of 6 sections recorded", "and the deck moves with the record: “Safety plan recorded · 2 of 6 sections recorded”", JSON.stringify(live2));
   const fresh = await page.evaluate(() => [...document.querySelectorAll("[data-node-fresh]")].map((n) => n.closest("[data-node]").dataset.node));
   check(fresh.length === 0, "a section save settles no timeline node — the note completes once, as one node", fresh.join(","));
   const exp = await page.locator('[data-node="assessment"] button[aria-expanded]').first().getAttribute("aria-expanded");

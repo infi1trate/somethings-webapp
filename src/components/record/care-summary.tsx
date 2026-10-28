@@ -67,6 +67,7 @@ import {
 } from "@/lib/record/people-demo";
 import { LIVE_ID, recordHrefFor } from "@/lib/record/subject";
 import { cn } from "@/lib/utils";
+import { Metric } from "@/components/record/metric";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -95,48 +96,8 @@ const STATEMENT = {
   fontWeight: 400,
 } as const;
 
-/** One metric: label ABOVE value, per the brief. Values are tabular so the
- *  numbers line up down a column of records, which is the whole point of a
- *  named metric keeping its own format. */
-function Metric({
-  label,
-  children,
-  sub,
-  tone = "default",
-}: {
-  label: React.ReactNode;
-  children: React.ReactNode;
-  /** The muted second line — a date, a lock, a countdown. */
-  sub?: React.ReactNode;
-  /** "warning" is used ONLY by an overdue countdown, and only on the sub-line.
-   *  It never tints a surface — see the module note on honest severity. */
-  tone?: "default" | "warning";
-}) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
-        {label}
-      </p>
-      {/* ~20px, tabular. Values rise so the row scans as data; labels dropped
-          to 12px so the pair reads label-then-value rather than two peers. */}
-      <p className="mt-1 flex min-w-0 items-center gap-2 text-[20px] leading-[26px] tabular-nums text-[var(--text-primary)]">
-        {children}
-      </p>
-      {sub && (
-        <p
-          className={cn(
-            "mt-0.5 text-[13px] leading-[18px]",
-            tone === "warning"
-              ? "font-semibold text-[var(--alert-warning-fg)]"
-              : "text-[var(--text-muted)]"
-          )}
-        >
-          {sub}
-        </p>
-      )}
-    </div>
-  );
-}
+/* `Metric` moved to `record/metric.tsx` (pack v11.0) — the Care hero reads
+   the same stat. */
 
 export function CareSummaryCard({
   teen,

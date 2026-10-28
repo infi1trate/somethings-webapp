@@ -23,6 +23,7 @@ import { tierStateFor, type TierActor, type TierEvent, type TierState } from "@/
 import { CLOSE_OUT_TIER, assessmentOf, crisisSections, isOpen, sectionDone, type CrisisSectionId } from "@/lib/tiering/escalation";
 import { noteComplete, sectionFields } from "@/lib/tiering/note-rows";
 import { isAlertTier } from "@/lib/tiering/tiers";
+import type { CrisisDraft } from "@/lib/tiering/crisis-draft";
 import { seedEscalationEvents, seedEscalationHistory, seedEscalations, seedTierEvents } from "@/lib/tiering/seed";
 import type { RaiseTarget, Tier } from "@/lib/tiering/tiers";
 
@@ -56,6 +57,11 @@ export interface Tiering {
   /** `section` names the row being saved, so a re-save of a completed one
    *  is logged as an amendment (pack v6.1). */
   saveCrisisNote: (teenId: string, patch: Partial<CrisisNote>, section?: CrisisSectionId) => void;
+  /** ═══ THE ATOMIC SUBMIT (pack v11.0 §6.6) ═══ The whole note — sections,
+   *  outcome, debrief — written ONCE, from the deck's session draft, with
+   *  each section's `sectionAt` its recorded time. Refused (false) unless
+   *  every row is complete: a partial note is never posted. */
+  submitCrisisNote: (teenId: string, draft: CrisisDraft) => boolean;
   /** The outcome node: which outcome, and whether it is still the auto-tag. */
   chooseOutcome: (teenId: string, input: { id: string; autoTagged: boolean; basis?: string | null }) => void;
   /** The debrief node, after the outcome: saving it completes the step. */
@@ -249,6 +255,34 @@ export function useTiering(now: number): Tiering {
         /* ═══ AN AMENDMENT IS APPENDED, NEVER OVERWRITTEN (pack v6.1) ═══ */
         const amended = section && sectionDone(e.crisisNote, section) ? [{ row: section, at, before: sectionFields(e.crisisNote, section) }] : [];
         putEscalation({ ...e, crisisNote: { ...next, sectionAt, updatedAt: at }, noteAmendments: [...(e.noteAmendments ?? []), ...amended] });
+      },
+      submitCrisisNote: (teenId, draft) => {
+        const e = escalationFor(teenId);
+        if (!isOpen(e) || e.confirmedTier === undefined || !isAlertTier(e.confirmedTier)) return false;
+        const at = Date.now();
+        const tier = e.confirmedTier;
+        const sectionAt: Partial<Record<CrisisSectionId, number>> = { ...e.crisisNote?.sectionAt };
+        for (const id of crisisSections(tier)) sectionAt[id] = draft.recorded[id] ?? sectionAt[id] ?? at;
+        const next: EscalationState = {
+          ...e,
+          crisisNote: { ...e.crisisNote, ...draft.note, sectionAt, updatedAt: at },
+          outcome: draft.outcome
+            ? {
+                id: draft.outcome.id,
+                autoTagged: draft.outcome.autoTagged,
+                basis: draft.outcome.basis,
+                chosenAt: draft.recorded.outcome ?? draft.outcome.chosenAt,
+                debrief: draft.debrief?.debrief ?? "",
+                debriefIsDraft: draft.debrief?.debriefIsDraft ?? false,
+                plan: draft.debrief?.plan ?? "",
+                additional: draft.debrief?.additional ?? "",
+                savedAt: draft.recorded.debrief ?? at,
+              }
+            : e.outcome,
+        };
+        if (!noteComplete(next, tier)) return false;
+        putEscalation(next);
+        return true;
       },
       /* ═══ OUTCOME AND DEBRIEF ARE ROWS (pack v6.1) ═══ Either may be saved
          first. Choosing an outcome keeps a saved debrief (it used to reset

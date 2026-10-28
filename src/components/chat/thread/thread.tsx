@@ -295,7 +295,8 @@ export function Thread({
       )}
     >
       {/* ── HEADER ────────────────────────────────────────────────────── */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-3">
+      {/* 64 high with its full-width rule (pack v11.0 §3.1). */}
+      <div data-thread-header className="flex h-16 shrink-0 items-center gap-3 border-b border-[color:var(--border-subtle)] px-4">
         {onBackToChats && (
           <button
             type="button"
@@ -512,7 +513,7 @@ export function Thread({
 export function EscalationBanner({
   escalation,
   tone = "critical",
-  onOpenSupervisor,
+  onOpenHistory,
   onOpenCrisis,
 }: {
   escalation: EscalationState;
@@ -520,9 +521,14 @@ export function EscalationBanner({
    *  Platform safety escalation is still announced, as the one banner, but in
    *  the neutral tone — alert colour is spent on Tiers 1–2 alone. */
   tone?: "critical" | "neutral";
-  onOpenSupervisor?: () => void;
+  /** ═══ THE FACT IS THE DOOR TO ITS RECORD (pack v11.0 §3.2) ═══ It opened
+   *  the supervisor's Support thread (SUP-5); the Support door is the
+   *  post-submit card's and the hero's now, and "Supervisor notified" opens
+   *  where it is recorded — Care's History. */
+  onOpenHistory?: () => void;
   onOpenCrisis?: () => void;
 }) {
+  const fact = `Supervisor notified ${clockTime(escalation.supervisorNotifiedAt)}`;
   return (
     <StatusBanner
       tone={tone}
@@ -534,27 +540,24 @@ export function EscalationBanner({
           hour later, mid-phone-call, after a navigation — that somebody knows.
           See `StatusBanner`. */
       meta={
-        onOpenSupervisor ? (
+        onOpenHistory ? (
           <>
-            {/* ═══ THE FACT IS THE DOOR (SUP-5) ═══ "Supervisor notified"
-                opens that supervisor's thread in the Support panel — the
-                moment a mentor needs them is the moment they are told. An
-                inline link in a sentence, so 2.5.8's inline exception holds
-                for its target height. */}
+            {/* An inline link in a sentence, so 2.5.8's inline exception
+                holds for its target height. */}
             <button
               type="button"
-              data-slot="banner-supervisor"
-              onClick={onOpenSupervisor}
+              data-slot="banner-history"
+              onClick={onOpenHistory}
               /* TODO-COPY */
-              aria-label={`Supervisor notified ${clockTime(escalation.supervisorNotifiedAt)}. Message them in Support`}
+              aria-label={`${fact}. Open the record in History`}
               className="rounded-sm underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
             >
-              Supervisor notified {clockTime(escalation.supervisorNotifiedAt)}
+              {fact}
             </button>
             {` · opened ${clockTime(escalation.openedAt)}`}
           </>
         ) : (
-          `Supervisor notified ${clockTime(escalation.supervisorNotifiedAt)} · opened ${clockTime(escalation.openedAt)}`
+          `${fact} · opened ${clockTime(escalation.openedAt)}`
         )
       }
     >

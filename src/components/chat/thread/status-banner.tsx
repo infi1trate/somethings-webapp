@@ -105,7 +105,9 @@ export function StatusBanner({
          is announced by the action that created it. */
       role="status"
       className={cn(
-        "flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-2.5",
+        /* 64 high (pack v11.0 §3.2): two lines and the action, on the
+           8px scale. */
+        "flex min-h-16 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-2.5",
         TONE[tone]
       )}
     >

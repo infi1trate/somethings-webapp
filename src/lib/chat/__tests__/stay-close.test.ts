@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CLINICAL, STEADYING_LINES, stayCloseNudges } from "@/lib/chat/stay-close";
+import { CLINICAL, stayCloseNudges } from "@/lib/chat/stay-close";
+import { POST_SUBMIT } from "@/lib/tiering/post-submit-copy";
 
 const JORDAN = ["not great honestly", "everything at home is bad again and i'm so tired of it", "i don't know how much longer i can keep doing this", "i think so. i'm in my room"];
 
@@ -15,7 +16,9 @@ describe("stayCloseNudges", () => {
   it("is never clinical — not one nudge, for any topic the teen raises", () => {
     const every = ["home mom", "tired sleep", "school test", "alone nobody", "friends", "i want to kill myself", "safety plan pills"];
     for (const line of every) for (const n of stayCloseNudges([line], "Sam")) expect(n.text).not.toMatch(CLINICAL);
-    for (const l of STEADYING_LINES) expect(l).not.toMatch(CLINICAL);
+    /* The steadying lines are deleted (pack v11.0); the post-submit card's
+       own copy holds to the same boundary. */
+    for (const l of [POST_SUBMIT.reviewing("Brandy"), POST_SUBMIT.orient("Sam")]) expect(l).not.toMatch(CLINICAL);
   });
 
   it("never quotes the teen back — a clinical line in the thread grounds nothing", () => {

@@ -1,14 +1,14 @@
 {
   "light": {
-    "emphasis ring vs its wash": 14.47,
+    "emphasis ring vs its wash": 12.87,
     "emphasis ring vs panel": 16.64,
-    "check glyph vs its wash": 14.47,
+    "filled lozenge vs its wash": 5.27,
     "Requested by tag": 7.63
   },
   "dark": {
-    "emphasis ring vs its wash": 14.58,
+    "emphasis ring vs its wash": 12.6,
     "emphasis ring vs panel": 13.3,
-    "check glyph vs its wash": 14.58,
+    "filled lozenge vs its wash": 6.9,
     "Requested by tag": 6.16
   }
 }

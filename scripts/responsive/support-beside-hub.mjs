@@ -92,7 +92,12 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
   if (listless) check(c.layout === "list" && c.list === null && Math.abs(c.hub?.w - c.thread?.w) <= 1, "closed, escalation open: no list — conversation and hub 50/50 (Focus Mode)", JSON.stringify({ list: c.list?.w, thread: c.thread?.w, hub: c.hub?.w }));
   /* RETARGETED (pack v9.1): the escalated conversation is the FOCUS VIEW —
      the list is away (its track 0), chat and Care 50/50. */
-  else check(c.layout === "list" && (c.list?.w ?? 0) <= 1 && c.thread?.w >= 480 && Math.abs(c.hub?.w - c.thread?.w) <= 1, "closed, escalation open: the focus view — no list, conversation and hub 50/50", JSON.stringify({ list: c.list?.w, thread: c.thread?.w, hub: c.hub?.w }));
+  /* RETARGETED (pack v11.0 §3.2): an even split with Care clamped 480–680
+     and chat ≥ 520 — at 1512 the mentor's Care meets its 680 cap. */
+  else check(c.layout === "list" && (c.list?.w ?? 0) <= 1 && c.thread?.w >= 520 && c.hub?.w >= 480 && c.hub?.w <= 680 && (Math.abs(c.hub?.w - c.thread?.w) <= 1 || c.hub?.w === 680), "closed, escalation open: the focus view — no list, chat ≥ 520, Care clamped 480–680", JSON.stringify({ list: c.list?.w, thread: c.thread?.w, hub: c.hub?.w }));
+  /* RETARGETED (pack v11.0, Supersession 8): the banner lives in the
+     shell's slot, from the rail's edge to the gutter — over a Support
+     column too. Closed, that is conversation + hub (the list is away). */
   check(c.banner && c.banner.x === c.thread.x && Math.abs(c.banner.r - c.hub.r) <= 1, "closed: the banner spans conversation + hub, not the list", JSON.stringify({ banner: c.banner, thread: c.thread?.x, hubR: c.hub?.r }));
 
   /* The hub's identity and tab, before Support opens. */
@@ -111,8 +116,11 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
   check(listless ? o.back === null : o.back === null && (await page.locator('[data-slot="chat-back-chats"]').count()) === 1, "in the view: no header Back — the way out is the ← Chats bar (supervisor: ← Monitoring)", JSON.stringify(o.back));
   /* RETARGETED (pack v9.0): beside an escalation the split keeps the chat
      floor — chat max(480, half), the hub the rest, never wider than chat. */
-  check(!!o.hub && o.thread.w >= 480 && o.hub.w <= o.thread.w && (o.thread.w === 480 || Math.abs(o.hub.w - o.thread.w) <= 1), "the hub stays, beside a conversation of at least 480 (50/50 where there is room)", `${o.thread?.w} / ${o.hub?.w}`);
-  check(o.banner && o.banner.x === o.thread.x && Math.abs(o.banner.r - o.hub.r) <= 1 && o.banner.r <= o.support.x - 4, "the banner spans conversation + hub, never the support card", JSON.stringify({ banner: o.banner, support: o.support?.x }));
+  /* RETARGETED (pack v11.0 §3.2): beside Support the room holds chat 520 ·
+     Care 480 (the 800 step, v9's split, only where the shell cannot make
+     room); and the banner spans to the gutter OVER the Support card. */
+  check(!!o.hub && o.thread.w >= 480 && ((o.thread.w === 520 && o.hub.w === 480) || (o.hub.w <= o.thread.w)), "the hub stays: chat 520 · Care 480 beside Support (v9's split below a 1000 canvas)", `${o.thread?.w} / ${o.hub?.w}`);
+  check(o.banner && o.banner.x === o.thread.x && o.banner.r >= o.support.x + 300, "the banner spans conversation, hub AND the Support card, to the gutter", JSON.stringify({ banner: o.banner, support: o.support?.x }));
   check(same.node === "same-hub" && same.tab === "timeline", "the hub never remounted, and kept its tab", JSON.stringify(same));
   check(o.hscroll <= 0, "nothing scrolls sideways", `${o.hscroll}`);
 
@@ -140,14 +148,16 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
   await page.goto(`${BASE}/app/chat/t14`, { waitUntil: "networkidle" });
   await page.waitForTimeout(800);
   const c = await geo(page);
-  check(c.layout === "list" && c.list?.w === 300 && c.hub?.w === 360, "closed: list 300 · conversation · hub 360", JSON.stringify({ list: c.list?.w, hub: c.hub?.w }));
+  /* RETARGETED (pack v11.0 §3.1): steady Care is 420. */
+  check(c.layout === "list" && c.list?.w === 300 && c.hub?.w === 420, "closed: list 300 · conversation · hub 420", JSON.stringify({ list: c.list?.w, hub: c.hub?.w }));
   await toggleSupport(page);
   const o = await geo(page);
   check(o.layout === "beside" && o.list === null && o.back?.w === 40 && Math.abs(o.hub.w - o.thread.w) <= 1, "open: the list collapses, Back to chats 40px, conversation and hub 50/50", JSON.stringify({ list: o.list, back: o.back?.w, t: o.thread?.w, h: o.hub?.w }));
   await page.locator('[data-slot="chat-back-to-chats"]').click();
   await page.waitForTimeout(500);
   const back = await geo(page);
-  check(back.list?.w === 300 && back.hub?.w === 360, "Back to chats closes Support and restores the list", JSON.stringify({ list: back.list?.w, hub: back.hub?.w }));
+  /* RETARGETED (pack v11.0 §3.1): steady Care is 420. */
+  check(back.list?.w === 300 && back.hub?.w === 420, "Back to chats closes Support and restores the list", JSON.stringify({ list: back.list?.w, hub: back.hub?.w }));
   await ctx.close();
 }
 
@@ -193,8 +203,11 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
       canvasTok: tok("--surface-canvas"), raisedTok: tok("--surface-raised"),
     };
   });
-  check(s.canvasR === "24px 4px 4px 24px", "canvas card 24 / 4 / 4 / 24", s.canvasR);
-  check(s.supportR === "4px 24px 24px 4px", "support card 4 / 24 / 24 / 4", s.supportR);
+  /* RETARGETED (pack v11.0, Supersession 8): the escalation banner is the
+     split surface's TOP edge now (the shell's slot, over both), so both
+     cards close their top corners beneath it; the split below is v9's. */
+  check(s.canvasR === "0px 0px 4px 24px", "canvas card 0 / 0 / 4 / 24 — its top under the banner", s.canvasR);
+  check(s.supportR === "0px 0px 24px 4px", "support card 0 / 0 / 24 / 4 — its top under the banner", s.supportR);
   check(/rgba\(0, 0, 0, 0\.13\) 0px 3px 6px/.test(s.canvasShadow) && /rgba\(0, 0, 0, 0\.13\) 0px 3px 6px/.test(s.supportShadow), "both carry Elevation 1");
   check(s.supportBg === s.raisedTok && s.canvasBg === s.canvasTok, "support surface-raised, canvas surface-canvas", `${s.supportBg} · ${s.canvasBg}`);
 
@@ -264,12 +277,14 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
 
 // ── 4 · widths, the rail, the drawer ───────────────────────────────────────
 for (const [width, expect] of [
-  [1512, { two: true, rail: 248 }],
-  [1440, { two: true, rail: 248, support: 348 }],
-  /* RETARGETED (pack v9.0, the 480 chat floor — the cost stated in Phase
-     0): with the escalation open, 664 of canvas cannot hold 480 + a 320
-     Care, so at 1280 the hub is the drawer. */
-  [1280, { two: false, rail: 248 }],
+  /* RETARGETED (pack v11.0 §3.2, answered: "collapse or remove other
+     elements before Support"): on chat the staff rail yields to 72 up to
+     1680 while Support is open, so the room keeps two panes — at 1512
+     chat 520 · Care 480, and at 1280 (where v9 fell to the drawer) v9's
+     split. The drawer is left to below 1120. */
+  [1512, { two: true, rail: 72 }],
+  [1440, { two: true, rail: 72, support: 348 }],
+  [1280, { two: true, rail: 72 }],
   [1279, { two: true, rail: 72 }],
   [1100, { two: false, rail: 72 }],
 ]) {
@@ -287,7 +302,8 @@ for (const [width, expect] of [
     check(!g.hub && drawerToggle, "too narrow for two panes (below 1120, or the chat floor), the hub is a drawer, opened from the conversation", JSON.stringify({ hub: g.hub, toggle: drawerToggle }));
   }
   check(g.support && g.support.w >= 348 && g.support.w <= 420, "support 348–420", `${g.support?.w}`);
-  if (width === 1512) check(g.thread.w + g.hub.w === 840, "the canvas card holds 840 while it can", `${g.thread.w + g.hub.w}`);
+  /* RETARGETED (pack v11.0): the room's card is chat 520 + Care 480. */
+  if (width === 1512) check(g.thread.w + g.hub.w === 1000, "the room's canvas card holds 1000 (chat 520 + Care 480)", `${g.thread.w + g.hub.w}`);
   if (expect.support) check(g.support.w === expect.support, `support gives way first, to ${expect.support}`, `${g.support.w}`);
   check(g.hscroll <= 0, "nothing scrolls sideways", `${g.hscroll}`);
   await ctx.close();

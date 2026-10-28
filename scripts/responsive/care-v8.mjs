@@ -72,11 +72,14 @@ console.log("\n── 1 · retired patterns");
   const r = await page.evaluate(() => ({
     accordion: !!document.querySelector("[data-assessment-accordion], [data-acc-row]"),
     overview: !!document.querySelector('[data-care-tab="overview"], [data-care-recent], [data-care-view-history]'),
-    strip: !!document.querySelector("[data-care-identity], [data-identity-profile]"),
+    /* RETARGETED (pack v11.0, Supersession 2): identity is back, INSIDE the
+       hero card; v7's strip — identity above the cells — stays gone. */
+    strip: !!document.querySelector("[data-identity-profile]") || (!!document.querySelector("[data-care-identity]") && !document.querySelector("[data-care-hero] [data-care-identity]")),
     /* RETARGETED (pack v9.0, Supersession 3): the header is the first
        thing in the panel, inside its yield — collapsed while the escalation
        is open (care-v9.mjs measures the yield). */
-    firstIsHeader: document.querySelector("[data-care-panel]")?.querySelector(":scope > :not([data-care-tabs-live])")?.matches('[data-care-yield="cells"]') && !!document.querySelector('[data-care-yield="cells"] [data-care-header]'),
+    /* RETARGETED (pack v11.0): no yield wrapper — the hero leads. */
+    firstIsHeader: !!document.querySelector("[data-care-panel]")?.querySelector(":scope > :not([data-care-tabs-live])")?.querySelector("[data-care-header]"),
   }));
   check(!r.accordion && !r.overview && !r.strip, "the accordion, Overview (and its Recent preview) and the identity strip are gone", JSON.stringify(r));
   check(r.firstIsHeader, "nothing renders above the anchor cells");
@@ -102,7 +105,7 @@ const tabs = (page) =>
     dot: document.querySelector('[data-care-tab="escalation"] [data-review-dot]')?.dataset.reviewDot ?? null,
     state: document.querySelector("[data-care-panel]")?.dataset.careState,
     said: document.querySelector("[data-care-tabs-live]")?.textContent ?? "",
-    header: !!document.querySelector('[data-care-panel] > [data-care-yield="cells"][data-open="true"] [data-care-header]'),
+    header: !!document.querySelector("[data-care-panel] > div [data-care-header]"),
   }));
 let closedState;
 {

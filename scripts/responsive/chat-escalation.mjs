@@ -138,8 +138,11 @@ console.log("\n── the banner @ escalation-active");
      theirs. */
   /* SUPERSEDED AGAIN (pack v3.0, Supersession 6): "Open Care" is gone too —
      the Care tab is a tap away and carries the dot. One action remains. */
+  /* RETARGETED (pack v11.0 §3.2): "Supervisor notified {time}" is an
+     inline link to the record in History (`banner-history`) — a fact that
+     is a door, not an action; the one ACTION is still Emergency info. */
   check(
-    banner.buttons.map((x) => x.slot).join() === "banner-crisis",
+    banner.buttons.map((x) => x.slot).filter((x) => x !== "banner-history").join() === "banner-crisis",
     "one action: Emergency info — no Open Care, no Resolve",
     banner.buttons.map((x) => x.text).join(" | ")
   );

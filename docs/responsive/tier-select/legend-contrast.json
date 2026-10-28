@@ -11,12 +11,12 @@
         "outline": null
       },
       "hover": {
-        "name": 12.87,
-        "description": 5.9,
-        "lozenge": 5.27,
+        "name": 14.47,
+        "description": 6.63,
+        "lozenge": 5.93,
         "lozengeState": "outline",
-        "washVsPanel": 1.29,
-        "borderVsWash": 1.31,
+        "washVsPanel": 1.15,
+        "borderVsWash": 1.88,
         "outline": null
       },
       "focus-visible": {
@@ -26,15 +26,15 @@
         "lozengeState": "outline",
         "washVsPanel": 1.15,
         "borderVsWash": 1.48,
-        "outline": 4.94
+        "outline": 5.01
       },
       "selected": {
-        "name": 14.47,
-        "description": 6.63,
+        "name": 12.87,
+        "description": 5.9,
         "lozenge": 6.82,
         "lozengeState": "filled",
-        "washVsPanel": 1.15,
-        "borderVsWash": 14.47,
+        "washVsPanel": 1.29,
+        "borderVsWash": 12.87,
         "outline": null
       }
     },
@@ -49,12 +49,12 @@
         "outline": null
       },
       "hover": {
-        "name": 12.01,
-        "description": 5.5,
-        "lozenge": 5.07,
+        "name": 13.99,
+        "description": 6.41,
+        "lozenge": 5.9,
         "lozengeState": "outline",
-        "washVsPanel": 1.39,
-        "borderVsWash": 1.23,
+        "washVsPanel": 1.19,
+        "borderVsWash": 1.81,
         "outline": null
       },
       "focus-visible": {
@@ -64,15 +64,15 @@
         "lozengeState": "outline",
         "washVsPanel": 1.19,
         "borderVsWash": 1.43,
-        "outline": 4.99
+        "outline": 5.08
       },
       "selected": {
-        "name": 13.99,
-        "description": 6.41,
+        "name": 12.01,
+        "description": 5.5,
         "lozenge": 7.03,
         "lozengeState": "filled",
-        "washVsPanel": 1.19,
-        "borderVsWash": 13.99,
+        "washVsPanel": 1.39,
+        "borderVsWash": 12.01,
         "outline": null
       }
     },
@@ -87,12 +87,12 @@
         "outline": null
       },
       "hover": {
-        "name": 14.45,
-        "description": 6.62,
-        "lozenge": 6.25,
+        "name": 15.32,
+        "description": 7.02,
+        "lozenge": 6.63,
         "lozengeState": "outline",
-        "washVsPanel": 1.15,
-        "borderVsWash": 1.48,
+        "washVsPanel": 1.09,
+        "borderVsWash": 1.99,
         "outline": null
       },
       "focus-visible": {
@@ -102,15 +102,15 @@
         "lozengeState": "outline",
         "washVsPanel": 1.09,
         "borderVsWash": 1.56,
-        "outline": 5.01
+        "outline": 4.99
       },
       "selected": {
-        "name": 15.32,
-        "description": 7.02,
+        "name": 14.45,
+        "description": 6.62,
         "lozenge": 7.2,
         "lozengeState": "filled",
-        "washVsPanel": 1.09,
-        "borderVsWash": 15.32,
+        "washVsPanel": 1.15,
+        "borderVsWash": 14.45,
         "outline": null
       }
     },
@@ -125,12 +125,12 @@
         "outline": null
       },
       "hover": {
-        "name": 12.59,
-        "description": 5.77,
-        "lozenge": 5.21,
+        "name": 14.74,
+        "description": 6.75,
+        "lozenge": 6.1,
         "lozengeState": "outline",
-        "washVsPanel": 1.32,
-        "borderVsWash": 1.29,
+        "washVsPanel": 1.13,
+        "borderVsWash": 1.91,
         "outline": null
       },
       "focus-visible": {
@@ -143,12 +143,12 @@
         "outline": 5.01
       },
       "selected": {
-        "name": 14.74,
-        "description": 6.75,
+        "name": 12.59,
+        "description": 5.77,
         "lozenge": 6.88,
         "lozengeState": "filled",
-        "washVsPanel": 1.13,
-        "borderVsWash": 14.74,
+        "washVsPanel": 1.32,
+        "borderVsWash": 12.59,
         "outline": null
       }
     }
@@ -165,12 +165,12 @@
         "outline": null
       },
       "hover": {
-        "name": 12.6,
-        "description": 5.84,
-        "lozenge": 6.9,
+        "name": 14.58,
+        "description": 6.75,
+        "lozenge": 7.98,
         "lozengeState": "outline",
-        "washVsPanel": 1.06,
-        "borderVsWash": 1.65,
+        "washVsPanel": 1.1,
+        "borderVsWash": 1.91,
         "outline": null
       },
       "focus-visible": {
@@ -180,15 +180,15 @@
         "lozengeState": "outline",
         "washVsPanel": 1.1,
         "borderVsWash": 1.91,
-        "outline": 4.78
+        "outline": 4.86
       },
       "selected": {
-        "name": 14.58,
-        "description": 6.75,
+        "name": 12.6,
+        "description": 5.84,
         "lozenge": 10.63,
         "lozengeState": "filled",
-        "washVsPanel": 1.1,
-        "borderVsWash": 14.58,
+        "washVsPanel": 1.06,
+        "borderVsWash": 12.6,
         "outline": null
       }
     },
@@ -203,12 +203,12 @@
         "outline": null
       },
       "hover": {
-        "name": 11.53,
-        "description": 5.34,
-        "lozenge": 7.15,
+        "name": 13.76,
+        "description": 6.37,
+        "lozenge": 8.53,
         "lozengeState": "outline",
-        "washVsPanel": 1.15,
-        "borderVsWash": 1.51,
+        "washVsPanel": 1.03,
+        "borderVsWash": 1.8,
         "outline": null
       },
       "focus-visible": {
@@ -218,15 +218,15 @@
         "lozengeState": "outline",
         "washVsPanel": 1.03,
         "borderVsWash": 1.8,
-        "outline": 4.86
+        "outline": 4.82
       },
       "selected": {
-        "name": 13.76,
-        "description": 6.37,
+        "name": 11.53,
+        "description": 5.34,
         "lozenge": 12.04,
         "lozengeState": "filled",
-        "washVsPanel": 1.03,
-        "borderVsWash": 13.76,
+        "washVsPanel": 1.15,
+        "borderVsWash": 11.53,
         "outline": null
       }
     },
@@ -241,12 +241,12 @@
         "outline": null
       },
       "hover": {
-        "name": 10.62,
-        "description": 4.92,
-        "lozenge": 8.86,
+        "name": 12.9,
+        "description": 5.97,
+        "lozenge": 10.76,
         "lozengeState": "outline",
-        "washVsPanel": 1.25,
-        "borderVsWash": 1.39,
+        "washVsPanel": 1.03,
+        "borderVsWash": 1.69,
         "outline": null
       },
       "focus-visible": {
@@ -259,12 +259,12 @@
         "outline": 4.86
       },
       "selected": {
-        "name": 12.9,
-        "description": 5.97,
+        "name": 10.62,
+        "description": 4.92,
         "lozenge": 16.2,
         "lozengeState": "filled",
-        "washVsPanel": 1.03,
-        "borderVsWash": 12.9,
+        "washVsPanel": 1.25,
+        "borderVsWash": 10.62,
         "outline": null
       }
     },
@@ -279,12 +279,12 @@
         "outline": null
       },
       "hover": {
-        "name": 12.06,
-        "description": 5.59,
-        "lozenge": 6.44,
+        "name": 14.33,
+        "description": 6.63,
+        "lozenge": 7.65,
         "lozengeState": "outline",
-        "washVsPanel": 1.1,
-        "borderVsWash": 1.58,
+        "washVsPanel": 1.08,
+        "borderVsWash": 1.88,
         "outline": null
       },
       "focus-visible": {
@@ -294,15 +294,15 @@
         "lozengeState": "outline",
         "washVsPanel": 1.08,
         "borderVsWash": 1.88,
-        "outline": 4.82
+        "outline": 4.86
       },
       "selected": {
-        "name": 14.33,
-        "description": 6.63,
+        "name": 12.06,
+        "description": 5.59,
         "lozenge": 10.37,
         "lozengeState": "filled",
-        "washVsPanel": 1.08,
-        "borderVsWash": 14.33,
+        "washVsPanel": 1.1,
+        "borderVsWash": 12.06,
         "outline": null
       }
     }

@@ -858,19 +858,26 @@ html[data-motion="reduce"] *::after {
   --focus-dur: 360ms;
   --focus-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+/* ═══ THE ESCALATION ROOM (pack v11.0 §3.2) ═══ `--chat-card`: the width
+   the shell's Support column leaves the canvas card — v9's 840 (chat 480 +
+   Care 360), and in the room chat 520 + Care 480 + the 4px gutter. Set off
+   `data-chat-room` on the root by the chat page. `banner-in`: the banner
+   composing into the shell's slot in the room's beat (motion-safe only). */
+:root { --chat-card: 844px; }
+:root[data-chat-room] { --chat-card: 1004px; }
+@keyframes banner-in {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 64px; }
+}
 /* ═══ TierSelect (pack v10.0 · amendment v10.1) ═══ `tier-hold`: the
    requested card's ring draws in from the card's own hairline, in the same
    beat as its tag's `tier-settle` — the mentor's judgment arriving held.
-   `tier-check`: the trailing check lands as the lozenge fills (its colour
-   transition, 150ms) — the tier itself visibly becomes the choice. Both are
+   (pack v11.0: the trailing check and its `tier-check` beat are deleted —
+   selection is the ring, the deepened wash and the lozenge's fill.) Both are
    applied under `motion-safe:` only; reduced motion is an instant swap. */
 @keyframes tier-hold {
   from { border-color: var(--border-default); }
   to { border-color: var(--text-primary); }
-}
-@keyframes tier-check {
-  from { opacity: 0; transform: scale(0.6); }
-  to { opacity: 1; transform: scale(1); }
 }
 @keyframes ga-rise {
   from { opacity: 0; transform: translateY(8px); }

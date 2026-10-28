@@ -192,7 +192,9 @@ export function SupportPanel() {
            `clamp(348px, 100cqi − 844px, 420px)` against `<main>`'s width
            (844 = the 840 card + the 4px gutter). */
         "[--support-w:420px]",
-        onChat && "md:[--support-w:clamp(348px,calc(100cqi-844px),420px)]",
+        /* pack v11.0: the card's width is `--chat-card` — 840 + 4, or the
+           escalation room's 1000 + 4 (`globals.css`). */
+        onChat && "md:[--support-w:clamp(348px,calc(100cqi-var(--chat-card)),420px)]",
         open ? "min-[768px]:w-[calc(var(--support-w)+4px)] md:w-[calc(var(--support-w)+12px)]" : "min-[768px]:w-0",
         /* ═══ 768–959: BETWEEN THE MOBILE BARS (standing rule 2) ═══ The top
            bar and the bottom bar are fixed at this tier, so the panel keeps
@@ -226,6 +228,9 @@ export function SupportPanel() {
         className={cn(
           "flex h-full flex-col overflow-hidden bg-[var(--surface-raised)] pb-4",
           "min-[768px]:ml-1 min-[768px]:w-[var(--support-w)] min-[768px]:rounded-[4px_24px_24px_4px] min-[768px]:shadow-[var(--elevation-1)]",
+          /* Under the shell's escalation banner (pack v11.0) the panel's top
+             corners close: the banner is the split surface's top edge. */
+          "md:group-has-[>[data-shell-banner]:not(:empty)]/main:rounded-t-none",
           "max-[768px]:w-full",
           `transition-[opacity,transform] duration-[220ms] ${EASE} motion-reduce:transition-none motion-reduce:transform-none`,
           open ? "translate-x-0 opacity-100" : "translate-x-4 opacity-0"

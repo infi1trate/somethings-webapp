@@ -80,13 +80,19 @@ const TONE: Record<string, string> = {
    a `title` gives the sighted reader the word back on hover. A badge becomes
    a dot that keeps its spoken count. Animated 240ms (within the pack's 360),
    instant under reduced motion. */
+/* ═══ ON CHAT, THE RAIL YIELDS UP TO 1680 (pack v11.0, answered: "collapse
+   or remove other elements before Support, while Support is open") ═══ The
+   escalation room needs chat 520 + Care 480 beside a Support column, and
+   248 + 16 + 1000 + 4 + 404 is 1672 — so on chat the 1280 rule becomes 1680,
+   keyed on `data-support-chat` (Support open AND on chat). Every other page
+   keeps the 1280 rule. Each collapse class carries its 1680 twin. */
 /* `max-[1280px]`, not 1279: Tailwind v4 reads `max-[X]` as width < X, and
    1279 measured uncollapsed at a 1279px viewport. */
-const COLLAPSED_LABEL = "max-[1280px]:in-data-[support-open=true]:sr-only";
-const COLLAPSED_ROW = "max-[1280px]:in-data-[support-open=true]:justify-center max-[1280px]:in-data-[support-open=true]:px-0";
+const COLLAPSED_LABEL = "max-[1280px]:in-data-[support-open=true]:sr-only max-[1680px]:in-data-[support-chat=true]:sr-only";
+const COLLAPSED_ROW = "max-[1280px]:in-data-[support-open=true]:justify-center max-[1680px]:in-data-[support-chat=true]:justify-center max-[1280px]:in-data-[support-open=true]:px-0 max-[1680px]:in-data-[support-chat=true]:px-0";
 const COLLAPSED_BADGE =
-  "max-[1280px]:in-data-[support-open=true]:absolute max-[1280px]:in-data-[support-open=true]:top-1.5 max-[1280px]:in-data-[support-open=true]:right-2 max-[1280px]:in-data-[support-open=true]:h-2.5 max-[1280px]:in-data-[support-open=true]:min-w-2.5 max-[1280px]:in-data-[support-open=true]:px-0";
-const COLLAPSED_HIDE = "max-[1280px]:in-data-[support-open=true]:hidden";
+  "max-[1280px]:in-data-[support-open=true]:absolute max-[1680px]:in-data-[support-chat=true]:absolute max-[1280px]:in-data-[support-open=true]:top-1.5 max-[1680px]:in-data-[support-chat=true]:top-1.5 max-[1280px]:in-data-[support-open=true]:right-2 max-[1680px]:in-data-[support-chat=true]:right-2 max-[1280px]:in-data-[support-open=true]:h-2.5 max-[1680px]:in-data-[support-chat=true]:h-2.5 max-[1280px]:in-data-[support-open=true]:min-w-2.5 max-[1680px]:in-data-[support-chat=true]:min-w-2.5 max-[1280px]:in-data-[support-open=true]:px-0 max-[1680px]:in-data-[support-chat=true]:px-0";
+const COLLAPSED_HIDE = "max-[1280px]:in-data-[support-open=true]:hidden max-[1680px]:in-data-[support-chat=true]:hidden";
 
 function Badge({ itemId, count }: { itemId: string; count: number }) {
   const { shape, tone } = badgeStyleFor(itemId);
@@ -237,7 +243,7 @@ function Group({
         <span id={labelId} className={COLLAPSED_LABEL}>{group.label}</span>
         {/* Collapsed, a group's heading is a short rule: still the button,
             still named, still toggling its rows. */}
-        <span aria-hidden className="mx-auto hidden h-px w-6 bg-[var(--border-subtle)] max-[1280px]:in-data-[support-open=true]:block" />
+        <span aria-hidden className="mx-auto hidden h-px w-6 bg-[var(--border-subtle)] max-[1280px]:in-data-[support-open=true]:block max-[1680px]:in-data-[support-chat=true]:block" />
         <ChevronDown
           aria-hidden
           className={cn(
@@ -385,16 +391,16 @@ export function GroupedRail({
          icons. The icon rail's 92px is unrelated and unchanged. */
       className={cn(
         "flex h-full w-[248px] flex-col overflow-hidden bg-[var(--surface-s2)] px-3 py-5",
-        "max-[1280px]:in-data-[support-open=true]:w-[72px]",
+        "max-[1280px]:in-data-[support-open=true]:w-[72px] max-[1680px]:in-data-[support-chat=true]:w-[72px]",
         "motion-safe:transition-[width] motion-safe:duration-[240ms] ease-[cubic-bezier(0.32,0.72,0,1)]",
         className
       )}
     >
-      <div className="px-1 max-[1280px]:in-data-[support-open=true]:px-0">
+      <div className="px-1 max-[1280px]:in-data-[support-open=true]:px-0 max-[1680px]:in-data-[support-chat=true]:px-0">
         <AccountPopover
           avatarSrc={avatarSrc}
           avatarInitial={avatarInitial}
-          triggerClassName="max-[1280px]:in-data-[support-open=true]:size-12"
+          triggerClassName="max-[1280px]:in-data-[support-open=true]:size-12 max-[1680px]:in-data-[support-chat=true]:size-12"
         />
       </div>
 
