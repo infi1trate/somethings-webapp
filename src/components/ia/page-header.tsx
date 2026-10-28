@@ -53,8 +53,13 @@ export function PageHeader({
   children,
   className,
   toolbar,
+  rule = true,
 }: {
   title: string;
+  /** The hairline closing the band. On by default (every destination's band
+   *  closes); Monitoring and Care Reviews turn it off (Monitoring v4, §3) —
+   *  their toolbar's 40px is the separator. */
+  rule?: boolean;
   /** NEEDS-COPY-NICOLE. One line, present on every destination. */
   purpose: string;
   /** At most two. A third is a dashboard, which this is not. */
@@ -112,7 +117,7 @@ export function PageHeader({
            Roster and the team directory gain a hairline they did not have, and
            they gain it because they are the same component. Measured and
            reported. */
-        "border-b border-[var(--border-subtle)] pb-4",
+        rule && "border-b border-[var(--border-subtle)] pb-4",
         className
       )}
     >

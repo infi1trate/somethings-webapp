@@ -64,7 +64,9 @@ function Cell({
           data-hero-value
           className={cn(
             "font-display text-[32px] leading-[36px] font-bold tabular-nums",
-            hot ? "text-[var(--t1)]" : value === 0 ? "text-[var(--text-tertiary)]" : "text-[var(--text-primary)]"
+            /* Zero is `text-muted` (AA — Monitoring v2's answer), never
+               Bloom's text/disabled. */
+            hot ? "text-[var(--t1)]" : value === 0 ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"
           )}
         >
           {value}
@@ -94,7 +96,13 @@ export interface HeroRange {
   closed: number;
 }
 
-export function HeroMetrics({ m, range, className, crisisDetail, onCrisis }: { m: MonitoringMetrics; range?: HeroRange; className?: string; crisisDetail?: string | null; onCrisis?: () => void }) {
+/** Where a hero cell goes (Monitoring v4, §3): In crisis → the Tier 1
+ *  queue; High risk → Tier 2; Risk flags and Escalations → Events, filtered;
+ *  Active teens → nowhere, so it stays a figure. */
+export type HeroTarget = "tier1" | "tier2" | "flags" | "escalations";
+
+export function HeroMetrics({ m, range, className, crisisDetail, onTarget }: { m: MonitoringMetrics; range?: HeroRange; className?: string; crisisDetail?: string | null; onTarget?: (t: HeroTarget) => void }) {
+  const go = (t: HeroTarget) => (onTarget ? () => onTarget(t) : undefined);
   return (
     <section
       aria-label="Monitoring summary"
@@ -102,18 +110,18 @@ export function HeroMetrics({ m, range, className, crisisDetail, onCrisis }: { m
       className={cn(className, "grid grid-cols-5 gap-px overflow-hidden rounded-[20px] bg-[var(--border-subtle)] shadow-[var(--el-soft)] @max-[880px]/canvas:grid-cols-3 @max-[520px]/canvas:grid-cols-2")}
     >
       {/* TODO-COPY, every label and detail line. */}
-      <Cell crisis value={m.inCrisis} label="In crisis" detail={crisisDetail ?? "Tier 1 · live"} onActivate={onCrisis} target="go to the Tier 1 queue" />
-      <Cell value={m.highRisk} label="High risk" detail={`Tier 2 · ${m.reviewsDue} review${m.reviewsDue === 1 ? "" : "s"} due`} />
+      <Cell crisis value={m.inCrisis} label="In crisis" detail={crisisDetail ?? "Tier 1 · live"} onActivate={go("tier1")} target="go to the Tier 1 queue" />
+      <Cell value={m.highRisk} label="High risk" detail={`Tier 2 · ${m.reviewsDue} review${m.reviewsDue === 1 ? "" : "s"} due`} onActivate={go("tier2")} target="go to Tier 2" />
       {/* The SAME labels on both tabs; the range lives in the detail. */}
       {range ? (
         <>
-          <Cell value={range.flags} label="Risk flags" detail={`${range.label} · ${range.surge} surge`} />
-          <Cell value={range.escalations} label="Escalations" detail={`${range.label} · ${range.open} open · ${range.closed} closed`} />
+          <Cell value={range.flags} label="Risk flags" detail={`${range.label} · ${range.surge} surge`} onActivate={go("flags")} target="show risk flags in Events" />
+          <Cell value={range.escalations} label="Escalations" detail={`${range.label} · ${range.open} open · ${range.closed} closed`} onActivate={go("escalations")} target="show escalations in Events" />
         </>
       ) : (
         <>
-          <Cell value={m.openFlags48h} label="Risk flags" detail="open · last 48h" />
-          <Cell value={m.escalations30d} label="Escalations" detail={`30d · ${m.escalationsOpen} open · ${m.escalationsClosed} closed`} />
+          <Cell value={m.openFlags48h} label="Risk flags" detail="open · last 48h" onActivate={go("flags")} target="show risk flags in Events" />
+          <Cell value={m.escalations30d} label="Escalations" detail={`30d · ${m.escalationsOpen} open · ${m.escalationsClosed} closed`} onActivate={go("escalations")} target="show escalations in Events" />
         </>
       )}
       <Cell value={m.activeTeens} label="Active teens" detail={`${m.mentors} mentors · ${m.engagedThisWeek} engaged`} />

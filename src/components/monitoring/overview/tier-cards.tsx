@@ -31,7 +31,7 @@ import { monitoringEntryHref } from "@/lib/monitoring/entry-href";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
 import { Tier4Registry } from "@/components/monitoring/overview/tier-list";
 import type { Tier } from "@/lib/monitoring/tiers";
-import { EmptyTierLane, Tier1Lane, PresenceChip } from "@/components/monitoring/overview/tier1-lane";
+import { EmptyTierLane, Tier1Lane } from "@/components/monitoring/overview/tier1-lane";
 import { ESCALATION, FLAG, Sparkline, SURVEY, TierAvatar, TierGroupHeader, TierTag } from "@/components/monitoring/overview/tier-bits";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
@@ -104,7 +104,8 @@ function Card({ teen }: { teen: MonitoringTeen }) {
           </h4>
           <p data-card-mentor className="m-0 mt-0.5 flex min-w-0 items-center gap-1.5 truncate text-[13px] leading-[18px] text-[var(--text-secondary)]">
             {teen.mentor}
-            {teen.presence && <PresenceChip text={teen.presence} />}
+            {/* Presence's one home is the avatar's dot (Monitoring v4, §3). */}
+            {teen.presence && <span className="sr-only">, {teen.presence}</span>}
           </p>
           {/* The live stage (pack v5.0, C4), one quiet line. */}
           {teen.stage && (

@@ -25,14 +25,17 @@ import type { LucideIcon } from "lucide-react";
 import { TIER_CADENCE, TIER_NAME, type Tier } from "@/lib/monitoring/tiers";
 import { cn } from "@/lib/utils";
 
-/** The row / card surface for a tier — tint and elevation, not keylines;
- *  the single keyline is Tier 1's. */
+/** The row / card surface for a tier.
+ *  ═══ SUPERSEDED (Monitoring v4, §3) ═══ Tier 2 list rows lose their amber
+ *  fill: white with the `t2` contour at 45%, as the cards already are (v3).
+ *  The ONLY red or amber fill left on the page is the Tier 1 queue's
+ *  container (at 40%) and its Join — Tier 1 rows are the queue's own. */
 export function tierSurface(tier: Tier): string {
   switch (tier) {
     case 1:
-      return "bg-[var(--t1-soft)] border border-[color:var(--t1)]";
+      return "bg-[var(--surface-raised)] border border-[color:color-mix(in_srgb,var(--t1)_50%,transparent)] shadow-[var(--el-soft)]";
     case 2:
-      return "bg-[var(--t2-soft)] border border-transparent";
+      return "bg-[var(--surface-raised)] border border-[color:color-mix(in_srgb,var(--t2)_45%,transparent)] shadow-[var(--el-soft)]";
     case 3:
       return "bg-[var(--surface-raised)] border border-transparent shadow-[var(--el-soft)]";
     case 4:

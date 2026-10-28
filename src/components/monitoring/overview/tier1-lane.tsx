@@ -52,16 +52,6 @@ const COLS = "grid grid-cols-[minmax(190px,1.6fr)_minmax(200px,1.5fr)_minmax(84p
 /** TODO-COPY. */
 const HEADERS = ["Teen", "Stage", "Signals", "Response", "Holder", ""] as const;
 
-/* A presence chip still exists for Tiers 2–3's cards (the coaching line),
-   kept here as their one definition. */
-export function PresenceChip({ text }: { text: string }) {
-  return (
-    <span data-presence-chip title={text} className="inline-block h-5 max-w-full min-w-0 shrink truncate rounded-full bg-[var(--surface-sunken)] px-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-      {text}
-    </span>
-  );
-}
-
 /** ═══ THE STAGE STEPPER ═══ Four 8px dots on a 1px line. Done: filled
  *  `text-primary`. Current: `t1`, and LARGER (10px) — so the state is never
  *  colour alone — with its label under the row. Future: an outlined

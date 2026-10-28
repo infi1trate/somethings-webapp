@@ -34,7 +34,7 @@ import { useNowTick } from "@/lib/monitoring/t1-live";
 import { queueSummary, t1Response } from "@/lib/monitoring/t1-queue";
 import { Tier1Arrivals } from "@/components/monitoring/overview/tier1-arrivals";
 import { setMonitoringLayout, useMonitoringLayout, type MonitoringLayout } from "@/lib/monitoring/layout-pref";
-import { HeroMetrics } from "@/components/monitoring/overview/hero-metrics";
+import { HeroMetrics, type HeroTarget } from "@/components/monitoring/overview/hero-metrics";
 import { MonitoringList } from "@/components/monitoring/overview/tier-list";
 import { MonitoringCards } from "@/components/monitoring/overview/tier-cards";
 import { EventsTab } from "@/components/monitoring/events/events-tab";
@@ -110,12 +110,12 @@ function TabSwitch({ tab, onTab }: { tab: MonitoringTab; onTab: (t: MonitoringTa
 /** ═══ THE DEV BAR'S SCENARIO, AS A KEY (Monitoring v3, §6) ═══ A scenario
  *  change remounts the page, so its filter, Tier 4 and alert start from the
  *  scenario's own state rather than the last one's. */
-export function MonitoringOverview({ tab = "watch" }: { tab?: MonitoringTab }) {
+export function MonitoringOverview({ tab = "watch", kind = null }: { tab?: MonitoringTab; kind?: "flag" | "escalation" | null }) {
   const scenarioId = useOnboardingStore((s) => s.monitoringScenarioId);
-  return <Overview key={scenarioId ?? "none"} tab={tab} mock={monitoringMock(scenarioId)} />;
+  return <Overview key={scenarioId ?? "none"} tab={tab} kind={kind} mock={monitoringMock(scenarioId)} />;
 }
 
-function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | undefined }) {
+function Overview({ tab, kind, mock }: { tab: MonitoringTab; kind: "flag" | "escalation" | null; mock: MonitoringMock | undefined }) {
   /* Fixed at mount, the house pattern: `Date.now()` in render is impure. */
   const [now] = useState(() => Date.now());
   const router = useRouter();
@@ -123,7 +123,9 @@ function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | un
   const m = useMemo(() => monitoringMetrics(teens), [teens]);
   /* ═══ THE EVENTS FILTER, PAGE-LOCAL ═══ One filter for the stream, the
      summary line, the export and the hero's range cells. */
-  const [filter, setFilterState] = useState<EventFilter>(() => ({ ...DEFAULT_FILTER, ...mock?.filter?.(now) }));
+  /* `?type=flag|escalation` (Monitoring v4, §3): the hero's preset, carried
+     into a fresh load or a shared link — read once, into the initial state. */
+  const [filter, setFilterState] = useState<EventFilter>(() => ({ ...DEFAULT_FILTER, ...mock?.filter?.(now), ...(kind ? { kinds: [kind] } : {}) }));
   const setFilter = (p: Partial<EventFilter>) => setFilterState((f) => ({ ...f, ...p }));
   const filtered = useMemo(() => filterEvents(events, filter, now), [events, filter, now]);
   const sum = useMemo(() => rangeSummary(filtered), [filtered]);
@@ -135,13 +137,21 @@ function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | un
      so "oldest 14m overdue" stays true. */
   const tick = useNowTick(now);
   const crisisDetail = queueSummary(teens.filter((t) => t.t1).map((t) => t1Response(t.t1!.escalation, tick, t.t1!.confirmedBy)));
-  /* The cell is a button: to the Tier 1 queue, focus on its first row. On
-     Events the queue is the Watch tab's, so the cell switches tab first. */
-  const goToTier1 = () => {
+  /* ═══ HERO CELLS GO SOMEWHERE (Monitoring v4, §1 · §3) ═══ In crisis →
+     the Tier 1 queue, focus on its first row; High risk → Tier 2, focus on
+     its heading; Risk flags and Escalations → Events, filtered to that kind
+     (the same filter the popover sets — and `?type=` carries it in). */
+  const goTo = (t: HeroTarget) => {
+    if (t === "flags" || t === "escalations") {
+      setFilter({ kinds: [t === "flags" ? "flag" : "escalation"] });
+      router.replace(`/app/monitoring?tab=events&type=${t === "flags" ? "flag" : "escalation"}`, { scroll: false });
+      return;
+    }
     const land = () => {
-      const sec = document.querySelector<HTMLElement>('[data-tier-group="1"]');
+      const sec = document.querySelector<HTMLElement>(`[data-tier-group="${t === "tier1" ? 1 : 2}"]`);
       sec?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-      const first = sec?.querySelector<HTMLElement>("[data-t1-row]") ?? sec?.querySelector<HTMLElement>("[data-t1-empty]");
+      const first = t === "tier1" ? (sec?.querySelector<HTMLElement>("[data-t1-row]") ?? sec?.querySelector<HTMLElement>("[data-t1-empty]")) : sec?.querySelector<HTMLElement>("h3");
+      if (first && first.tabIndex < 0 && !first.hasAttribute("tabindex")) first.setAttribute("tabindex", "-1");
       first?.focus({ preventScroll: true });
     };
     if (tab !== "watch") {
@@ -177,6 +187,10 @@ function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | un
 
       {/* ── THE HEADER AND ITS TOOLBAR — never change between tabs ─────── */}
       <PageHeader
+        /* No hairline under the subtitle (Monitoring v4, §3): the toolbar's
+           40px is the separator — and Care Reviews loses it too, so the two
+           headers stay at parity. */
+        rule={false}
         /* TODO-COPY */
         title="Monitoring"
         /* The date in the schedule's zone, Care Reviews' own line, then the
@@ -198,7 +212,7 @@ function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | un
         className="mt-6"
         m={m}
         crisisDetail={crisisDetail}
-        onCrisis={goToTier1}
+        onTarget={goTo}
         range={
           tab === "events"
             ? { label: filter.range === "custom" ? "custom" : filter.range, flags: sum.flags, surge: sum.surge, escalations: sum.escalations, open: sum.open, closed: sum.closed }
