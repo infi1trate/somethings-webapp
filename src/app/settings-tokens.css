@@ -138,6 +138,11 @@
   --ok: #2e8b57;
   --ok-soft: #e0f2e7;
   --t1-ink: #b70b1f;
+  /* ═══ T1 AS TEXT ON A NEUTRAL SURFACE (Monitoring v4) ═══ "Overdue 14m"
+     and the flag signal. In light it IS the ink; in dark the board's ink
+     measured 4.36:1 on the queue row, so dark takes a Bloom step. A text
+     token only — fills, glyphs and lozenges keep `--t1-ink`. */
+  --t1-text: var(--t1-ink);
   --t2-ink: #844b04;
   --ok-ink: #0f7542;
 
@@ -833,6 +838,7 @@
   --ok: #5cbf86;
   --ok-soft: #1e3327;
   --t1-ink: #f0695c;
+  --t1-text: #fe8391; /* blush/500 — 5.62:1 on the dark row, 6.16:1 on t1-soft */
   --t2-ink: #ee9a4a;
   --ok-ink: #5cbf86;
   /* The tier legend, dark. Bloom's ramps end in saturated colour, not a

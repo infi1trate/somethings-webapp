@@ -24,7 +24,7 @@ import { monitoringEntryHref } from "@/lib/monitoring/entry-href";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
 import { useWindowedRange } from "@/lib/ui/use-windowed-range";
 import type { Tier } from "@/lib/monitoring/tiers";
-import { EmptyTierLane, Tier1Lane, PresenceChip } from "@/components/monitoring/overview/tier1-lane";
+import { EmptyTierLane, Tier1Lane } from "@/components/monitoring/overview/tier1-lane";
 import {
   ESCALATION,
   FLAG,
@@ -95,7 +95,10 @@ function Row({ teen }: { teen: MonitoringTeen }) {
               <span className="truncate font-display text-[15px] leading-[20px] font-bold text-[var(--text-primary)]">{teen.teen}</span>
             )}
             <TierTag tier={teen.tier} />
-            {teen.presence && <PresenceChip text={teen.presence} />}
+            {/* ═══ PRESENCE HAS ONE HOME (Monitoring v4, §3) ═══ The avatar's
+                dot — and, for a Tier 1, the queue's Holder column. The inline
+                "Sarah coaching" chip is gone; the dot's meaning is spoken. */}
+            {teen.presence && <span className="sr-only">, {teen.presence}</span>}
           </div>
           {second && <p data-row-second className={cn("m-0 truncate text-[13px] leading-[18px]", tint ? "text-[var(--text-secondary)]" : "text-[var(--text-secondary)]")}>{second}</p>}
         </div>
@@ -110,7 +113,7 @@ function Row({ teen }: { teen: MonitoringTeen }) {
       </div>
       {/* DAYS ENGAGED: the week, then the number */}
       <div role="cell" className="flex items-center gap-2">
-        <Sparkline values={teen.engagement7d} />
+        <Sparkline values={teen.engagement7d} variant="row-v4" />
         <span className="font-mono text-[15px] leading-[20px] tabular-nums text-[var(--text-primary)]">{teen.daysEngaged}</span>
       </div>
       {/* RISK FLAGS: count, then the window in 12 sans */}
@@ -191,7 +194,9 @@ export function ShowAll({ open, onToggle, controls, total, inline = false }: { o
       onClick={onToggle}
       className={cn(
         "mon-focus inline-flex shrink-0 items-center justify-center rounded-[14px] text-[13px] leading-[18px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-        inline ? "min-h-8 px-3" : "min-h-11 w-full"
+        /* A full-width quiet button inside its container, 16px of
+           vertical padding, in both views (Monitoring v4, §3). */
+        inline ? "w-full py-4" : "w-full py-4"
       )}
     >
       {/* TODO-COPY */}
@@ -265,7 +270,7 @@ export function Tier4Registry({ teens, defaultOpen = false }: { teens: Monitorin
   );
 }
 
-export function MonitoringList({ teens, tier4Open = false }: { teens: MonitoringTeen[]; tier4Open?: boolean }) {
+export function MonitoringList({ teens, tier4Open = false, now, heldBy }: { teens: MonitoringTeen[]; tier4Open?: boolean; now: number; heldBy?: Readonly<Record<string, string>> }) {
   const of = (tier: Tier) => teens.filter((t) => t.tier === tier);
   const t4 = of(4);
   const [t4Open, setT4Open] = useState(tier4Open);
@@ -292,7 +297,8 @@ export function MonitoringList({ teens, tier4Open = false }: { teens: Monitoring
         {/* ═══ THE STICKY HEADER ROW ═══ On the cell grid (the row's own
             px-4 matches the rows'), 12/16 tertiary, 12px above a hairline. */}
         <div role="rowgroup" data-list-header className={cn(ROW, "sticky top-0 z-[2] -mx-4 rounded-t-[24px] bg-[var(--surface-raised)] px-4")}>
-          <div role="row" className={cn(ROW, "border-b border-[color:var(--border-subtle)] px-4 pt-4 pb-3")}>
+          {/* 16px under the labels, then the hairline (Monitoring v4, §3). */}
+          <div role="row" className={cn(ROW, "border-b border-[color:var(--border-subtle)] px-4 pt-4 pb-4")}>
             {HEADERS.map((h) => (
               <div key={h} role="columnheader" className="text-[12px] leading-[16px] font-medium text-[var(--text-tertiary)]">
                 {h}
@@ -301,11 +307,13 @@ export function MonitoringList({ teens, tier4Open = false }: { teens: Monitoring
           </div>
         </div>
 
-        {/* TIER 1: the lane, in its own full-width row */}
+        {/* TIER 1: the queue, in its own full-width row, under column
+            headers of its own (Monitoring v4, §2) — the table's global
+            headers describe Tiers 2–4. */}
         <div role="rowgroup" className={ROW}>
           <div role="row" className={ROW}>
             <div role="cell" className="col-span-full">
-              <Tier1Lane teens={teens} />
+              <Tier1Lane teens={teens} now={now} heldBy={heldBy} />
             </div>
           </div>
         </div>

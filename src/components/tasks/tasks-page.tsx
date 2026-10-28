@@ -1251,6 +1251,9 @@ export function TasksPage({
           sentence splits into the two things it was conflating: a PURPOSE that
           does not change with the data, and METRICS that do. */}
       <PageHeader
+        /* Parity with Monitoring (Monitoring v4, §3): no hairline under the
+           subtitle; the toolbar's spacing separates. */
+        rule={false}
         title={scope ? SCOPE_TITLE[scope] : /* TODO-COPY */ "Tasks"}
         purpose={
           /* ═══ THE DATE, NOT A PURPOSE SENTENCE (§4.1) ═══

@@ -31,7 +31,7 @@ import { monitoringEntryHref } from "@/lib/monitoring/entry-href";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
 import { Tier4Registry } from "@/components/monitoring/overview/tier-list";
 import type { Tier } from "@/lib/monitoring/tiers";
-import { EmptyTierLane, Tier1Lane, PresenceChip } from "@/components/monitoring/overview/tier1-lane";
+import { EmptyTierLane, Tier1Lane } from "@/components/monitoring/overview/tier1-lane";
 import { ESCALATION, FLAG, Sparkline, SURVEY, TierAvatar, TierGroupHeader, TierTag } from "@/components/monitoring/overview/tier-bits";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
@@ -104,7 +104,8 @@ function Card({ teen }: { teen: MonitoringTeen }) {
           </h4>
           <p data-card-mentor className="m-0 mt-0.5 flex min-w-0 items-center gap-1.5 truncate text-[13px] leading-[18px] text-[var(--text-secondary)]">
             {teen.mentor}
-            {teen.presence && <PresenceChip text={teen.presence} />}
+            {/* Presence's one home is the avatar's dot (Monitoring v4, §3). */}
+            {teen.presence && <span className="sr-only">, {teen.presence}</span>}
           </p>
           {/* The live stage (pack v5.0, C4), one quiet line. */}
           {teen.stage && (
@@ -193,12 +194,13 @@ function TierCards({ tier, teens }: { tier: Tier; teens: MonitoringTeen[] }) {
   );
 }
 
-export function MonitoringCards({ teens, tier4Open = false }: { teens: MonitoringTeen[]; tier4Open?: boolean }) {
+export function MonitoringCards({ teens, tier4Open = false, now, heldBy }: { teens: MonitoringTeen[]; tier4Open?: boolean; now: number; heldBy?: Readonly<Record<string, string>> }) {
   const of = (tier: Tier) => teens.filter((t) => t.tier === tier);
   const t4 = of(4);
   return (
     <div data-monitoring-cards>
-      <Tier1Lane teens={teens} />
+      {/* Tier 1 is never cards: the same queue as the list (Monitoring v4). */}
+      <Tier1Lane teens={teens} now={now} heldBy={heldBy} />
       <TierCards tier={2} teens={of(2)} />
       <TierCards tier={3} teens={of(3)} />
       {/* TIER 4 — the registry's rows, inside the card view */}

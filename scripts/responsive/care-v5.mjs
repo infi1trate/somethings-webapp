@@ -356,7 +356,10 @@ let assessedState;
   await page.screenshot({ path: `${OUT}/08-today.png`, fullPage: false });
   const sb = await bell(page);
   const kinds = sb.n.map((x) => x.kind);
-  check(/Activity, \d+ unread/.test(sb.before ?? "") && kinds.includes("opened") && kinds.includes("assessed") && !kinds.includes("confirmed"), "the supervisor's bell: opened and assessed — and the badge counts them", `${sb.before} · ${kinds.join()}`);
+  /* RETARGETED (Monitoring v4 §4): an UNCONFIRMED Tier 1's "opened" notice
+     steps aside for its Needs you now row, which the badge names first. */
+  const needs = await page.locator("[data-needs-row]").count();
+  check(/^Activity, 1 Tier 1 awaiting confirmation, \d+ unread/.test(sb.before ?? "") && kinds.includes("assessed") && !kinds.includes("confirmed") && needs === 1, "the supervisor's bell: Needs you now, then the assessed notice — and the badge counts both", `${sb.before} · ${kinds.join()} · ${needs} needs`);
   const assessed = sb.n.find((x) => x.kind === "assessed");
   check(/ sent Jordan’s assessment$/.test(assessed?.text ?? "") && assessed.unread && !assessed.support, "actor-correct: the mentor sent the assessment; unread on first look; no Open Support for a supervisor", JSON.stringify(assessed));
   await page.screenshot({ path: `${OUT}/09-bell-supervisor.png` });
@@ -387,8 +390,10 @@ let assessedState;
   /* Monitoring's stage line, on the same record. */
   await page.goto(`${BASE}/app/monitoring`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1000);
-  const stage = await page.evaluate(() => [...document.querySelectorAll("[data-teen-stage]")].map((x) => x.textContent.replace(/^·\s*/, "").trim()));
-  check(stage.includes("Awaiting confirmation"), "Monitoring: the teen's live stage as one quiet line", stage.join(" | "));
+  /* RETARGETED (Monitoring v4 §2): the lane's "· stage" line is the queue's
+     Stage cell — the stepper's label, from the same record. */
+  const stage = await page.evaluate(() => [...document.querySelectorAll("[data-t1-stage-label], [data-teen-stage]")].map((x) => x.textContent.replace(/^·\s*/, "").replace(/^Step \d of \d, \w+: /, "").trim()));
+  check(stage.includes("Awaiting confirmation"), "Monitoring: the teen's live stage, in the queue's Stage cell", stage.join(" | "));
   /* Confirm Tier 1 — the mentor's bell hears it. */
   await page.goto(`${BASE}/app/chat/t13`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1000);

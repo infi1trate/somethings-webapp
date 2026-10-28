@@ -98,7 +98,7 @@ const frame = (page) =>
 const heroCells = (page) =>
   page.evaluate(() => [...document.querySelectorAll("[data-hero-cell]")].map((c) => {
     const l = c.querySelector("[data-hero-label]"), d = c.querySelector("[data-hero-detail]");
-    return { label: l?.textContent, detail: d?.textContent, w: Math.round(c.getBoundingClientRect().width), h: Math.round(c.getBoundingClientRect().height), oneLine: [l, d].every((x) => x && x.getBoundingClientRect().height <= parseFloat(getComputedStyle(x).lineHeight) + 0.5), dotFirst: !!c.querySelector("[data-crisis-dot]") ? c.querySelector("[data-crisis-dot]").compareDocumentPosition(c.querySelector("[data-hero-value]")) === Node.DOCUMENT_POSITION_FOLLOWING : null };
+    return { label: l?.textContent, detail: d?.textContent, w: Math.round(c.getBoundingClientRect().width), h: Math.round(c.getBoundingClientRect().height), oneLine: [l, d].every((x) => x && x.getBoundingClientRect().height <= parseFloat(getComputedStyle(x).lineHeight) + 0.5), value: c.querySelector("[data-hero-value]")?.textContent, dotFirst: !!c.querySelector("[data-crisis-dot]") ? c.querySelector("[data-crisis-dot]").compareDocumentPosition(c.querySelector("[data-hero-value]")) === Node.DOCUMENT_POSITION_FOLLOWING : null };
   }));
 {
   const { ctx, page } = await open("/app/monitoring");
@@ -115,7 +115,8 @@ const heroCells = (page) =>
   check(tg.present && tg.vis === "hidden" && tg.ah === "true" && tg.tab, "on Events the toggle keeps its slot: visibility hidden, aria-hidden, out of the tab order", JSON.stringify(tg));
   check(cw.map((c) => c.label).join() === ce.map((c) => c.label).join() && cw.map((c) => c.label).join(" · ") === "In crisis · High risk · Risk flags · Escalations · Active teens", "the same five labels on both tabs — only numbers and details change", ce.map((c) => c.label).join(" · "));
   check([...cw, ...ce].every((c) => c.h === 120 && c.oneLine) && new Set(cw.map((c) => c.w)).size <= 2, "every cell 120 tall, equal widths, label and detail one line each", JSON.stringify(cw.map((c) => `${c.w}×${c.h}`)));
-  check(cw[0].dotFirst === true, "the In-crisis dot sits before the numeral");
+  /* MONITORING v4 §3: the dot exists only above zero — at 0 there is none. */
+  check(cw[0].value === "0" ? cw[0].dotFirst === null : cw[0].dotFirst === true, "the In-crisis dot sits before the numeral, and only above zero", `${cw[0].value} · ${cw[0].dotFirst}`);
   check(/^\d+ mentors · \d+ engaged$/.test(cw[4].detail ?? ""), "“N mentors · N engaged”", String(cw[4].detail));
   await page.locator('[data-monitoring-tab="watch"]').click();
   await page.waitForTimeout(600);

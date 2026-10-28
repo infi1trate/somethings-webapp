@@ -30,12 +30,13 @@ import { LayoutGrid, List } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { monitoringMetrics, SUPERVISORS_ON_SHIFT } from "@/lib/monitoring/tier-roster";
 import { useTierRoster } from "@/lib/monitoring/use-tier-roster";
-import { syncTierAlert } from "@/lib/monitoring/alert-clock";
+import { useNowTick } from "@/lib/monitoring/t1-live";
+import { queueSummary, t1Response } from "@/lib/monitoring/t1-queue";
+import { Tier1Arrivals } from "@/components/monitoring/overview/tier1-arrivals";
 import { setMonitoringLayout, useMonitoringLayout, type MonitoringLayout } from "@/lib/monitoring/layout-pref";
-import { HeroMetrics } from "@/components/monitoring/overview/hero-metrics";
+import { HeroMetrics, type HeroTarget } from "@/components/monitoring/overview/hero-metrics";
 import { MonitoringList } from "@/components/monitoring/overview/tier-list";
 import { MonitoringCards } from "@/components/monitoring/overview/tier-cards";
-import { Tier1AlertStrip } from "@/components/monitoring/overview/tier1-alert-strip";
 import { EventsTab } from "@/components/monitoring/events/events-tab";
 import { DEFAULT_FILTER, filterEvents, rangeSummary, type EventFilter } from "@/lib/monitoring/events";
 import { PageHeader } from "@/components/ia/page-header";
@@ -109,20 +110,22 @@ function TabSwitch({ tab, onTab }: { tab: MonitoringTab; onTab: (t: MonitoringTa
 /** ═══ THE DEV BAR'S SCENARIO, AS A KEY (Monitoring v3, §6) ═══ A scenario
  *  change remounts the page, so its filter, Tier 4 and alert start from the
  *  scenario's own state rather than the last one's. */
-export function MonitoringOverview({ tab = "watch" }: { tab?: MonitoringTab }) {
+export function MonitoringOverview({ tab = "watch", kind = null }: { tab?: MonitoringTab; kind?: "flag" | "escalation" | null }) {
   const scenarioId = useOnboardingStore((s) => s.monitoringScenarioId);
-  return <Overview key={scenarioId ?? "none"} tab={tab} mock={monitoringMock(scenarioId)} />;
+  return <Overview key={scenarioId ?? "none"} tab={tab} kind={kind} mock={monitoringMock(scenarioId)} />;
 }
 
-function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | undefined }) {
+function Overview({ tab, kind, mock }: { tab: MonitoringTab; kind: "flag" | "escalation" | null; mock: MonitoringMock | undefined }) {
   /* Fixed at mount, the house pattern: `Date.now()` in render is impure. */
   const [now] = useState(() => Date.now());
   const router = useRouter();
-  const { teens, live, events } = useTierRoster(now);
+  const { teens, events } = useTierRoster(now);
   const m = useMemo(() => monitoringMetrics(teens), [teens]);
   /* ═══ THE EVENTS FILTER, PAGE-LOCAL ═══ One filter for the stream, the
      summary line, the export and the hero's range cells. */
-  const [filter, setFilterState] = useState<EventFilter>(() => ({ ...DEFAULT_FILTER, ...mock?.filter?.(now) }));
+  /* `?type=flag|escalation` (Monitoring v4, §3): the hero's preset, carried
+     into a fresh load or a shared link — read once, into the initial state. */
+  const [filter, setFilterState] = useState<EventFilter>(() => ({ ...DEFAULT_FILTER, ...mock?.filter?.(now), ...(kind ? { kinds: [kind] } : {}) }));
   const setFilter = (p: Partial<EventFilter>) => setFilterState((f) => ({ ...f, ...p }));
   const filtered = useMemo(() => filterEvents(events, filter, now), [events, filter, now]);
   const sum = useMemo(() => rangeSummary(filtered), [filtered]);
@@ -130,10 +133,32 @@ function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | un
   const supervisors = useMemo(() => [...new Set(events.map((e) => e.supervisorName).filter((x): x is string => !!x))].sort(), [events]);
   const onTab = (t: MonitoringTab) => router.replace(t === "watch" ? "/app/monitoring" : "/app/monitoring?tab=events", { scroll: false });
   const layout = useMonitoringLayout();
-  /* The alert clock is module state; telling it is an external write. */
-  useEffect(() => {
-    syncTierAlert(live, mock?.alert);
-  }, [live, mock]);
+  /* ═══ THE IN-CRISIS CELL READS THE QUEUE (Monitoring v4, §1) ═══ Ticking,
+     so "oldest 14m overdue" stays true. */
+  const tick = useNowTick(now);
+  const crisisDetail = queueSummary(teens.filter((t) => t.t1).map((t) => t1Response(t.t1!.escalation, tick, t.t1!.confirmedBy)));
+  /* ═══ HERO CELLS GO SOMEWHERE (Monitoring v4, §1 · §3) ═══ In crisis →
+     the Tier 1 queue, focus on its first row; High risk → Tier 2, focus on
+     its heading; Risk flags and Escalations → Events, filtered to that kind
+     (the same filter the popover sets — and `?type=` carries it in). */
+  const goTo = (t: HeroTarget) => {
+    if (t === "flags" || t === "escalations") {
+      setFilter({ kinds: [t === "flags" ? "flag" : "escalation"] });
+      router.replace(`/app/monitoring?tab=events&type=${t === "flags" ? "flag" : "escalation"}`, { scroll: false });
+      return;
+    }
+    const land = () => {
+      const sec = document.querySelector<HTMLElement>(`[data-tier-group="${t === "tier1" ? 1 : 2}"]`);
+      sec?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      const first = t === "tier1" ? (sec?.querySelector<HTMLElement>("[data-t1-row]") ?? sec?.querySelector<HTMLElement>("[data-t1-empty]")) : sec?.querySelector<HTMLElement>("h3");
+      if (first && first.tabIndex < 0 && !first.hasAttribute("tabindex")) first.setAttribute("tabindex", "-1");
+      first?.focus({ preventScroll: true });
+    };
+    if (tab !== "watch") {
+      onTab("watch");
+      window.setTimeout(land, 200);
+    } else land();
+  };
   /* ═══ A SCENARIO'S ENVIRONMENT ═══ Reduced motion and the dark theme are
      set on <html> while it is active and restored after — environment, never
      UI. `data-motion="reduce"` is honoured by globals.css as the media query
@@ -151,14 +176,21 @@ function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | un
   return (
     /* Care Reviews' container, to the class (`tasks-page.tsx`). */
     <div data-monitoring className="mx-auto flex w-full max-w-[1800px] flex-col px-6 py-6 lg:px-8">
-      {live && (
-        <div className="mb-5">
-          <Tier1AlertStrip teens={teens} />
-        </div>
-      )}
+      {/* ═══ NO ALERT STRIPS (Monitoring v4, §1) ═══ Six stacked red bars
+          above a page that already says "6 In crisis", a red nav badge and
+          six Tier 1 rows was one message four times. Attention is the bell
+          (its "Needs you now" group, the sound), the hero's In-crisis
+          button, the Tier 1 queue, and Today's live lane. What the strip's
+          `role="alert"` did for a screen reader is the one polite line
+          below: a NEW Tier 1, announced once on arrival. */}
+      <Tier1Arrivals teens={teens} />
 
       {/* ── THE HEADER AND ITS TOOLBAR — never change between tabs ─────── */}
       <PageHeader
+        /* No hairline under the subtitle (Monitoring v4, §3): the toolbar's
+           40px is the separator — and Care Reviews loses it too, so the two
+           headers stay at parity. */
+        rule={false}
         /* TODO-COPY */
         title="Monitoring"
         /* The date in the schedule's zone, Care Reviews' own line, then the
@@ -179,6 +211,8 @@ function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | un
       <HeroMetrics
         className="mt-6"
         m={m}
+        crisisDetail={crisisDetail}
+        onTarget={goTo}
         range={
           tab === "events"
             ? { label: filter.range === "custom" ? "custom" : filter.range, flags: sum.flags, surge: sum.surge, escalations: sum.escalations, open: sum.open, closed: sum.closed }
@@ -194,9 +228,9 @@ function Overview({ tab, mock }: { tab: MonitoringTab; mock: MonitoringMock | un
           <EventsTab events={filtered} filter={filter} setFilter={setFilter} now={now} mentors={mentors} supervisors={supervisors} exportedOnArrival={!!mock?.exported} />
         ) : /* ── THE TIERS, from the same array either way ───────────── */
         layout === "cards" ? (
-          <MonitoringCards teens={teens} tier4Open={!!mock?.tier4Open} />
+          <MonitoringCards teens={teens} tier4Open={!!mock?.tier4Open} now={now} heldBy={mock?.holders} />
         ) : (
-          <MonitoringList teens={teens} tier4Open={!!mock?.tier4Open} />
+          <MonitoringList teens={teens} tier4Open={!!mock?.tier4Open} now={now} heldBy={mock?.holders} />
         )}
       </div>
     </div>

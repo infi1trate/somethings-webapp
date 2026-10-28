@@ -12,7 +12,7 @@
 /** ═══ SIZES (Monitoring v2) ═══ The row's 18px: 4px bars, 2px apart. The
  *  card's 96×24: seven bars sharing the width. Rounded ends, `border-strong`
  *  (it was `border-default`, square). */
-export function BarSparkline({ values, height = 18, width, variant }: { values: number[]; height?: 16 | 18 | 20 | 24; width?: number; variant?: "card-v3" }) {
+export function BarSparkline({ values, height = 18, width, variant }: { values: number[]; height?: 16 | 18 | 20 | 24; width?: number; variant?: "card-v3" | "row-v4" }) {
   /* ═══ THE CARD'S v3 FORM (Monitoring v3, §4) ═══ 120×20 under the
      engagement numeral: bars share the width 3px apart, a 3px round, in
      text-tertiary — the LAST bar (today) in text-primary, so the week reads
@@ -25,6 +25,22 @@ export function BarSparkline({ values, height = 18, width, variant }: { values: 
             key={i}
             data-bar-last={i === values.length - 1 || undefined}
             className={i === values.length - 1 ? "block flex-1 rounded-[3px] bg-[var(--text-primary)]" : "block flex-1 rounded-[3px] bg-[var(--text-tertiary)]"}
+            style={{ height: `${Math.max(15, v)}%` }}
+          />
+        ))}
+      </span>
+    );
+  /* ═══ THE ROW'S FORM (Monitoring v4, §3) ═══ Seven 3px bars, 2px apart,
+     16px tall, rounded — the LAST bar (today) in text-primary, the card's
+     own rule, so the week reads towards now in both views. */
+  if (variant === "row-v4")
+    return (
+      <span aria-hidden data-sparkline="row-v4" className="inline-flex shrink-0 items-end gap-[2px]" style={{ height: 16 }}>
+        {values.map((v, i) => (
+          <span
+            key={i}
+            data-bar-last={i === values.length - 1 || undefined}
+            className={i === values.length - 1 ? "block w-[3px] rounded-full bg-[var(--text-primary)]" : "block w-[3px] rounded-full bg-[var(--border-strong)]"}
             style={{ height: `${Math.max(15, v)}%` }}
           />
         ))}
