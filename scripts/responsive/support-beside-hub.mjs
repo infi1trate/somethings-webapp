@@ -214,9 +214,10 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
   /* PRESENCE */
   await page.locator('[data-support-row="s-brandy"] [data-support-row-open]').click();
   await page.waitForTimeout(400);
-  /* RETARGETED (pack v4.0, B3): presence lives in the Care hero only. */
-  const pres = await page.evaluate(() => ({ hero: document.querySelector("[data-hero-presence]")?.textContent.trim(), strip: !!document.querySelector("[data-rail-presence]") }));
-  check(pres.hero === "Brandy is here" && !pres.strip, "with the notified supervisor open, the hero says she is here — and nothing else does", JSON.stringify(pres));
+  /* RETIRED (2026-10-28): presence had its single home in the escalation
+     header, which is deleted — so no presence line anywhere. */
+  const pres = await page.evaluate(() => ({ hero: document.querySelector("[data-hero-presence]")?.textContent.trim() ?? null, strip: !!document.querySelector("[data-rail-presence]") }));
+  check(pres.hero === null && !pres.strip, "with the notified supervisor open, no presence line anywhere in the panel", JSON.stringify(pres));
 
   /* KEYBOARD ORDER, and Esc from the support composer */
   const order = await page.evaluate(() => {
@@ -269,7 +270,7 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
     role: document.querySelector("[data-support-role]")?.textContent.trim(),
     ph: document.querySelector("[data-support-composer] textarea")?.getAttribute("placeholder"),
   }));
-  check(/ is here$/.test(ws.pres ?? "") && !/^The is/.test(ws.pres ?? ""), "the hero says the mentor is here", ws.pres);
+  check(ws.pres === undefined, "no presence line (its home, the escalation header, is deleted)", String(ws.pres));
   check(ws.role === "Mentor" && !/Message The$/.test(ws.ph ?? ""), "the support header names them a Mentor, and the composer addresses them", `${ws.role} · ${ws.ph}`);
   await page.screenshot({ path: `${OUT}/02-supervisor-observing-1512.png` });
   await ctx.close();

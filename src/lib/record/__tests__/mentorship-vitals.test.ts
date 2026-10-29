@@ -47,7 +47,7 @@ describe("the Mentorship cell's vitals (Care Hero v7.0)", () => {
 
   it("carries facts only — no clinical field can reach the mentor's lens through it", () => {
     const v = mentorshipVitals(DEMO_TEENS[0].id)!;
-    expect(Object.keys(v).sort()).toEqual(["checkIns30d", "days", "lastSpoke", "supervisor", "tenure", "tickedToday"]);
+    expect(Object.keys(v).sort()).toEqual(["checkIns30d", "days", "lastSpoke", "mentor", "supervisor", "tenure", "tickedToday"]);
     expect(JSON.stringify(v)).not.toMatch(/[A-Z]\d{2}\.\d|diagnos|presentation/i);
   });
 

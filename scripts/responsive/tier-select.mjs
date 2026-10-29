@@ -132,6 +132,10 @@ const rows = (page, scope = "[data-tier-select]") =>
       wash: resolve(`--tier-legend-${r.dataset.tierRow}-wash`),
       washDeep: resolve(`--tier-legend-${r.dataset.tierRow}-wash-deep`),
       borderStrong: resolve("--border-strong"),
+      /* FCP-3: each card's contextual hairline and its selected edge. */
+      edge: resolve(`--tier-legend-${r.dataset.tierRow}-edge`),
+      edgeSoft: resolve(`--tier-legend-${r.dataset.tierRow}-border`),
+      shadow: s.boxShadow,
       bw: s.borderTopWidth,
       bc: s.borderTopColor,
       h: Math.round(r.getBoundingClientRect().height),
@@ -200,7 +204,11 @@ console.log("\n── 1 · raise mode: empty → select → confirm");
   const r1 = await rows(page);
   const h1 = await page.evaluate(() => Math.round(document.querySelector("[data-tier-select]").getBoundingClientRect().height));
   const two = r1.find((r) => r.tier === "2");
-  check(two.checked === "true" && two.bw === "2px" && two.bc === (await ink(page)) && r1.filter((r) => r.tier !== "2").every((r) => r.bw === "1px"), "selected: the 2px ink ring on that card alone", JSON.stringify(r1.map((r) => [r.tier, r.bw])));
+  /* RETARGETED (FCP-3 6081:23553): WAS the 2px INK ring. The selected
+     card's 2px edge is its own tier's strong step, lifted on the soft
+     elevation; every other card wears its tier's contextual hairline. */
+  void ink;
+  check(two.checked === "true" && two.bw === "2px" && two.bc === two.edge && two.shadow !== "none" && r1.filter((r) => r.tier !== "2").every((r) => r.bw === "1px" && r.bc === r.edgeSoft && r.shadow === "none"), "selected: a 2px edge in the tier's own hue, lifted, on that card alone; the rest wear their tier's hairline", JSON.stringify(r1.map((r) => [r.tier, r.bw, r.bc === (r.checked === "true" ? r.edge : r.edgeSoft)])));
 /* RETARGETED (pack v11.0 §5): no check glyph — selection is the ring and the lozenge's fill. */
   check(two.lozState === "filled" && r1.every((r) => !r.check) && r1.filter((r) => r.tier !== "2").every((r) => r.lozState === "outline"), "selected: the lozenge fills (no check glyph, pack v11.0); every other card stays outline", JSON.stringify(r1.map((r) => [r.tier, r.lozState, r.check])));
   check(r1.every((r) => r.inputs === 1 && r.hidden && !r.glyph), "no radio glyph: one visually hidden native radio per card, the card its label", JSON.stringify(r1.map((r) => [r.inputs, r.hidden, r.glyph])));
@@ -213,7 +221,8 @@ console.log("\n── 1 · raise mode: empty → select → confirm");
   await page.waitForTimeout(220);
   const hov = (await rows(page)).find((r) => r.tier === "1");
 /* RETARGETED (pack v11.0 §5): hover steps the hairline, never the wash — only selection deepens it. */
-  check(hov.bg === hov.wash && hov.bc === hov.borderStrong, "hover steps the hairline to border-strong; the wash stays identity", `${hov.bg} · ${hov.bc}`);
+  /* RETARGETED (FCP-3): hover steps the hairline toward the tier's edge. */
+  check(hov.bg === hov.wash && hov.bc !== hov.edgeSoft && hov.bc !== hov.edge, "hover steps the hairline toward the tier's edge; the wash stays identity", `${hov.bg} · ${hov.bc}`);
   await page.mouse.move(0, 0);
   const census = await alertCensus(page, "[data-tier-select]");
   check(census.length > 0 && census.every((c) => /^lozenge T[12]$|inside lozenge/.test(c)), "alert inks on the Tier 1–2 lozenges only — never Confirm (it was red on T1–2 before v10); the washes are the scoped legend", census.join(", "));
@@ -270,8 +279,10 @@ console.log("\n── 2 · review mode, the confirm-tier step");
 const transcript = [];
 {
   const { ctx, page } = await s1();
-  const head = await page.evaluate(() => { const h = document.querySelector("[data-tier-submitted]"); return { text: h?.querySelector("p")?.textContent, time: h?.querySelector("span.tabular-nums")?.textContent, avatar: !!h?.querySelector("[data-record-avatar]") }; });
-  check(head.text === "Submitted by the mentor" && /\d:\d\d (AM|PM)/.test(head.time ?? "") && head.avatar, "the header row: avatar · Submitted by {mentor} · timestamp (unnamed, the role is said once)", JSON.stringify(head));
+  /* RETARGETED (FCP-3): the header row is the design's one line; who
+     asked stays on the requested card's tag (checked below). */
+  const head = await page.evaluate(() => ({ text: document.querySelector("[data-tier-submitted]")?.textContent, title: document.querySelector('[data-node="confirm"] [data-node-title]')?.textContent, groupHidden: document.querySelector('[data-s1] [role="radiogroup"]') && document.getElementById(document.querySelector('[data-s1] [role="radiogroup"]').getAttribute("aria-labelledby"))?.classList.contains("sr-only") }));
+  check(head.title === "Review risk tier" && head.text === "A tier has already been submitted. Review the choice, then confirm or change it." && head.groupHidden, "the header: Review risk tier, the design's one line; the group's name for assistive tech only", JSON.stringify(head));
   const r = await rows(page, "[data-s1]");
   check(r.map((x) => x.tier).join() === "1,2,3,4", "Tiers 1–4", r.map((x) => x.tier).join());
   check(r.every((x) => x.desc === CRITERIA[x.tier] && x.name === CANON[x.tier]), "each row: the canon name and the clinical criteria, verbatim", JSON.stringify(r.map((x) => x.desc?.slice(0, 30))));
@@ -280,7 +291,7 @@ const transcript = [];
   check(r.find((x) => x.tier === "3")?.tag === "Current" && r.find((x) => x.tier === "3")?.disabled === null, "Jordan's current tier (3) is tagged Current — checkable in review", JSON.stringify(r.find((x) => x.tier === "3")?.tag));
   const reason = await page.evaluate(() => document.querySelector("[data-tier-field=reason]")?.value);
   const rLabel = await page.evaluate(() => { const t = document.querySelector("[data-tier-field=reason]"); return document.querySelector(`label[for="${t.id}"]`)?.textContent; });
-  check(/^Reviewed (the mentor|\S+)’s note: “Jordan said/.test(reason ?? "") && rLabel === "Reason — posted to the record*", "the reason: seeded with neutral framing of the mentor's note, editable", String(reason).slice(0, 60));
+  check(/^Reviewed (the mentor|\S+)’s note: “Jordan said/.test(reason ?? "") && rLabel === "Add details*", "the reason: “Add details”, seeded with neutral framing of the mentor's note, editable", String(reason).slice(0, 60));
   const c1 = await cta(page);
   check(c1.text === "Confirm Tier 1 · Active crisis" && c1.kind === "confirm", "the CTA: Confirm Tier 1 · Active crisis", c1.text);
   check((await filled(page, "[data-s1]")).length === 1, "one filled button in the panel state", (await filled(page, "[data-s1]")).join(" | "));
@@ -330,7 +341,7 @@ const transcript = [];
   await page.keyboard.press("Tab");
   const tf = await said();
   transcript.push(["Tab", tf]);
-  check(tf.role === "textbox" && tf.name === "Reason — posted to the record", "Tab leaves the group in one stop, to the reason", JSON.stringify(tf));
+  check(tf.role === "textbox" && tf.name === "Add details", "Tab leaves the group in one stop, to Add details", JSON.stringify(tf));
   await page.keyboard.press("Tab");
   const tc = await said();
   transcript.push(["Tab", tc]);
@@ -364,9 +375,10 @@ const transcript = [];
      first name in the seed. */
   const { ctx, page } = await s1({ extra: { escalations: assessed.escalations, tierEvents: assessed.tierEvents, draft: { firstName: "Alex", lastName: "Rivera" } } });
   const r = (await rows(page, "[data-s1]"))[0];
-  const head = await page.evaluate(() => document.querySelector("[data-tier-submitted] p")?.textContent);
+  /* RETARGETED (FCP-3): the "Submitted by" row is gone — the requested
+     card's tag carries the name. */
   const reason = await page.evaluate(() => document.querySelector("[data-tier-field=reason]")?.value);
-  check(/^Requested by Alex · /.test(r.tag ?? "") && head === "Submitted by Alex Rivera · Mentor" && /^Reviewed Alex’s note/.test(reason ?? "") && /^Requested by Alex at /.test(r.described), "named: Requested by Alex · {time}; Submitted by Alex Rivera · Mentor; Reviewed Alex’s note", JSON.stringify({ tag: r.tag, head }));
+  check(/^Requested by Alex · /.test(r.tag ?? "") && /^Reviewed Alex’s note/.test(reason ?? "") && /^Requested by Alex at /.test(r.described), "named: Requested by Alex · {time}; Reviewed Alex’s note", JSON.stringify({ tag: r.tag }));
   await ctx.close();
 }
 

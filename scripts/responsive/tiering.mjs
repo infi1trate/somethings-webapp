@@ -165,8 +165,10 @@ console.log("\n── 2 · TierCard, five states, two hosts");
   /* The same teen, the same store, on the chat host. */
   const c2 = await open("/app/chat/t13", { persona: "mentor", chat: "escalation-active" });
   /* RETARGETED (pack v5.0, A1): the hero's headline is the request, in words. */
-  const chatPend = await c2.page.evaluate(() => document.querySelector("[data-tier-line] [data-hero-headline]")?.textContent);
-  check(chatPend === "Tier 1 requested", "and the hero says the same thing, from the same store", String(chatPend));
+  /* RETARGETED (2026-10-28): the escalation header is deleted; the raised
+     node states the request. */
+  const chatPend = await c2.page.evaluate(() => document.querySelector('[data-node-kind="raised"]')?.textContent.trim());
+  check(/Tier 1 requested/.test(chatPend ?? ""), "and the timeline's raised node says the same thing, from the same store", String(chatPend));
   await c2.ctx.close();
 }
 
@@ -473,7 +475,7 @@ let assessed;
   /* RETARGETED (the Assessment-sent card): no period; the card has no
      Support button, so the hero's door is the one door again. */
   check(x1?.title === "Assessment sent", "waiting says Assessment sent", String(x1?.title));
-  check(await page.evaluate(() => !document.querySelector('[data-exchange-primary="post-submit-support"]') && !!document.querySelector('[data-timeline-support="mentor"]') && document.querySelector('[data-exchange-primary="post-submit-emergency"]')?.textContent.trim() === "Contact emergency services"), "the hero keeps the one Support door; the card's filled button is Contact emergency services");
+  check(await page.evaluate(() => !document.querySelector('[data-exchange-primary="post-submit-support"]') && !document.querySelector("[data-timeline-support]") && [...document.querySelectorAll("[data-support-cta]")].some((e) => e.offsetParent !== null) && document.querySelector('[data-exchange-primary="post-submit-emergency"]')?.textContent.trim() === "Contact emergency services"), "the one Support door is the top bar's; the card's filled button is Contact emergency services");
   await page.screenshot({ path: `${OUT}/03-m3-stay.png` });
   assessed = await store(page);
   await ctx.close();
@@ -516,7 +518,7 @@ let closed;
     reason: document.querySelector('[data-tier-field=reason]')?.value,
     line: document.querySelector("[data-tier-line-text]")?.textContent,
   }));
-  check(s1.checked === "1" && s1.tabStops === 1 && s1.label === "Confirm Tier 1 · Active crisis" && !!s1.reason && s1.line === "Awaiting confirmation", "the request is pre-selected, one tab stop, a prefilled reason", JSON.stringify(s1));
+  check(s1.checked === "1" && s1.tabStops === 1 && s1.label === "Confirm Tier 1 · Active crisis" && !!s1.reason && s1.line === undefined, "the request is pre-selected, one tab stop, a prefilled reason", JSON.stringify(s1));
   /* ═══ NEUTRAL UNTIL CONFIRMED (blocked constant) ═══ */
   /* RETARGETED (pack v10.0, Supersession 2): a tier's colour lives in its
      lozenge — the Tier 1–2 lozenges carry it in the picker now; the rows,
@@ -548,7 +550,9 @@ let closed;
   check(typeof ms === "number" && ms > 0 && !shown.ms && !shown.words && !shown.attr, "meta.timeToConfirmMs is on the record and nowhere in the DOM", `${ms}ms · ${JSON.stringify(shown)}`);
   const s2 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, line: document.querySelector("[data-tier-line-text]")?.textContent, lozenge: !!document.querySelector("[data-tier-line] .tier-settle [data-tier-lozenge]") }));
   const x2 = await xs(page);
-  check(s2.stage === "S2" && /^Confirmed by .+ · \d/.test(s2.line ?? "") && s2.lozenge, "S2: the header's chip has settled into the Tier 1 lozenge, signed and timed", JSON.stringify(s2));
+  /* RETARGETED (2026-10-28): no header — the confirm node records it. */
+  const confirmed = await page.evaluate(() => document.querySelector('[data-node-kind="confirm"][data-node-state="completed"]')?.textContent.trim());
+  check(s2.stage === "S2" && /Tier 1 confirmed/.test(confirmed ?? "") && s2.line === undefined, "S2: the confirm node records Tier 1 confirmed", JSON.stringify({ ...s2, confirmed }));
   /* RETARGETED (pack v6.1, Supersession 2 — the named reversal): ONE Crisis
      note node, its accordion's first row open; Close is the only step ahead. */
   /* RETARGETED (pack v11.0, Supersession 5): the deck's active card. */
@@ -556,8 +560,10 @@ let closed;
   const progress = () => page.evaluate(() => document.querySelector("[data-deck-progress]")?.textContent);
   check(x2?.current.join() === "note" && x2.upcoming.join() === "close" && (await openRow()) === "subtype" && x2.title === "Crisis note" && (await progress()) === "0 of 7 sections recorded", "one Crisis note node · 0 of 7, Clinical subtype open; Close is next", JSON.stringify({ cur: x2?.current, up: x2?.upcoming, title: x2?.title }));
   /* ═══ NO GUIDANCE COMPOSER (Supersession 2) ═══ */
-  const g = await page.evaluate(() => ({ composer: !!document.querySelector("[data-send-guidance], [data-guidance-composer]"), link: document.querySelector('[data-timeline-support="supervisor"]')?.textContent ?? null }));
-  check(!g.composer && /^Message .+ in Support/.test(g.link ?? ""), "no guidance composer — a quiet Message {mentor} in Support link instead", JSON.stringify(g));
+  /* RETARGETED (2026-10-28): the header's "Message {mentor} in Support"
+     link is deleted; coaching is Support, through the top bar. */
+  const g = await page.evaluate(() => ({ composer: !!document.querySelector("[data-send-guidance], [data-guidance-composer]"), link: !!document.querySelector("[data-timeline-support]"), top: [...document.querySelectorAll("[data-support-cta]")].some((e) => e.offsetParent !== null) }));
+  check(!g.composer && !g.link && g.top, "no guidance composer and no in-panel Support link — Support is the top bar's door", JSON.stringify(g));
   /* The note, row by row (pack v6.1). Each save breathes before the next
      row opens, so the waits cover it. */
   await page.locator('[data-record-section="subtype"]').click();
@@ -644,7 +650,9 @@ console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 e
   const w = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, outcome: document.querySelector("[data-wrap-outcome]")?.textContent, tier: [...(document.querySelector("[data-wrap-tier]")?.querySelectorAll("[data-tier-lozenge]") ?? [])].map((l) => l.dataset.tierLozenge).join("→"), next: document.querySelector("[data-wrap-next]")?.textContent, follow: document.querySelector("[data-wrap-follow-up]")?.textContent, labelOverValue: [...document.querySelectorAll("[data-wrap] dl > div")].every((d) => d.firstElementChild?.tagName === "DT" && d.lastElementChild?.tagName === "DD"), line: document.querySelector("[data-tier-line-text]")?.textContent, banner: !!document.querySelector('[data-slot="status-banner"]') }));
   const xw = await xs(page);
   check(w.stage === "M4" && xw.current.join() === "closed" && xw.upcoming.length === 0 && w.outcome === "Mobile crisis responded" && w.tier === "1→3" && /checks in with Jordan again/.test(w.next ?? "") && /^[A-Z][a-z]+day, [A-Z][a-z]{2} \d{1,2}$/.test(w.follow ?? "") && w.labelOverValue && !w.banner, "closed: a designed summary — outcome, Tier 1 → Tier 3 as lozenges, what happens next, the follow-up date; label over value", JSON.stringify(w));
-  check(/^Closed .+ · moved to Tier 3 Medium risk$/.test(w.line ?? ""), "and the header states the movement, not a stale Tier 1 confirmation", String(w.line));
+  /* RETIRED (2026-10-28): the header's "Closed · moved to Tier 3" line went
+     with the header; the summary's lozenge pair (checked above) is the movement. */
+  check(w.line === undefined && w.tier === "1→3", "the closed summary states the movement (1→3); no header restates it", String(w.line));
   /* MEASURED: the closed summary once named "Your supervisor" — the name was
      read off the OPEN escalation, and there is none once it closes. */
   const named = await page.evaluate(() => ({ next: document.querySelector("[data-wrap-next]")?.textContent ?? "", meta: document.querySelector("[data-timeline-meta]")?.textContent ?? "" }));

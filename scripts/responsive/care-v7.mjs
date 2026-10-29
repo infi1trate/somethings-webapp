@@ -24,6 +24,14 @@
 //   8  contrast, light and dark
 //   9  no overflow at 1280 and 1512, and a long name truncates
 //
+// ═══ RETARGETED BY THE FCP-3 HERO CARD (Figma 6058:9828, 2026-10-28) ═══
+// The hero is three sections now — header (avatar · name · "16 yo · he/him ·
+// Illinois" · View record), facts (two columns), the tier row — and the
+// escalation header above the timeline is deleted. Claims about v7/v11's
+// Mentorship zone (the tenure headline, its meta template, "Supervised by",
+// the inline ICD chip) are retired with it; what replaced them is measured
+// in their place.
+//
 // Exit codes: 0 all passed · 1 a check failed.
 
 import { chromium } from "playwright";
@@ -80,10 +88,13 @@ const hero = (page) =>
       /* RETARGETED (pack v11.0, Supersession 2): identity returns INSIDE the
          hero card — not v7's strip above it. A strip is identity outside it. */
       strip: !!document.querySelector("[data-care-identity]") && !document.querySelector("[data-care-hero] [data-care-identity]"),
-      cells: [...(card?.querySelectorAll("[data-overline]") ?? [])].map((o) => o.textContent.trim()),
-      headline: root?.querySelector("[data-anchor] [data-anchor-headline]")?.textContent.trim(),
-      meta: root?.querySelector("[data-care-mentorship] [data-anchor-meta]")?.textContent.replace(/\s+/g, " ").trim(),
-      sup: root?.querySelector('[data-vital="supervisor"]')?.textContent.replace(/\s+/g, " ").trim(),
+      /* The three sections, in order (FCP-3). */
+      sections: [...(card?.children ?? [])].map((c) => (c.matches("[data-care-identity]") ? "header" : c.matches("[data-care-metrics]") ? "facts" : c.matches("[data-tier-cell]") ? "tier" : c.tagName)),
+      facts: [...(card?.querySelectorAll("[data-care-metrics] [data-metric] > p:first-child") ?? [])].map((p) => p.textContent.trim()),
+      person: root?.querySelector("[data-hero-person]")?.textContent.trim().replace(/^\S\s*/, ""),
+      engagedAbsent: !!root?.querySelector('[data-metric="engaged"] [data-metric-absent]'),
+      record: root?.querySelector("[data-care-record]")?.getAttribute("href"),
+      tierLabel: root?.querySelector("[data-tier-cell] [data-overline]")?.textContent.trim(),
     };
   });
 
@@ -94,36 +105,32 @@ console.log("\n── 1–3 · the mentor's hero");
   await careOpen(page);
   const h = await hero(page);
   check(h.rootFirst && !h.strip, "the anchor cells lead the panel — no identity strip above them (pack v8.0)", JSON.stringify({ first: h.rootFirst, strip: h.strip }));
-  check(h.cells.join() === "The mentorship,Risk tier", "Zone 2 the Mentorship, Zone 3 Risk tier", h.cells.join());
-  check(/^\d+ (day|days|weeks|months) together$/.test(h.headline ?? ""), "the headline is the tenure", h.headline);
-  check(/^Last spoke (today|yesterday|\d+d ago) · \d+ check-ins? this window$/.test(h.meta ?? ""), "the meta is exactly its template — facts, no characterisation", h.meta);
-  check(h.sup === "Supervised by Brandy Forrestor", "the supervision line", h.sup);
+  /* RETARGETED (FCP-3): three sections; the facts name the mentor's
+     supervisor (they are the mentor); engaged days is BLOCKED (Meg). */
+  check(h.sections.join() === "header,facts,tier", "three sections: header, facts, the tier row", h.sections.join());
+  check(h.facts.join("|") === "Supervisor|Days with mentor|Days on platform|Engaged days (last 14d)|Escalations (30d)|Risk Flags (30d)", "the six facts, in the design's order — a mentor's first cell is their Supervisor", h.facts.join(" · "));
+  check(h.person === "Brandy Forrestor" && h.engagedAbsent && h.tierLabel === "Risk Tier", "Supervisor Brandy Forrestor; engaged days absent, never a number; Risk Tier", JSON.stringify({ p: h.person, e: h.engagedAbsent }));
+  check(h.record === "/app/chat/t14?rail=profile", "View record, for a mentor, opens the Profile tab — never the care record", String(h.record));
   const gate = await page.evaluate(() => ({
     brief: !!document.querySelector("[data-care-brief], [data-icd], [data-anchor='diagnosis']"),
     words: /clinical diagnosis|F\d{2}\.\d|full care record/i.test(document.body.innerText),
   }));
   check(!gate.brief && !gate.words, "the role gate: no diagnosis, ICD code or care-record link anywhere in the mentor's DOM", JSON.stringify(gate));
-  const tenureCount = await page.evaluate(() => (document.body.innerText.match(/\btogether\b/g) ?? []).length);
-  check(tenureCount === 1, "single home: the tenure appears once on the page", String(tenureCount));
   await page.locator("[data-care-header]").screenshot({ path: `${OUT}/01-mentor-steady.png` });
 
-  // ── 5 · the links ── RETARGETED (pack v8.0): Profile is the rail's person
-  // icon tab now; "View their profile" left with the strip.
-  await page.locator('[data-rail-tab="profile"]').first().click();
+  // ── 5 · the links ── RETARGETED (FCP-3): View record is the door to
+  // the Profile tab for a mentor.
+  await page.locator("[data-care-record]").click();
   await page.waitForTimeout(300);
   const prof = await page.evaluate(() => ({
     sel: document.querySelector('[data-rail-tab="profile"][aria-selected="true"]') !== null,
     panel: !!document.querySelector('[data-slot="profile"], [data-profile-empty]') || /hasn.t filled this in/.test(document.body.innerText),
     matched: [...document.querySelectorAll('[data-slot="profile"] *')].some((e) => e.childElementCount === 0 && e.textContent.trim() === "Matched"),
   }));
-  check(prof.sel && prof.panel, "the person-icon tab opens the Profile", JSON.stringify(prof));
+  check(prof.sel && prof.panel, "View record opens the Profile", JSON.stringify(prof));
   check(!prof.matched, "single home: the Profile tab's Matched row is gone");
   await page.locator('[data-rail-tab="care"]').first().click();
   await page.waitForTimeout(300);
-  /* RETARGETED (pack v11.0 §4.2): "Supervised by" links to the
-     supervisor's RECORD, not their Support thread. */
-  const sup = await page.evaluate(() => document.querySelector("[data-mentorship-supervisor]")?.getAttribute("href"));
-  check(sup === "/admin/person/s-brandy", "Supervised by → the supervisor's record", String(sup));
   await ctx.close();
 }
 
@@ -146,25 +153,13 @@ for (const persona of ["supervisor", "lead-mentor"]) {
   const { ctx, page } = await open("/app/chat/t21?care=escalation", { persona });
   await careOpen(page);
   const h = await hero(page);
-  /* RETARGETED (pack v11.0 §4): both lenses read the mentorship; the
-     diagnosis is the hero's LAST section, staff only. */
-  check(h.rootFirst && !h.strip && h.cells.join() === "The mentorship,Risk tier,Clinical diagnosis", `${persona}: The mentorship · Risk tier · Clinical diagnosis (last), first in the panel`, `${h.rootFirst} | ${h.cells.join()}`);
-  const m = await page.evaluate(() => ({ mentorship: !!document.querySelector("[data-care-mentorship]"), supervised: !!document.querySelector('[data-vital="supervisor"]') }));
-  /* A lead mentor reads the MENTOR lens (they mentor), so "Supervised by"
-     is theirs; only the supervisor lens drops it. */
-  check(m.mentorship && m.supervised === (persona !== "supervisor"), `${persona}: the Mentorship cell${persona === "supervisor" ? ", without \"Supervised by\" — a supervisor need not be told who supervises" : ", with \"Supervised by\" (the mentor lens)"}`, JSON.stringify(m));
-  const icd = await page.evaluate(() => {
-    const p = document.querySelector("[data-care-brief] [data-anchor-headline]");
-    const c = p?.querySelector("[data-icd]");
-    if (!p || !c) return null;
-    const rects = [...p.getClientRects()];
-    const lines = new Set(rects.map((r) => Math.round(r.top)));
-    const last = document.createRange();
-    last.selectNodeContents(p.firstChild);
-    const words = [...last.getClientRects()];
-    return { chipLine: Math.abs(c.getBoundingClientRect().top - words.at(-1).top) < 12 };
-  });
-  check(icd?.chipLine, `${persona}: the ICD code rides the headline's last line, never alone`, JSON.stringify(icd));
+  /* RETARGETED (FCP-3): three sections; the diagnosis left the hero —
+     View record is one tap to it, for staff. A lead mentor reads the MENTOR
+     lens (they mentor), so their first cell is their Supervisor. */
+  check(h.rootFirst && !h.strip && h.sections.join() === "header,facts,tier", `${persona}: header · facts · tier, first in the panel`, `${h.rootFirst} | ${h.sections.join()}`);
+  check(h.facts[0] === (persona === "supervisor" ? "Mentor" : "Supervisor"), `${persona}: the first fact names ${persona === "supervisor" ? "the Mentor" : "their Supervisor"}`, h.facts[0]);
+  check(/\/admin\/person\/t21\?tab=care$/.test(h.record ?? ""), `${persona}: View record opens the care record`, String(h.record));
+  check(!(await page.evaluate(() => !!document.querySelector("[data-care-hero] [data-care-brief], [data-care-hero] [data-icd]"))), `${persona}: no diagnosis in the hero — it is View record's`);
   if (persona === "supervisor") await page.locator("[data-care-header]").screenshot({ path: `${OUT}/02-supervisor-steady.png` });
   await ctx.close();
 }
@@ -178,13 +173,15 @@ for (const [persona, chat] of [["mentor", "escalation-active"], ["supervisor", "
   const { ctx, page } = await open("/app/chat/t13", { persona, chat });
   await careOpen(page);
   const h = await hero(page);
-  const inTab = await page.evaluate(() => !!document.querySelector('[data-care-tabpanel="escalation"] [data-care-hero="escalation"]'));
+  /* RETARGETED (2026-10-28): the escalation header above the timeline is
+     deleted — the tab opens on the timeline. */
+  const inTab = await page.evaluate(() => !document.querySelector('[data-care-hero="escalation"], [data-timeline-header]') && !!document.querySelector('[data-care-tabpanel="escalation"] [data-exchange]'));
   /* RETARGETED (pack v9.0, Supersession 3): while it is open the cells
      YIELD — the mentor's hide, the supervisor's compress to the one-line
      strip — and the escalation hero in the tab is the working header. */
   const y = await page.evaluate(() => ({ cells: document.querySelector('[data-care-yield="cells"]')?.dataset.open, strip: document.querySelector('[data-care-yield="strip"]')?.dataset.open ?? null }));
   /* RETARGETED (pack v11.0, Supersession 1): the hero HOLDS while open. */
-  check(h.rootFirst && h.cells.length === (persona === "mentor" ? 2 : 3) && inTab && y.cells === undefined && y.strip === null, `${persona}: the full hero holds while open; the escalation hero is inside the Escalation review tab`, JSON.stringify({ first: h.rootFirst, cells: h.cells, inTab, ...y }));
+  check(h.rootFirst && h.sections.length === 3 && inTab && y.cells === undefined && y.strip === null, `${persona}: the full hero holds while open; the escalation hero is inside the Escalation review tab`, JSON.stringify({ first: h.rootFirst, cells: h.cells, inTab, ...y }));
   await page.locator('[data-care-tab="history"]').first().click();
   await page.waitForTimeout(250);
   check((await hero(page)).rootFirst, `${persona}: the header holds on another Care tab`);
@@ -201,12 +198,13 @@ for (const [persona, teen, want] of [
      at the anchor's own link. */
   /* RETARGETED (pack v11.0 §4): the supervisor link is the record's; the
      diagnosis (and its care-record link) closes the supervisor's hero. */
-  ["mentor", "t14", ["supervisor-record", "tier-info", "escalate"]],
-  ["supervisor", "t21", ["tier-info", "update-tier", "care-record"]],
+  /* RETARGETED (FCP-3): View record leads; then the ⓘ, then the action. */
+  ["mentor", "t14", ["care-record", "tier-info", "escalate"]],
+  ["supervisor", "t21", ["care-record", "tier-info", "update-tier"]],
 ]) {
   const { ctx, page } = await open(`/app/chat/${teen}?care=escalation`, { persona });
   await careOpen(page);
-  await page.locator(persona === "mentor" ? "[data-mentorship-supervisor]" : "[data-tier-info]").focus();
+  await page.locator("[data-care-record]").focus();
   const order = [];
   for (let i = 0; i < 3; i++) {
     order.push(
@@ -256,13 +254,15 @@ for (const theme of ["light", "dark"]) {
       const L = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
       const ratio = (a, b) => (Math.max(L(a), L(b)) + 0.05) / (Math.min(L(a), L(b)) + 0.05);
       const sample = {
-        "overline": "[data-care-hero='steady'] [data-overline]",
-        "anchor headline": "[data-anchor] [data-anchor-headline]",
-        "anchor meta": "[data-anchor] [data-anchor-meta]",
-        "supervision line": "[data-vital='supervisor']",
-        "supervisor link": "[data-mentorship-supervisor]",
-        "ICD chip": "[data-icd]",
-        "care-record link": "[data-care-record]",
+        /* RETARGETED (FCP-3): the new hero's text. */
+        "name": "[data-identity-name]",
+        "meta": "[data-identity-meta]",
+        "View record": "[data-care-record]",
+        "fact label": "[data-care-metrics] [data-metric] > p",
+        "fact value": "[data-metric='days'] [data-metric-value]",
+        "person": "[data-hero-person]",
+        "tier label": "[data-tier-cell] [data-overline]",
+        "tier name": "[data-tier-name]",
       };
       return Object.entries(sample).flatMap(([k, s]) => {
         const el = document.querySelector(s);

@@ -239,7 +239,7 @@ for (const theme of ["light", "dark"]) {
     ["completed node time", '[data-node-state="completed"] [data-node-time]'],
     ["upcoming condition", '[data-node-state="upcoming"] [data-node-condition]'],
     ["current glyph ring (UI)", "[data-node-pulse]", "border"],
-    ["header meta", "[data-timeline-meta]"],
+    /* RETIRED (2026-10-28): "header meta" — the escalation header is deleted. */
   ]);
   await s.ctx.close();
   /* The neutral pre-selection: S1, the requested tier chosen. */

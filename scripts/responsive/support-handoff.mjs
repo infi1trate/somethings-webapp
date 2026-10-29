@@ -125,8 +125,14 @@ for (const width of [1512, 390]) {
   if (width >= 960) {
     await page.locator('[data-care-tab="escalation"]').click();
     await page.waitForTimeout(300);
-    await page.locator('[data-timeline-support="mentor"]').click();
+    /* RETARGETED (2026-10-28): the escalation header's Support link is
+       deleted — the door is the shell's top bar. */
+    await page.locator("[data-support-cta]").filter({ visible: true }).first().click();
     await page.waitForTimeout(600);
+    /* The top bar opens the Support LIST; the notified supervisor is a row
+       in it — one step more than the deleted header's direct link. */
+    await page.locator('[data-support-row="s-brandy"] [data-support-row-open]').click();
+    await page.waitForTimeout(500);
   }
   const o = await page.evaluate(() => ({
     open: document.querySelector("[data-support-slot]")?.dataset.open,
@@ -134,7 +140,7 @@ for (const width of [1512, 390]) {
     focus: document.activeElement?.id,
   }));
   if (width >= 960) {
-    check(o.open === "true" && o.thread === "s-brandy", "the hero's Support door opens the notified supervisor's thread in the panel", JSON.stringify(o));
+    check(o.open === "true" && o.thread === "s-brandy", "the top bar's Support, then the notified supervisor's row, opens their thread in the panel", JSON.stringify(o));
     check(o.focus === "support-thread-title", "focus on their name", o.focus);
   }
   await page.screenshot({ path: `${OUT}/02-banner-to-thread-${width}.png` });
