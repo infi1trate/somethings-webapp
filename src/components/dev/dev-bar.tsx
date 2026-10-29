@@ -56,7 +56,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { EyeOff, RotateCcw } from "lucide-react";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import { isPristineMentor } from "@/lib/onboarding/populated-mentor";
+import { mentorStartHref, resetToNewMentor } from "@/lib/dev/mentor-entry";
 /* bar-01: scope comes from ONE declaration now — see `axes.ts` on why it can no
    longer live in the controls' label text. */
 import {
@@ -249,36 +249,16 @@ const RING =
    from the routes themselves. */
 
 const PERSONAS: { key: Persona; label: string; dest: string }[] = [
-  { key: "mentor", label: "Mentor", dest: "__mentor__" },
+  /* The Mentor lens goes through `/start/mentor` (pickRole); its dest is the
+     chooser itself, for any caller that reads it. */
+  { key: "mentor", label: "Mentor", dest: "/start/mentor" },
   { key: "lead-mentor", label: "Lead mentor", dest: "/app/team" },
   { key: "supervisor", label: "Supervisor", dest: "/app/team" },
   { key: "admin", label: "Admin", dest: "/app/team" },
 ];
 
-/** Mentor's landing screen, computed from the mentor's CURRENT state so the lens
- *  mirrors where they would actually be. Lifted verbatim from the old pill. */
-function mentorDest(): string {
-  const s = useOnboardingStore.getState();
-  if (s.publishedSnapshot === null) {
-    if (s.status === "in_review" || s.status === "rejected") {
-      return "/onboarding/submitted";
-    }
-    return "/hub";
-  }
-  if (s.profileUpdate !== null) return "/app/profile";
-  if (!s.enteredHome) return "/onboarding/submitted";
-  return "/app";
-}
-
-function resetToNewMentor() {
-  const s = useOnboardingStore.getState();
-  /* ═══ THE ONE BLANK RESET (2026-10-26) ═══ Every other path leaves the
-     populated mentor; this is the only one that starts over as new. */
-  s.resetAsNewMentor();
-  s.setPersona("new-mentor");
-  // THE ONE HARD NAVIGATION. A wiped store must rehydrate from scratch.
-  window.location.assign("/invite/demo-invite-token");
-}
+/* `mentorDest` and `resetToNewMentor` moved to `lib/dev/mentor-entry.ts`
+   (2026-10-29), shared with the mentor chooser at `/start/mentor`. */
 
 export function DevBar() {
   const mounted = useMounted();
@@ -544,13 +524,18 @@ export function DevBar() {
 
 
   const pickRole = (p: (typeof PERSONAS)[number]) => {
-    /* ═══ MENTOR IS A POPULATED MENTOR (2026-10-26) ═══ An untouched mentor
-       that was not deliberately reset as new becomes the populated default
-       before the lens lands — so Mentor opens the onboarded app, not an
-       invite. A mentor the user has started on, or reset as new, is theirs. */
+    /* ═══ MENTOR OPENS ITS FRONT DOOR FIRST (2026-10-29) ═══ WAS a lens flip
+       in place (populating an untouched mentor, 2026-10-26). Asked: "they
+       should first be brought to a page like this to sign in as existing,
+       or to reset as a new mentor". The chooser remembers where the reader
+       was; "existing" returns there on a record or a chat, where the lens
+       holds. Already the mentor, the button is a no-op. SUPERSEDES the
+       support-beside-hub acceptance "switch role on chat without a reload"
+       for the Mentor role only — the staff roles still flip in place. */
     if (p.key === "mentor") {
-      const s = useOnboardingStore.getState();
-      if (!s.mentorStartedNew && isPristineMentor(s)) s.populateMentor();
+      if (persona === "mentor") return;
+      window.location.assign(mentorStartHref(window.location.pathname + window.location.search));
+      return;
     }
     setPersona(p.key);
     // STAY PUT ON A RECORD — see the module note. Off a record, enter the
@@ -560,7 +545,7 @@ export function DevBar() {
     // hold. Chat is a supervisor-tier destination too (Chats), so no persona
     // lands somewhere it cannot be.
     if (onRecord || onChat) return;
-    window.location.assign(p.dest === "__mentor__" ? mentorDest() : p.dest);
+    window.location.assign(p.dest);
   };
 
   // ═══ PUT AWAY — AND THE 40px RESERVATION GOES WITH IT ═══

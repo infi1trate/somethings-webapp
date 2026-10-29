@@ -330,7 +330,10 @@ for (const [width, expect] of [
   await page.evaluate(() => (window.__noReload = "still-here"));
   await toggleSupport(page);
   const seen = [];
-  for (const role of ["Lead mentor", "Supervisor", "Admin", "Mentor"]) {
+  /* RETARGETED (2026-10-29): the Mentor button opens its front door
+     (`/start/mentor`) first; the staff roles still flip in place. Mentor is
+     measured after the loop: through the chooser, back to this chat. */
+  for (const role of ["Lead mentor", "Supervisor", "Admin"]) {
     await page.locator("[data-dev-bar-root] button").filter({ hasText: new RegExp(`^${role}$`) }).first().click();
     await page.waitForTimeout(700);
     const s = await page.evaluate(() => ({
@@ -342,7 +345,16 @@ for (const [width, expect] of [
     }));
     seen.push(`${s.persona}:${s.alive === "still-here" ? "" : "RELOADED "}${s.layout}${s.hub ? "+hub" : ""}${s.observer ? "+observer" : ""}`);
   }
-  check(seen.every((x) => /beside\+hub/.test(x) && !/RELOADED/.test(x)), "every role, one layout, no reload", seen.join(" · "));
+  check(seen.every((x) => /beside\+hub/.test(x) && !/RELOADED/.test(x)), "every staff role, one layout, no reload", seen.join(" · "));
+  const here = new URL(page.url()).pathname;
+  await page.locator("[data-dev-bar-root] button").filter({ hasText: /^Mentor$/ }).first().click();
+  await page.waitForURL(/\/start\/mentor/).catch(() => {});
+  const chooser = new URL(page.url());
+  await page.locator('[data-start-entry="existing-mentor"]').click();
+  await page.waitForURL((u) => !u.pathname.startsWith("/start")).catch(() => {});
+  await page.waitForTimeout(800);
+  const back = await page.evaluate(() => ({ path: location.pathname, persona: JSON.parse(localStorage.getItem("somethings.mentor-onboarding") ?? "{}").state?.persona, observer: !!document.querySelector('[data-slot="chat-observer"]') }));
+  check(chooser.pathname === "/start/mentor" && chooser.searchParams.get("from") === here && back.path === here && back.persona === "mentor" && !back.observer, "Mentor: the chooser first, then “existing” lands back on this chat as the mentor", JSON.stringify({ chooser: chooser.pathname + chooser.search, back }));
   check(seen.filter((x) => /observer/.test(x)).map((x) => x.split(":")[0]).join() === "supervisor,admin", "and only supervisor and admin watch", seen.join(" · "));
   await ctx.close();
 }
