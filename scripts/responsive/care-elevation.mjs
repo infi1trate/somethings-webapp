@@ -174,8 +174,8 @@ for (const [label, extra] of [["Tier 4", {}], ["Tier 2", T2]]) {
      mentor's card anchors on the Mentorship, then the Risk tier — and the
      diagnosis is still not in the DOM at all. */
   /* RETARGETED (FCP-3 hero card): the facts and the tier row; the only
-     labelled section is the tier's, and View record is the Profile. */
-  check(m.cells.join("|") === "Risk Tier" && (await page.evaluate(() => !document.querySelector("[data-care-brief]") && /\?rail=profile$/.test(document.querySelector("[data-care-record]")?.getAttribute("href") ?? ""))), `${label}: the mentor sees the facts, then Risk Tier — no diagnosis in the DOM; View record is the Profile`, m.cells.join(" · "));
+     labelled section is the tier's, and View record is the care record (2026-10-29). */
+  check(m.cells.join("|") === "Risk Tier" && (await page.evaluate(() => !document.querySelector("[data-care-brief]") && /\?tab=care$/.test(document.querySelector("[data-care-record]")?.getAttribute("href") ?? ""))), `${label}: the mentor sees the facts, then Risk Tier — no diagnosis in the DOM; View record is the care record`, m.cells.join(" · "));
   check(m.heroBg === m.raised && m.bodyBg === m.s1 && m.canvasBg === m.base && m.s1 !== m.raised, `${label}: the thread on the base, the Care body one step deeper (s1), the card raised`, `${m.canvasBg} · ${m.bodyBg} · ${m.heroBg}`);
   check(m.washed === 0, `${label}: no whole-card wash — the tint lives in the lozenge alone`, String(m.washed));
   check(m.ringed.length === 0, `${label}: steady has no current step, so nothing is raised AND ringed`, m.ringed.join());

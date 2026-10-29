@@ -178,7 +178,7 @@ for (const [label, persona, chat, path, expect] of [
   const h = await heroOf(page);
   check(h.sections.join() === expect.sections && h.yield === 0, `${label}: the hero holds — ${expect.sections}; no yield, no strip`, JSON.stringify(h.sections));
   check(h.tierAction === expect.action, `${label}: the tier action is ${expect.action ?? "suppressed (an escalation is open)"}`, String(h.tierAction));
-  check(!h.icd && h.supervisedBy === null && (persona === "mentor" ? /\?rail=profile$/.test(h.record ?? "") : /\?tab=care$/.test(h.record ?? "")), `${label}: ${persona === "mentor" ? "View record opens the Profile; no diagnosis in the DOM" : "View record opens the care record; no diagnosis in the hero" /* RETARGETED (FCP-3) */}`, String(h.record));
+  check(!h.icd && h.supervisedBy === null && /\?tab=care$/.test(h.record ?? "") /* RETARGETED (2026-10-29): the care record, every lens */, `${label}: ${persona === "mentor" ? "View record opens the care record; no diagnosis in the chat panel" : "View record opens the care record; no diagnosis in the hero" /* RETARGETED (FCP-3) */}`, String(h.record));
   check(/^\d+ yo · .+ · .+$/.test(h.identity ?? ""), `${label}: identity — age, pronouns and state under the name`, String(h.identity));
   await page.locator('[data-care-hero="steady"]').screenshot({ path: `${OUT}/03-hero-${label.replace(/\W+/g, "-")}.png` });
   await ctx.close();

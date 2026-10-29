@@ -463,14 +463,13 @@ export function CarePanel({
                 : null
           }
           metrics={metrics}
-          /* ═══ VIEW RECORD, ROLE-GATED AT THE SOURCE ═══ The care record for
-             a supervisor or lead; the Profile tab for a mentor, whose DOM
-             never holds a care-record link. */
-          record={
-            showDiagnosis
-              ? { href: brief.href, label: `View ${name}'s care record` }
-              : { href: `/app/chat/${teenId}?rail=profile`, label: `View ${name}'s profile` }
-          }
+          /* ═══ VIEW RECORD → THE MENTEE'S CARE RECORD, EVERY LENS (2026-10-29) ═══
+             Asked: "should point user to the mentee's care record page". WAS
+             role-gated — the care record for staff, the Profile tab for a
+             mentor, whose chat DOM held no care-record link (v7). Reversed on
+             instruction: the mentor already reaches the same page from
+             Mentees → the teen → Care, so the gate guarded nothing. */
+          record={{ href: brief.href, label: `View ${name}'s care record` }}
           tierCell={
             <TierCell
               state={state}
