@@ -213,7 +213,8 @@ const card = (page) =>
   const m = await card(page);
   /* RETARGETED (FCP-3): header · facts · tier; no diagnosis, and View
      record opens the Profile, never the care record. */
-  check(m.cells.join() === "header,facts,tier" && !m.brief && /\?rail=profile$/.test(m.record ?? ""), "mentor: header · facts · tier — the diagnosis is not in the DOM", JSON.stringify({ c: m.cells, r: m.record }));
+  /* RETARGETED (2026-10-29): View record is the care record in every lens. */
+  check(m.cells.join() === "header,facts,tier" && !m.brief && /\/admin\/person\/t14\?tab=care$/.test(m.record ?? ""), "mentor: header · facts · tier — no diagnosis in the panel; View record is the care record", JSON.stringify({ c: m.cells, r: m.record }));
   check(/^T3/.test(m.lozenge ?? "") && m.info && !m.description && !m.sentence, "the lozenge is the headline; description and dwell rule are behind the ⓘ, not on the card", JSON.stringify(m));
   /* RETARGETED (FCP-3): the tier row is one line — the dwell went behind
      the ⓘ, with the rule. */

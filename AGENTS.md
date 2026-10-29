@@ -1045,7 +1045,12 @@ place above.** Still in every state, both lenses.
   tier's name, its lozenge, the ⓘ and the lens's one action.
 - **View record is role-gated at the source.** A supervisor or lead goes to
   the care record; a mentor goes to the Profile tab (`?rail=profile`), and
-  their DOM still holds no care-record link.
+  their DOM still holds no care-record link. **SUPERSEDED (2026-10-29):** asked,
+  "View Record should point the user to the mentee's care record page". It
+  is the care record (`/admin/person/{id}?tab=care`) in every lens. The
+  mentor already reached that page from Mentees → the teen → Care, so the
+  gate guarded nothing. The panel itself still renders no diagnosis or ICD
+  code to a mentor.
 - **Not faked:** engaged days stays BLOCKED (Meg), shown as "—" with no 14-day
   bars. There is no presence dot, because nothing records a teen online. The
   T4 lozenge is the canonical outline, because tier washes are TierSelect's

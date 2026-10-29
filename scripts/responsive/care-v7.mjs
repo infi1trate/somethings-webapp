@@ -110,27 +110,35 @@ console.log("\n── 1–3 · the mentor's hero");
   check(h.sections.join() === "header,facts,tier", "three sections: header, facts, the tier row", h.sections.join());
   check(h.facts.join("|") === "Supervisor|Days with mentor|Days on platform|Engaged days (last 14d)|Escalations (30d)|Risk Flags (30d)", "the six facts, in the design's order — a mentor's first cell is their Supervisor", h.facts.join(" · "));
   check(h.person === "Brandy Forrestor" && h.engagedAbsent && h.tierLabel === "Risk Tier", "Supervisor Brandy Forrestor; engaged days absent, never a number; Risk Tier", JSON.stringify({ p: h.person, e: h.engagedAbsent }));
-  check(h.record === "/app/chat/t14?rail=profile", "View record, for a mentor, opens the Profile tab — never the care record", String(h.record));
+  /* RETARGETED (2026-10-29): View record opens the mentee's care record in
+     every lens — the mentor already reaches it from Mentees → the teen → Care. */
+  check(h.record === "/admin/person/t14?tab=care", "View record, for a mentor too, points at the mentee's care record", String(h.record));
   const gate = await page.evaluate(() => ({
     brief: !!document.querySelector("[data-care-brief], [data-icd], [data-anchor='diagnosis']"),
     words: /clinical diagnosis|F\d{2}\.\d|full care record/i.test(document.body.innerText),
   }));
-  check(!gate.brief && !gate.words, "the role gate: no diagnosis, ICD code or care-record link anywhere in the mentor's DOM", JSON.stringify(gate));
+  check(!gate.brief && !gate.words, "the role gate: no diagnosis or ICD code in the mentor's chat panel (the care record is View record's)", JSON.stringify(gate));
   await page.locator("[data-care-header]").screenshot({ path: `${OUT}/01-mentor-steady.png` });
 
-  // ── 5 · the links ── RETARGETED (FCP-3): View record is the door to
-  // the Profile tab for a mentor.
-  await page.locator("[data-care-record]").click();
+  // ── 5 · the links ── RETARGETED (2026-10-29): the Profile is the rail's
+  // person-icon tab again; View record leaves the chat for the care record
+  // (measured at the end of this block).
+  await page.locator('[data-rail-tab="profile"]').first().click();
   await page.waitForTimeout(300);
   const prof = await page.evaluate(() => ({
     sel: document.querySelector('[data-rail-tab="profile"][aria-selected="true"]') !== null,
     panel: !!document.querySelector('[data-slot="profile"], [data-profile-empty]') || /hasn.t filled this in/.test(document.body.innerText),
     matched: [...document.querySelectorAll('[data-slot="profile"] *')].some((e) => e.childElementCount === 0 && e.textContent.trim() === "Matched"),
   }));
-  check(prof.sel && prof.panel, "View record opens the Profile", JSON.stringify(prof));
+  check(prof.sel && prof.panel, "the person-icon tab opens the Profile", JSON.stringify(prof));
   check(!prof.matched, "single home: the Profile tab's Matched row is gone");
   await page.locator('[data-rail-tab="care"]').first().click();
   await page.waitForTimeout(300);
+  await page.locator("[data-care-record]").click();
+  await page.waitForURL(/\/admin\/person\/t14/).catch(() => {});
+  await page.waitForTimeout(800);
+  const rec = await page.evaluate(() => ({ path: location.pathname + location.search, care: [...document.querySelectorAll("a, button")].some((e) => e.textContent.trim().startsWith("Care") && (e.getAttribute("aria-selected") === "true" || e.getAttribute("aria-current") === "page" || e.dataset.state === "active")) }));
+  check(rec.path === "/admin/person/t14?tab=care" && rec.care, "clicked, View record lands on the mentee's record, on its Care tab", JSON.stringify(rec));
   await ctx.close();
 }
 
