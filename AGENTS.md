@@ -1055,6 +1055,31 @@ place above.** Still in every state, both lenses.
   hero**, as in the design; View record is one tap to it. Messages sent and
   Notes are no longer shown (`heroMetrics` still computes them).
 
+### The Mentor lens has a front door (feat/mentor-start)
+
+Asked 2026-10-29 with a screenshot of the landing: the dev bar's Mentor button
+should "first bring them to a page like this to sign in as existing, or to
+reset as a new mentor". **Supersedes the 2026-10-26 in-place Mentor flip, and,
+for the Mentor role only, support-beside-hub's "switch role on chat without a
+reload". The staff roles still flip in place.**
+
+- **`/start/mentor`** renders the landing's own anatomy. `StartScreen`
+  (`components/start/start-screen.tsx`) is extracted from `app/page.tsx`, so
+  the two pages are one screen with different doors. Existing comes first,
+  as the common move; new comes second, as the one door that wipes, and it
+  says so.
+- **Existing keeps the session.** Escalations, chats and tier writes survive,
+  so a cross-role demo still works. An untouched mentor becomes the
+  populated one; a mentor mid-onboarding or published is kept. It lands on
+  the mentor's screen (`mentorDest`), or back on a chat or a record, where
+  the lens holds.
+- **New** is the one blank reset (`resetAsNewMentor`), into the demo invite.
+- **`?from=`** is a same-origin path only (`safeFrom`), read in the click
+  handler, never in render. An off-site value is ignored, so it is not an
+  open redirect. "Back without switching" returns there.
+- **Already the mentor, the button is a no-op.** The rules live in
+  `lib/dev/mentor-entry.ts`, shared by the bar and the page.
+
 ### Monitoring asserts only what it can compute (arch-mon)
 
 **SUPERSEDED IN PART by the section above**: the tiers and their cadences now

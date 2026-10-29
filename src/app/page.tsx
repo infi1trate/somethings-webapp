@@ -31,20 +31,18 @@
 // the old state over the new. The dev bar's own reset does the same thing for
 // the same reason, and Phases 4 and 6 measured that race.
 
-import { useState } from "react";
-import { ArrowRight, MailOpen, Stethoscope, UserRound } from "lucide-react";
-import { Wordmark } from "@/components/brand";
-import { DoodleScatter } from "@/components/doodles";
+// ═══ THE SCREEN IS SHARED (2026-10-29) ═══ The shell and the doors are
+// `components/start/start-screen.tsx`, so the mentor chooser (`/start/mentor`)
+// renders this same anatomy with its own two doors.
+
+import { MailOpen, Stethoscope, UserRound, type LucideIcon } from "lucide-react";
+import { StartScreen } from "@/components/start/start-screen";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import type { Persona } from "@/lib/types";
-import { cn } from "@/lib/utils";
-
-const RING =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
 interface Entry {
   id: string;
-  icon: typeof MailOpen;
+  icon: LucideIcon;
   /** TODO-COPY */
   title: string;
   /** TODO-COPY — what you will actually be looking at, not a description of the
@@ -91,135 +89,39 @@ const ENTRIES: Entry[] = [
   },
 ];
 
+const enter = (entry: Entry) => {
+  // `getState()` rather than a subscription: nothing here reads store state
+  // during render, so the page has no hydration surface at all.
+  const s = useOnboardingStore.getState();
+  /* `reset()` returns the populated mentor (2026-10-26); only the new-mentor
+     door starts over as new. */
+  if (entry.asNew) s.resetAsNewMentor();
+  else s.reset();
+  s.setPersona(entry.persona);
+  window.location.assign(entry.href);
+};
+
 export default function Home() {
-  /** Which entry is mid-navigation. The hard navigation takes a moment on a cold
-   *  route, and a card that looks inert after a click invites a second one. */
-  const [entering, setEntering] = useState<string | null>(null);
-
-  const enter = (entry: Entry) => {
-    setEntering(entry.id);
-    // `getState()` rather than a subscription: nothing here reads store state
-    // during render, so the page has no hydration surface at all.
-    const s = useOnboardingStore.getState();
-    /* `reset()` returns the populated mentor (2026-10-26); only the new-mentor
-       door starts over as new. */
-    if (entry.asNew) s.resetAsNewMentor();
-    else s.reset();
-    s.setPersona(entry.persona);
-    window.location.assign(entry.href);
-  };
-
   return (
-    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-[#fff2ea] to-[#faf6ef] px-6 py-16">
-      {/* ═══ ORNAMENT ONLY WHERE THERE IS A MARGIN TO ORNAMENT ═══
-          MEASURED: every doodle in `SCATTER` is pinned to an edge (left 4-11%,
-          right 5-10%), so they clear a centred 576px column only once the margins
-          exceed their ~210px reach — about a 1024px viewport. Below that the
-          column reaches into them, and `--text-secondary` over a doodle at 70%
-          measures 3.09:1 on tangelo, 2.62:1 on purple: 5 of the 6 colours fail
-          AA for the lead paragraph. The h1 survives everywhere (5.71 worst).
-
-          So they are hidden below `lg` rather than dimmed. On a phone there is no
-          margin to decorate, and reducing opacity would trade a legibility
-          failure for a weaker one instead of removing it.
-
-          NOT the `hidden lg:` anti-pattern Phase 4 removed six of — that was
-          CONTENT disappearing at a breakpoint. This is `aria-hidden` decoration,
-          and its absence costs a reader nothing. */}
-      <DoodleScatter className="hidden opacity-70 lg:block" />
-
-      <div className="relative w-full max-w-xl">
-        <header className="flex flex-col items-center text-center">
-          <Wordmark className="h-6" />
-          <h1 className="mt-6 text-[26px] font-bold leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)] sm:text-[30px]">
-            {/* TODO-COPY */}
-            The platform, cloned for demos
-          </h1>
-          <p className="mt-3 max-w-md text-[15px] leading-[1.55] text-[var(--text-secondary)]">
-            {/* TODO-COPY — says what it IS and what it is not, in that order. The
-                second half is the part a viewer needs before they click. */}
-            A near-complete working copy of Somethings — the mentor app, the staff
-            console, and the teen record with its care documentation. Every person,
-            message and survey in it is fixture data.
-          </p>
-        </header>
-
-        {/* ── INTERNAL ONLY ──────────────────────────────────────────────────
-            Tonal, no left accent bar, no icon-plus-shout. This is a real
-            constraint, so it speaks rather than whispers — but it is a statement
-            of scope, not an alarm, so it gets the attention tone and one line.
-            `--status-attention-*` is the design system's own pair: 5.07:1 light,
-            10.39:1 dark, measured. */}
+    <StartScreen
+      /* TODO-COPY */
+      title="The platform, cloned for demos"
+      /* TODO-COPY — says what it IS and what it is not, in that order. */
+      lead="A near-complete working copy of Somethings — the mentor app, the staff console, and the teen record with its care documentation. Every person, message and survey in it is fixture data."
+      notice={
+        /* ── INTERNAL ONLY ── Tonal, one line: a statement of scope, not an
+           alarm. `--status-attention-*` is the design system's own pair:
+           5.07:1 light, 10.39:1 dark, measured. */
         <p className="mx-auto mt-6 w-fit rounded-full bg-[var(--status-attention-bg)] px-3.5 py-1.5 text-center text-[13px] font-medium leading-[18px] text-[var(--status-attention-fg)]">
           {/* TODO-COPY */}
           Internal use only. No real people, and no PHI.
         </p>
-
-        {/* ── ENTRY SCENARIOS ────────────────────────────────────────────────
-            THREE EQUAL DOORS, SO NONE IS FILLED. The house rule is one filled
-            button per region; three filled cards would also be three primaries,
-            which is the same mistake twice. Each is a card-weight surface with a
-            chevron, and the hierarchy comes from order and from the label above
-            them rather than from colour. */}
-        <h2 className="mt-10 text-center text-[var(--text-muted)] [font:var(--type-field-label)] [letter-spacing:var(--type-field-label-tracking)]">
-          {/* TODO-COPY */}
-          Pick a starting point
-        </h2>
-
-        <ul className="mt-3 space-y-2.5">
-          {ENTRIES.map((entry) => {
-            const Icon = entry.icon;
-            const busy = entering === entry.id;
-            return (
-              <li key={entry.id}>
-                <button
-                  type="button"
-                  onClick={() => enter(entry)}
-                  disabled={entering !== null}
-                  aria-busy={busy || undefined}
-                  className={cn(
-                    "group flex w-full items-start gap-3.5 rounded-[var(--radius-surface)] border border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-4 py-4 text-left transition-colors",
-                    "hover:bg-[var(--tint-hover)] disabled:cursor-default",
-                    // Only the card being entered stays at full strength; the
-                    // others recede so the click that landed is legible.
-                    entering !== null && !busy && "opacity-55",
-                    RING
-                  )}
-                >
-                  <Icon
-                    className="mt-0.5 size-[18px] shrink-0 text-[var(--text-muted)]"
-                    aria-hidden
-                    strokeWidth={2}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-semibold leading-[21px] text-[var(--text-primary)]">
-                      {entry.title}
-                    </span>
-                    <span className="mt-1 block text-[13.5px] leading-[19px] text-[var(--text-secondary)]">
-                      {entry.blurb}
-                    </span>
-                  </span>
-                  <ArrowRight
-                    className={cn(
-                      "mt-0.5 size-4 shrink-0 text-[var(--text-muted)] transition-transform",
-                      "group-hover:translate-x-0.5"
-                    )}
-                    aria-hidden
-                  />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-
-        <p className="mt-7 text-center text-[12.5px] leading-[18px] text-[var(--text-muted)]">
-          {/* TODO-COPY — two facts a first-time viewer needs and would otherwise
-              discover by accident: the state is wiped, and they are not locked
-              into the door they chose. */}
-          Each starting point resets the demo data. The DEV bar at the bottom of
-          every screen switches role and scenario at any time.
-        </p>
-      </div>
-    </main>
+      }
+      /* TODO-COPY */
+      label="Pick a starting point"
+      entries={ENTRIES.map((e) => ({ id: e.id, icon: e.icon, title: e.title, blurb: e.blurb, enter: () => enter(e) }))}
+      /* TODO-COPY — the state is wiped, and they are not locked into a door. */
+      footnote="Each starting point resets the demo data. The DEV bar at the bottom of every screen switches role and scenario at any time."
+    />
   );
 }
